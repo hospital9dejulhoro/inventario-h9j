@@ -84,6 +84,40 @@ class ZMDCODBARRAS
         return $c->manipula($SQL);
     }
 
+    public function atualizar()
+    {
+        if (empty($this->id)) {
+            return false;
+        }
+
+        $c = new Connection('RM');
+        $SQL = "UPDATE ZMDCODBARRAS SET CODIGOBARRAS='{$this->codigobarras}', QUANTIDADE='{$this->quantidade}', CODLOC='{$this->codloc}' WHERE ID='{$this->id}'";
+        return $c->manipula($SQL);
+    }
+
+    /**
+     * @param string|int $id
+     */
+    public static function excluirPorId($id)
+    {
+        $c = new Connection('RM');
+        $SQL = "DELETE FROM ZMDCODBARRAS WHERE ID='{$id}'";
+        return $c->manipula($SQL);
+    }
+
+    /**
+     * @param string $inventario
+     * @return array<string, string>
+     */
+    public static function inventarioQueryParams(string $codloc, string $inventario, string $quantidade = '1'): array
+    {
+        return [
+            'CODLOC'        => $codloc,
+            'CODINVENTARIO' => $inventario,
+            'QUANTIDADE'    => $quantidade,
+        ];
+    }
+
     public function getQuantidade()
     {
         return $this->quantidade;

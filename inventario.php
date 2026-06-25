@@ -31,11 +31,11 @@ if ($codinventario !== '') {
         $zmd->setQuantidade($_GET['QUANTIDADE'] ?? $quantidade);
         $zmd->setCodloc($_GET['CODLOC'] ?? $codloc);
 
-        $redirectParams = [
-            'CODLOC'        => $_GET['CODLOC'] ?? $codloc,
-            'CODINVENTARIO' => $codinventario,
-            'QUANTIDADE'    => $_GET['QUANTIDADE'] ?? $quantidade,
-        ];
+        $redirectParams = ZMDCODBARRAS::inventarioQueryParams(
+            $_GET['CODLOC'] ?? $codloc,
+            $codinventario,
+            $_GET['QUANTIDADE'] ?? $quantidade
+        );
 
         if ($zmd->save()) {
             flash_set('success', 'Código de barras registrado com sucesso.');
