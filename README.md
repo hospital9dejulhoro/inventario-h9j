@@ -45,9 +45,14 @@ sudo chown -R www-data:www-data /var/www/inventario
 Atualizações futuras:
 
 ```bash
-cd /var/www/inventario/deploy
-sudo bash atualizar-servidor.sh
+cd /var/www/inventario
+sudo git config --global --add safe.directory /var/www/inventario
+sudo git pull
+sudo chown -R www-data:www-data /var/www/inventario
+sudo systemctl restart php8.3-fpm
 ```
+
+Ou use o script: `sudo bash deploy/atualizar-servidor.sh`
 
 ### Produção
 

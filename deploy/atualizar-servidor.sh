@@ -20,6 +20,9 @@ fi
 
 cd "$APP_DIR"
 
+# Git reclama se o dono do repo difere do usuario que executa o pull
+git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
+
 if [ ! -f config/environments.php ]; then
   echo "AVISO: config/environments.php nao existe."
   echo "Copie: cp config/environments.example.php config/environments.php"

@@ -42,7 +42,11 @@
                        required>
             </div>
 
-            <?php if ($isConnected && $selectedEnvironment): ?>
+            <?php
+                $showConnected = $isConnected && $selectedEnvironment
+                    && (!$lastTest || $lastTest['success']);
+            ?>
+            <?php if ($showConnected): ?>
                 <?php $current = $environments[$selectedEnvironment]; ?>
                 <div class="status-box is-ok">
                     Conectado em <?= e($current['label']) ?> (<?= e($current['host']) ?>)
@@ -60,7 +64,7 @@
                 <button type="submit" name="acao" value="conectar" class="btn btn-primary">
                     Conectar
                 </button>
-                <?php if ($isConnected): ?>
+                <?php if ($isConnected && (!$lastTest || $lastTest['success'])): ?>
                     <a href="inventario.php" class="btn btn-primary">Abrir inventário</a>
                 <?php endif; ?>
             </div>

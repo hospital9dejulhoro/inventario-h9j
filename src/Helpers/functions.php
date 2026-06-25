@@ -37,6 +37,8 @@ function detect_os_username(): string
         getenv('USER'),
     ];
 
+    $ignored = ['www-data', 'apache', 'nginx', 'nobody', 'daemon'];
+
     foreach ($candidates as $candidate) {
         if (!empty($candidate)) {
             $name = (string) $candidate;
@@ -44,7 +46,9 @@ function detect_os_username(): string
                 $parts = explode('\\', $name);
                 $name = end($parts);
             }
-            return $name;
+            if (!in_array(strtolower($name), $ignored, true)) {
+                return $name;
+            }
         }
     }
 

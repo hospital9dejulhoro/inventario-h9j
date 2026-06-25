@@ -27,6 +27,9 @@ $result = EnvironmentManager::testConnection($ambiente);
 SessionManager::setLastConnectionTest($result);
 
 if ($acao === 'testar') {
+    if (!$result['success']) {
+        SessionManager::setConnected(false);
+    }
     flash_set($result['success'] ? 'success' : 'danger', $result['message']);
     redirect_to('index.php');
 }
