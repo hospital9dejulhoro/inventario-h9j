@@ -16,7 +16,7 @@ git commit -m "Initial commit: inventário RM unificado"
 Crie um repositório no GitHub/GitLab e envie:
 
 ```bash
-git remote add origin https://github.com/SUA_ORG/inventario-rm.git
+git remote add origin https://github.com/hospital9dejulhoro/inventario-h9j.git
 git branch -M main
 git push -u origin main
 ```
@@ -35,7 +35,7 @@ cp config/environments.example.php config/environments.php
 ```bash
 # Primeira vez no servidor
 sudo mv /var/www/inventario /var/www/inventario.bak
-sudo git clone https://github.com/SUA_ORG/inventario-rm.git /var/www/inventario
+sudo git clone https://github.com/hospital9dejulhoro/inventario-h9j.git /var/www/inventario
 cd /var/www/inventario
 sudo cp config/environments.example.php config/environments.php
 sudo nano config/environments.php
