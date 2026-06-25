@@ -56,6 +56,24 @@ class SessionManager
         return $_SESSION[self::KEY_RECENT_INVENTARIOS] ?? [];
     }
 
+    public static function removeRecentInventario(string $codinventario, string $codloc = ''): void
+    {
+        $codinventario = trim($codinventario);
+        if ($codinventario === '') {
+            return;
+        }
+
+        $recent = self::getRecentInventarios();
+        $filtered = array_filter($recent, function ($item) use ($codinventario, $codloc) {
+            if ($codloc !== '') {
+                return !($item['codinventario'] === $codinventario && $item['codloc'] === $codloc);
+            }
+            return $item['codinventario'] !== $codinventario;
+        });
+
+        $_SESSION[self::KEY_RECENT_INVENTARIOS] = array_values($filtered);
+    }
+
     public static function incrementSessionScans(): void
     {
         $_SESSION[self::KEY_SESSION_SCANS] = self::getSessionScans() + 1;

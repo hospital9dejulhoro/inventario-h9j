@@ -32,6 +32,32 @@ if ($acao === 'excluir') {
     redirect_to($redirectUrl);
 }
 
+if ($acao === 'excluir_inventario') {
+    if ($codinventario === '') {
+        flash_set('danger', 'Código do inventário não informado.');
+        redirect_to('inventario.php');
+    }
+
+    $total = ZMDCODBARRAS::contarPorInventario($codinventario);
+
+    if (ZMDCODBARRAS::excluirPorInventario($codinventario)) {
+        SessionManager::removeRecentInventario($codinventario);
+        $last = SessionManager::getLastInventario();
+        if ($last !== null && ($last['codinventario'] ?? '') === $codinventario) {
+            SessionManager::clearLastInventario();
+        }
+        SessionManager::resetSessionScans();
+        $msg = $total > 0
+            ? "Inventário {$codinventario} excluído ({$total} itens removidos)."
+            : "Inventário {$codinventario} excluído (nenhum item no banco).";
+        flash_set('success', $msg);
+    } else {
+        flash_set('danger', 'Não foi possível excluir o inventário.');
+    }
+
+    redirect_to('inventario.php');
+}
+
 if ($acao === 'editar') {
     $codigobarras = (string) ($_POST['CODIGOBARRAS'] ?? '');
 

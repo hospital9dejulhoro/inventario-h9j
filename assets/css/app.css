@@ -258,6 +258,18 @@ body {
     color: var(--text);
 }
 
+.btn-danger {
+    background: #fff;
+    color: #991b1b;
+    border-color: #fca5a5;
+}
+
+.btn-danger:hover {
+    background: #fef2f2;
+    border-color: #f87171;
+    color: #7f1d1d;
+}
+
 .btn-block {
     width: 100%;
 }
@@ -305,116 +317,223 @@ body {
 .flash-warning { border-left: 3px solid #d97706; background: #fffbeb; color: #92400e; }
 .flash-info    { border-left: 3px solid #2563eb; background: #eff6ff; color: #1e40af; }
 
-/* Resumo fixo — inventário ativo */
-.inv-summary {
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    background: var(--accent);
-    color: #fff;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-}
-
-.inv-summary-inner {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0.625rem 1rem;
+/* Página de inventário — layout vertical claro */
+.inv-page {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem 1.5rem;
-    align-items: center;
+    flex-direction: column;
+    gap: 1rem;
+    padding-top: 1.25rem;
+    padding-bottom: 2rem;
 }
 
-.inv-summary-item {
-    display: flex;
-    align-items: baseline;
-    gap: 0.375rem;
-    font-size: 0.8125rem;
+.inv-page-header {
+    margin-bottom: 0.25rem;
 }
 
-.inv-summary-label {
-    opacity: 0.75;
-    font-weight: 400;
+.inv-page-header .page-subtitle {
+    margin-bottom: 0;
 }
 
-.inv-summary-item strong {
+.section-label {
+    font-size: 0.6875rem;
     font-weight: 600;
-    font-size: 0.875rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin: 0 0 0.75rem;
 }
 
-/* Chips de inventários recentes */
-.recent-chips {
+.section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+    color: var(--text);
+}
+
+.section-desc {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    margin: 0.25rem 0 0;
+    line-height: 1.45;
+}
+
+.section-desc strong {
+    color: var(--text);
+    font-weight: 500;
+}
+
+/* Resumo compacto (só contadores) */
+.inv-stats-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
+    padding: 0.625rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+}
+
+.inv-stats-bar strong {
+    color: var(--text);
+    font-weight: 500;
+}
+
+.inv-config-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+    margin-top: 0.25rem;
+}
+
+.inv-status-recent--inline {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+    flex: 1;
+    min-width: 0;
+}
+
+.inv-section--config {
+    background: var(--surface);
+}
+
+.inv-status-recent {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.375rem;
-    margin-bottom: 1rem;
+    margin-top: 0.875rem;
+    padding-top: 0.875rem;
+    border-top: 1px solid var(--border);
 }
 
-.recent-chips-label {
+.inv-status-recent-label {
     font-size: 0.75rem;
     color: var(--text-muted);
     margin-right: 0.25rem;
 }
 
-.recent-chip {
-    display: inline-block;
+.inv-status-recent-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
     padding: 0.25rem 0.625rem;
     font-size: 0.75rem;
     border: 1px solid var(--border);
-    border-radius: 999px;
+    border-radius: var(--radius);
     text-decoration: none;
-    color: var(--text-muted);
-    background: var(--surface);
-    transition: border-color 0.15s, color 0.15s;
-}
-
-.recent-chip:hover {
-    border-color: var(--accent);
     color: var(--text);
+    background: #fafafa;
 }
 
-.recent-chip.is-active {
+.inv-status-recent-link:hover {
     border-color: var(--accent);
     background: #f3f4f6;
-    color: var(--text);
-    font-weight: 500;
 }
 
-/* Lista recentes — home */
-.recent-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
+.inv-status-recent-link.is-active {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff;
 }
 
-.recent-list li + li {
-    border-top: 1px solid #f3f4f6;
+.inv-status-recent-link.is-active .inv-status-recent-meta {
+    color: rgba(255, 255, 255, 0.75);
 }
 
-.recent-list a {
+.inv-status-recent-meta {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+/* Seções numeradas */
+.inv-form {
     display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.inv-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+}
+
+.inv-section--scan {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(55, 65, 81, 0.06);
+}
+
+.inv-section-head {
+    display: flex;
+    gap: 0.875rem;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.inv-section-head--compact {
+    margin-bottom: 0;
+}
+
+.inv-section-head--with-action {
+    flex: 1;
     justify-content: space-between;
     align-items: center;
-    gap: 1rem;
-    padding: 0.625rem 0;
-    text-decoration: none;
-    color: var(--text);
-    font-size: 0.875rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
 }
 
-.recent-list a span {
-    color: var(--text-muted);
+.inv-section-head-text {
+    flex: 1;
+    min-width: 12rem;
+}
+
+.inv-delete-inventario-form {
+    flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+    .inv-delete-inventario-form {
+        width: 100%;
+    }
+
+    .inv-delete-inventario-form .btn-danger {
+        width: 100%;
+    }
+}
+
+.inv-step {
+    flex-shrink: 0;
+    width: 1.75rem;
+    height: 1.75rem;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
     font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1;
 }
 
-.recent-list a:hover strong {
-    text-decoration: underline;
+.inv-step--muted {
+    background: #e5e7eb;
+    color: var(--text-muted);
 }
 
-/* Modo leitura — setup colapsável */
+.inv-setup-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+}
+
 .inv-setup-details {
-    margin-bottom: 1rem;
+    margin: 0;
 }
 
 .inv-setup-toggle {
@@ -442,44 +561,132 @@ body {
 }
 
 .inv-setup-fields {
-    padding-top: 0.75rem;
+    padding-top: 0.875rem;
 }
 
 .inv-barcode-group {
-    margin-top: 0.5rem;
+    margin-bottom: 0.875rem;
 }
 
 .inv-barcode-input {
-    font-size: 1.125rem;
+    font-size: 1.25rem;
     font-family: ui-monospace, "Cascadia Code", monospace;
-    letter-spacing: 0.05em;
-    padding: 0.75rem;
+    letter-spacing: 0.08em;
+    padding: 0.875rem 1rem;
+    text-align: center;
 }
 
 .inv-barcode-input:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 0 4px rgba(55, 65, 81, 0.12);
+    box-shadow: 0 0 0 4px rgba(55, 65, 81, 0.1);
 }
 
-body.page-inventory .flash-wrap {
-    padding-top: 0.75rem;
+.inv-section--records {
+    padding: 0;
 }
 
+/* Home — acesso rápido */
+.inv-quick-panel {
+    margin-bottom: 1rem;
+}
+
+.inv-quick-status {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin: 0 0 1rem;
+}
+
+.inv-quick-status strong {
+    color: var(--text);
+}
+
+/* Lista recentes — home */
+.recent-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.recent-list li + li {
+    border-top: 1px solid var(--border);
+}
+
+.recent-list-item {
+    display: flex;
+    align-items: stretch;
+}
+
+.recent-list-item > a {
+    flex: 1;
+    min-width: 0;
+}
+
+.recent-list-delete {
+    display: flex;
+    align-items: center;
+    padding: 0 1rem;
+    border-left: 1px solid var(--border);
+    background: var(--surface);
+}
+
+.recent-list-delete .btn-link-danger {
+    margin-left: 0;
+    white-space: nowrap;
+}
+
+.recent-list a {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    text-decoration: none;
+    color: var(--text);
+    font-size: 0.875rem;
+    background: var(--surface);
+    transition: background 0.15s;
+}
+
+.recent-list a:hover {
+    background: #fafafa;
+}
+
+.recent-list-meta {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 400;
+    margin-top: 0.125rem;
+}
+
+.recent-list-action {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.mb-2 { margin-bottom: 0.5rem; }
 .mb-3 { margin-bottom: 1rem; }
 .mt-3 { margin-top: 1rem; }
 
-/* Inventário — grid */
-.inv-grid {
-    display: grid;
-    grid-template-columns: 320px 1fr;
-    gap: 1.25rem;
-    align-items: start;
-}
-
-@media (max-width: 991px) {
-    .inv-grid {
+@media (max-width: 768px) {
+    .inv-setup-row {
         grid-template-columns: 1fr;
     }
+
+    .recent-list a {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+}
+
+/* Inventário — grid legado removido; tabela full width */
+.inv-grid {
+    display: block;
 }
 
 .panel-header {

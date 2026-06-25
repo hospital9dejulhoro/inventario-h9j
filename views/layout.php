@@ -22,17 +22,11 @@
         <?php if (SessionManager::isConnected()): ?>
             <?php $env = EnvironmentManager::getCurrent(); ?>
             <div class="d-flex align-items-center gap-3">
-                <?php if (SessionManager::hasLastInventario()): ?>
-                    <?php $lastInv = SessionManager::getLastInventario(); ?>
-                    <a href="inventario.php" class="nav-inventario-link">
-                        <?= e($lastInv['codinventario']) ?>
-                    </a>
-                <?php endif; ?>
                 <span class="nav-meta">
                     <strong><?= e($env['label']) ?></strong>
                     · <?= e(SessionManager::getUsername() ?: 'Operador') ?>
                 </span>
-                <a href="index.php?config=1" class="btn-ghost">Config</a>
+                <a href="index.php?config=1" class="btn-ghost">Configuração</a>
                 <a href="desconectar.php" class="btn-ghost">Sair</a>
             </div>
         <?php endif; ?>

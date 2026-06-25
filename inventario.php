@@ -86,7 +86,6 @@ if ($codinventario !== '') {
 $pageTitle = 'Inventário RM — Leitura';
 $bodyClass = 'page-inventory';
 $showNavbar = true;
-$showInventorySummary = $modoLeitura && $codinventario !== '';
 
 ob_start();
 require __DIR__ . '/views/inventario.php';

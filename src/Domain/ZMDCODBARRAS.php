@@ -106,6 +106,42 @@ class ZMDCODBARRAS
     }
 
     /**
+     * Conta registros de um inventário.
+     */
+    public static function contarPorInventario(string $codinventario): int
+    {
+        $codinventario = trim($codinventario);
+        if ($codinventario === '') {
+            return 0;
+        }
+
+        $c = new Connection('RM');
+        $SQL = "SELECT COUNT(*) AS TOTAL FROM ZMDCODBARRAS WHERE CODINVENTARIO = '{$codinventario}'";
+        $c->Consulta($SQL);
+
+        if (!$c->Resultado()) {
+            return 0;
+        }
+
+        return (int) ($c->linha['TOTAL'] ?? 0);
+    }
+
+    /**
+     * Remove todos os registros de um inventário.
+     */
+    public static function excluirPorInventario(string $codinventario): bool
+    {
+        $codinventario = trim($codinventario);
+        if ($codinventario === '') {
+            return false;
+        }
+
+        $c = new Connection('RM');
+        $SQL = "DELETE FROM ZMDCODBARRAS WHERE CODINVENTARIO = '{$codinventario}'";
+        return $c->manipula($SQL);
+    }
+
+    /**
      * @param string $inventario
      * @return array<string, string>
      */

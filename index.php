@@ -23,6 +23,12 @@ $isConnected = SessionManager::isConnected();
 $lastInventario = SessionManager::getLastInventario();
 $recentInventarios = SessionManager::getRecentInventarios();
 
+if ($isConnected) {
+    foreach ($recentInventarios as $i => $item) {
+        $recentInventarios[$i]['total'] = ZMDCODBARRAS::contarPorInventario($item['codinventario'] ?? '');
+    }
+}
+
 ob_start();
 require __DIR__ . '/views/home.php';
 $content = ob_get_clean();
