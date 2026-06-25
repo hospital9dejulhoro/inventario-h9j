@@ -1,0 +1,20 @@
+# Configuração local (credenciais)
+config/environments.php
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# SO
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs e temporários
+*.log
+*.tmp
+*.bak
+
+# Pacotes de deploy gerados
+*.zip
