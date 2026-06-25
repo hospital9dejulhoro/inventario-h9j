@@ -5,11 +5,26 @@
 /** @var array|null $lastTest */
 /** @var bool $isConnected */
 /** @var array|null $lastInventario */
+/** @var array $recentInventarios */
 ?>
 
 <div class="page-wrap">
     <h1 class="page-title">Conectar ao RM</h1>
     <p class="page-subtitle">Escolha o ambiente e informe seu nome para iniciar.</p>
+
+    <?php if ($isConnected && (!$lastTest || $lastTest['success'])): ?>
+        <div class="panel mb-3">
+            <p class="resume-title mb-2">Acesso rápido</p>
+            <div class="btn-row">
+                <a href="inventario.php" class="btn btn-primary">Abrir inventário</a>
+                <?php if (!empty($lastInventario['codinventario'])): ?>
+                    <a href="inventario.php" class="btn btn-secondary">
+                        Continuar <?= e($lastInventario['codinventario']) ?>
+                    </a>
+                <?php endif; ?>
+            </div>
+        </div>
+    <?php endif; ?>
 
     <div class="panel">
         <form action="conectar.php" method="post" id="connect-form" novalidate>
@@ -18,11 +33,8 @@
                 <div class="env-list">
                     <?php foreach ($environments as $key => $env): ?>
                         <label class="env-item <?= ($selectedEnvironment === $key) ? 'is-selected' : '' ?>">
-                            <input type="radio"
-                                   name="ambiente"
-                                   value="<?= e($key) ?>"
-                                <?= ($selectedEnvironment === $key) ? 'checked' : '' ?>
-                                   required>
+                            <input type="radio" name="ambiente" value="<?= e($key) ?>"
+                                <?= ($selectedEnvironment === $key) ? 'checked' : '' ?> required>
                             <span>
                                 <span class="env-item-title"><?= e($env['label']) ?></span>
                                 <span class="env-item-detail"><?= e($env['host']) ?> · <?= e($env['database']) ?></span>
@@ -34,13 +46,8 @@
 
             <div class="form-group">
                 <label for="usuario" class="form-label">Seu nome</label>
-                <input type="text"
-                       class="form-control"
-                       id="usuario"
-                       name="usuario"
-                       value="<?= e($defaultUsername) ?>"
-                       placeholder="Ex.: João Silva"
-                       required>
+                <input type="text" class="form-control" id="usuario" name="usuario"
+                       value="<?= e($defaultUsername) ?>" placeholder="Ex.: João Silva" required>
             </div>
 
             <?php
@@ -59,27 +66,30 @@
             <?php endif; ?>
 
             <div class="btn-row">
-                <button type="submit" name="acao" value="testar" class="btn btn-secondary">
-                    Testar conexão
-                </button>
-                <button type="submit" name="acao" value="conectar" class="btn btn-primary">
-                    Conectar
-                </button>
-                <?php if ($isConnected && (!$lastTest || $lastTest['success'])): ?>
-                    <a href="inventario.php" class="btn btn-primary">Abrir inventário</a>
-                <?php endif; ?>
+                <button type="submit" name="acao" value="testar" class="btn btn-secondary">Testar conexão</button>
+                <button type="submit" name="acao" value="conectar" class="btn btn-primary">Conectar</button>
             </div>
-
-            <?php if ($isConnected && !empty($lastInventario['codinventario'])): ?>
-                <div class="resume-box">
-                    <p class="resume-title">Último inventário em andamento</p>
-                    <p class="resume-detail">
-                        <strong><?= e($lastInventario['codinventario']) ?></strong>
-                        · Local <?= e($lastInventario['codloc'] ?? '—') ?>
-                    </p>
-                    <a href="inventario.php" class="btn btn-secondary btn-block">Continuar este inventário</a>
-                </div>
-            <?php endif; ?>
         </form>
     </div>
+
+    <?php if (!empty($recentInventarios)): ?>
+        <div class="panel mt-3">
+            <p class="resume-title">Inventários recentes</p>
+            <ul class="recent-list">
+                <?php foreach ($recentInventarios as $item): ?>
+                    <li>
+                        <a href="inventario.php?<?= e(http_build_query([
+                            'CODLOC' => $item['codloc'],
+                            'CODINVENTARIO' => $item['codinventario'],
+                            'QUANTIDADE' => $item['quantidade'],
+                            'aplicar' => '1',
+                        ])) ?>">
+                            <strong><?= e($item['codinventario']) ?></strong>
+                            <span>Local <?= e($item['codloc']) ?></span>
+                        </a>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        </div>
+    <?php endif; ?>
 </div>

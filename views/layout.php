@@ -18,20 +18,21 @@
 <?php if (!empty($showNavbar)): ?>
 <header class="app-navbar">
     <div class="container-fluid px-3 px-md-4 d-flex justify-content-between align-items-center">
-        <a class="navbar-brand" href="index.php">Inventário RM</a>
+        <a class="navbar-brand" href="<?= SessionManager::isConnected() ? 'inventario.php' : 'index.php' ?>">Inventário RM</a>
         <?php if (SessionManager::isConnected()): ?>
             <?php $env = EnvironmentManager::getCurrent(); ?>
             <div class="d-flex align-items-center gap-3">
                 <?php if (SessionManager::hasLastInventario()): ?>
                     <?php $lastInv = SessionManager::getLastInventario(); ?>
                     <a href="inventario.php" class="nav-inventario-link">
-                        Inventário <?= e($lastInv['codinventario']) ?>
+                        <?= e($lastInv['codinventario']) ?>
                     </a>
                 <?php endif; ?>
                 <span class="nav-meta">
                     <strong><?= e($env['label']) ?></strong>
                     · <?= e(SessionManager::getUsername() ?: 'Operador') ?>
                 </span>
+                <a href="index.php?config=1" class="btn-ghost">Config</a>
                 <a href="desconectar.php" class="btn-ghost">Sair</a>
             </div>
         <?php endif; ?>
@@ -42,7 +43,8 @@
 <main class="app-main">
     <?php if ($flash = flash_get()): ?>
         <div class="flash-wrap">
-            <div class="flash flash-<?= e($flash['type']) ?>"><?= e($flash['message']) ?></div>
+            <div class="flash flash-<?= e($flash['type']) ?>"
+                 data-flash-type="<?= e($flash['type']) ?>"><?= e($flash['message']) ?></div>
         </div>
     <?php endif; ?>
 

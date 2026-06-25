@@ -2,6 +2,11 @@
 
 require __DIR__ . '/bootstrap.php';
 
+// Modo inventário: se já conectado, vai direto para a leitura
+if (SessionManager::isConnected() && !isset($_GET['config'])) {
+    redirect_to('inventario.php');
+}
+
 $pageTitle = 'Inventário RM — Seleção de Ambiente';
 $bodyClass = 'page-home';
 $showNavbar = true;
@@ -16,6 +21,7 @@ $defaultUsername = SessionManager::getUsername() ?: detect_os_username();
 $lastTest = SessionManager::getLastConnectionTest();
 $isConnected = SessionManager::isConnected();
 $lastInventario = SessionManager::getLastInventario();
+$recentInventarios = SessionManager::getRecentInventarios();
 
 ob_start();
 require __DIR__ . '/views/home.php';

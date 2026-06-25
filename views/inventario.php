@@ -6,52 +6,110 @@
 /** @var ZMDCODBARRAS[] $registros */
 /** @var bool $mostrarTabela */
 /** @var bool $retomadoDaSessao */
+/** @var bool $modoLeitura */
+/** @var bool $showInventorySummary */
+/** @var array|null $envAtual */
+/** @var int $leiturasSessao */
+/** @var array $recentInventarios */
 ?>
 
+<?php if ($showInventorySummary && $envAtual): ?>
+<div class="inv-summary">
+    <div class="inv-summary-inner">
+        <div class="inv-summary-item">
+            <span class="inv-summary-label">Inventário</span>
+            <strong><?= e($codinventario) ?></strong>
+        </div>
+        <div class="inv-summary-item">
+            <span class="inv-summary-label">Local</span>
+            <strong><?= e($codloc) ?></strong>
+        </div>
+        <div class="inv-summary-item">
+            <span class="inv-summary-label">Ambiente</span>
+            <strong><?= e($envAtual['label']) ?></strong>
+        </div>
+        <div class="inv-summary-item">
+            <span class="inv-summary-label">Lidos agora</span>
+            <strong id="session-scan-count"><?= (int) $leiturasSessao ?></strong>
+        </div>
+        <div class="inv-summary-item">
+            <span class="inv-summary-label">No banco</span>
+            <strong><?= count($registros) ?></strong>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <div class="page-wrap-wide">
+    <?php if (!empty($recentInventarios) && count($recentInventarios) > 1): ?>
+    <div class="recent-chips">
+        <span class="recent-chips-label">Recentes:</span>
+        <?php foreach ($recentInventarios as $item): ?>
+            <a class="recent-chip <?= ($item['codinventario'] === $codinventario && $item['codloc'] === $codloc) ? 'is-active' : '' ?>"
+               href="inventario.php?<?= e(http_build_query([
+                   'CODLOC' => $item['codloc'],
+                   'CODINVENTARIO' => $item['codinventario'],
+                   'QUANTIDADE' => $item['quantidade'],
+                   'aplicar' => '1',
+               ])) ?>">
+                <?= e($item['codinventario']) ?>
+            </a>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+
     <div class="inv-grid">
         <div class="panel">
             <div class="panel-header">
-                <h2>Leitura</h2>
+                <h2><?= $modoLeitura ? 'Modo leitura' : 'Iniciar inventário' ?></h2>
                 <p>
-                    <?php if ($retomadoDaSessao && $codinventario): ?>
+                    <?php if ($modoLeitura): ?>
+                        Escaneie o código de barras. Local, inventário e quantidade permanecem fixos.
+                    <?php elseif ($retomadoDaSessao): ?>
                         Retomando inventário <strong><?= e($codinventario) ?></strong>.
                     <?php else: ?>
-                        Escaneie o código de barras após preencher os campos.
+                        Informe os dados e clique em Aplicar inventário.
                     <?php endif; ?>
                 </p>
             </div>
 
             <form action="inventario.php" method="get" autocomplete="off" id="inventory-form">
-                <div class="form-group">
-                    <label for="CODLOC" class="form-label">Local de estoque</label>
-                    <input type="text" name="CODLOC" id="CODLOC" class="form-control"
-                           pattern=".{3,3}" maxlength="3"
-                           oninput="this.value = this.value.replace(/[^0-9]/g, '');"
-                           value="<?= e($codloc) ?>" required>
-                </div>
+                <details class="inv-setup-details" <?= $modoLeitura ? '' : 'open' ?>>
+                    <summary class="inv-setup-toggle">Local e inventário</summary>
+                    <div class="inv-setup-fields">
+                        <div class="form-group">
+                            <label for="CODLOC" class="form-label">Local de estoque</label>
+                            <input type="text" name="CODLOC" id="CODLOC" class="form-control"
+                                   pattern=".{3,3}" maxlength="3"
+                                   oninput="this.value = this.value.replace(/[^0-9]/g, '');"
+                                   value="<?= e($codloc) ?>" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="CODINVENTARIO" class="form-label">Código do inventário</label>
+                            <input type="text" name="CODINVENTARIO" id="CODINVENTARIO" class="form-control"
+                                   value="<?= e($codinventario) ?>" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="QUANTIDADE" class="form-label">Quantidade padrão</label>
+                            <input type="text" name="QUANTIDADE" id="QUANTIDADE" class="form-control"
+                                   value="<?= e($quantidade) ?>" required>
+                        </div>
+                        <button type="submit" name="aplicar" value="1" class="btn btn-secondary btn-block">
+                            Aplicar inventário
+                        </button>
+                    </div>
+                </details>
 
-                <div class="form-group">
-                    <label for="CODINVENTARIO" class="form-label">Código do inventário</label>
-                    <input type="text" name="CODINVENTARIO" id="CODINVENTARIO" class="form-control"
-                           value="<?= e($codinventario) ?>" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="QUANTIDADE" class="form-label">Quantidade</label>
-                    <input type="text" name="QUANTIDADE" id="QUANTIDADE" class="form-control"
-                           value="<?= e($quantidade) ?>" required>
-                </div>
-
-                <div class="form-group">
+                <?php if ($modoLeitura): ?>
+                <div class="form-group inv-barcode-group">
                     <label for="CODIGOBARRAS" class="form-label">Código de barras</label>
-                    <input type="text" name="CODIGOBARRAS" id="CODIGOBARRAS" class="form-control"
-                           pattern=".{13,13}" maxlength="13"
+                    <input type="text" name="CODIGOBARRAS" id="CODIGOBARRAS" class="form-control inv-barcode-input"
+                           maxlength="13" inputmode="numeric"
                            oninput="this.value = this.value.replace(/[^0-9]/g, '');"
-                           value="<?= e($codigobarras) ?>" required autofocus>
+                           value="" placeholder="Escaneie aqui" autofocus>
                 </div>
-
-                <button class="btn btn-primary btn-block" type="submit">Registrar</button>
+                <button type="submit" class="btn btn-primary btn-block" id="btn-registrar">Registrar leitura</button>
+                <?php endif; ?>
             </form>
         </div>
 
@@ -64,18 +122,15 @@
                             <?php if ($mostrarTabela): ?>
                                 Inventário <?= e($codinventario) ?>
                             <?php else: ?>
-                                Informe o inventário para listar.
+                                Aplique um inventário para listar.
                             <?php endif; ?>
                         </p>
                     </div>
-                    <?php if ($mostrarTabela): ?>
-                        <span class="count-label"><?= count($registros) ?> registro(s)</span>
-                    <?php endif; ?>
                 </div>
             </div>
 
             <div class="table-wrap">
-                <table class="data-table">
+                <table class="data-table" id="registros-table">
                     <thead>
                     <tr>
                         <th>Barras</th>
@@ -102,9 +157,7 @@
                                             data-id="<?= e($cod->getId()) ?>"
                                             data-barras="<?= e($cod->getCodigobarras()) ?>"
                                             data-qtd="<?= e($cod->getQuantidade()) ?>"
-                                            data-loc="<?= e($cod->getCodloc()) ?>">
-                                        Editar
-                                    </button>
+                                            data-loc="<?= e($cod->getCodloc()) ?>">Editar</button>
                                     <form action="inventario-item.php" method="post" class="inline-form"
                                           onsubmit="return confirm('Excluir este registro?');">
                                         <input type="hidden" name="acao" value="excluir">
@@ -118,13 +171,9 @@
                             </tr>
                         <?php endforeach; ?>
                     <?php elseif ($mostrarTabela): ?>
-                        <tr>
-                            <td colspan="7" class="empty">Nenhum registro neste inventário.</td>
-                        </tr>
+                        <tr><td colspan="7" class="empty">Nenhum registro neste inventário.</td></tr>
                     <?php else: ?>
-                        <tr>
-                            <td colspan="7" class="empty">Aguardando inventário.</td>
-                        </tr>
+                        <tr><td colspan="7" class="empty">Aplique um inventário para começar.</td></tr>
                     <?php endif; ?>
                     </tbody>
                 </table>
@@ -143,26 +192,22 @@
             <input type="hidden" name="CODLOC" value="<?= e($codloc) ?>">
             <input type="hidden" name="CODINVENTARIO" value="<?= e($codinventario) ?>">
             <input type="hidden" name="QUANTIDADE" value="<?= e($quantidade) ?>">
-
             <div class="form-group">
                 <label for="edit-barras" class="form-label">Código de barras</label>
                 <input type="text" name="CODIGOBARRAS" id="edit-barras" class="form-control"
                        maxlength="13" pattern=".{13,13}" required
                        oninput="this.value = this.value.replace(/[^0-9]/g, '');">
             </div>
-
             <div class="form-group">
                 <label for="edit-qtd" class="form-label">Quantidade</label>
                 <input type="text" name="ITEM_QUANTIDADE" id="edit-qtd" class="form-control" required>
             </div>
-
             <div class="form-group">
                 <label for="edit-loc" class="form-label">Local de estoque</label>
                 <input type="text" name="ITEM_CODLOC" id="edit-loc" class="form-control"
                        maxlength="3" pattern=".{3,3}" required
                        oninput="this.value = this.value.replace(/[^0-9]/g, '');">
             </div>
-
             <div class="btn-row">
                 <button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button>
                 <button type="submit" class="btn btn-primary">Salvar</button>

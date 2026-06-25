@@ -10,6 +10,9 @@ class SessionManager
     private const KEY_USERNAME = 'rm_username';
     private const KEY_LAST_TEST = 'rm_last_connection_test';
     private const KEY_LAST_INVENTARIO = 'rm_last_inventario';
+    private const KEY_RECENT_INVENTARIOS = 'rm_recent_inventarios';
+    private const KEY_SESSION_SCANS = 'rm_session_scans';
+    private const MAX_RECENT = 5;
 
     public static function setLastInventario(string $codloc, string $codinventario, string $quantidade = '1'): void
     {
@@ -19,6 +22,53 @@ class SessionManager
             'quantidade'    => $quantidade,
             'atualizado'    => time(),
         ];
+
+        self::addRecentInventario($codloc, $codinventario, $quantidade);
+    }
+
+    public static function addRecentInventario(string $codloc, string $codinventario, string $quantidade = '1'): void
+    {
+        if ($codinventario === '') {
+            return;
+        }
+
+        $recent = self::getRecentInventarios();
+        $key = $codinventario . '|' . $codloc;
+        $filtered = array_filter($recent, function ($item) use ($key) {
+            return ($item['codinventario'] . '|' . $item['codloc']) !== $key;
+        });
+
+        array_unshift($filtered, [
+            'codloc'        => $codloc,
+            'codinventario' => $codinventario,
+            'quantidade'    => $quantidade,
+            'atualizado'    => time(),
+        ]);
+
+        $_SESSION[self::KEY_RECENT_INVENTARIOS] = array_slice(array_values($filtered), 0, self::MAX_RECENT);
+    }
+
+    /**
+     * @return array<int, array{codloc: string, codinventario: string, quantidade: string, atualizado: int}>
+     */
+    public static function getRecentInventarios(): array
+    {
+        return $_SESSION[self::KEY_RECENT_INVENTARIOS] ?? [];
+    }
+
+    public static function incrementSessionScans(): void
+    {
+        $_SESSION[self::KEY_SESSION_SCANS] = self::getSessionScans() + 1;
+    }
+
+    public static function getSessionScans(): int
+    {
+        return (int) ($_SESSION[self::KEY_SESSION_SCANS] ?? 0);
+    }
+
+    public static function resetSessionScans(): void
+    {
+        $_SESSION[self::KEY_SESSION_SCANS] = 0;
     }
 
     /**

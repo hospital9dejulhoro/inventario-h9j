@@ -118,6 +118,61 @@ class ZMDCODBARRAS
         ];
     }
 
+    /**
+     * Valida código de barras antes de gravar (13 dígitos, produto e lote no RM).
+     *
+     * @return array{valid: bool, errors: string[], warnings: string[], nome: string, und: string, lote: string}
+     */
+    public static function validarCodigoBarras(string $codigobarras): array
+    {
+        $result = [
+            'valid'    => false,
+            'errors'   => [],
+            'warnings' => [],
+            'nome'     => '',
+            'und'      => '',
+            'lote'     => '',
+        ];
+
+        $codigobarras = preg_replace('/\D/', '', $codigobarras);
+
+        if (strlen($codigobarras) !== 13) {
+            $result['errors'][] = 'O código de barras deve ter exatamente 13 dígitos.';
+            return $result;
+        }
+
+        $c = new Connection('RM');
+        $SQL = "SELECT T.NOMEFANTASIA AS NOME, T.IDPRD, TPRODUTODEF.CODUNDCONTROLE AS UND, TLOTEPRD.NUMLOTE
+                FROM TPRODUTO T
+                LEFT JOIN TPRODUTODEF ON TPRODUTODEF.IDPRD = T.IDPRD
+                LEFT JOIN TLOTEPRD ON TLOTEPRD.IDPRD = T.IDPRD
+                    AND TLOTEPRD.IDLOTE = CONVERT(INT, SUBSTRING('{$codigobarras}', 8, 5))
+                WHERE T.IDPRD = CONVERT(INT, SUBSTRING('{$codigobarras}', 0, 7))";
+
+        $c->Consulta($SQL);
+
+        if (!$c->Resultado()) {
+            $result['errors'][] = 'Produto não encontrado no RM para este código de barras.';
+            return $result;
+        }
+
+        $result['nome'] = encode_db_value($c->linha['NOME'] ?? '');
+        $result['und'] = encode_db_value($c->linha['UND'] ?? '');
+        $result['lote'] = encode_db_value($c->linha['NUMLOTE'] ?? '');
+
+        if (trim($result['nome']) === '') {
+            $result['errors'][] = 'Produto não encontrado no RM para este código de barras.';
+            return $result;
+        }
+
+        if (trim($result['lote']) === '') {
+            $result['warnings'][] = 'Lote não encontrado no RM — verifique o código.';
+        }
+
+        $result['valid'] = true;
+        return $result;
+    }
+
     public function getQuantidade()
     {
         return $this->quantidade;
