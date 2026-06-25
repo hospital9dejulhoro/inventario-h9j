@@ -5,6 +5,7 @@
 /** @var string $codigobarras */
 /** @var ZMDCODBARRAS[] $registros */
 /** @var bool $mostrarTabela */
+/** @var bool $retomadoDaSessao */
 ?>
 
 <div class="page-wrap-wide">
@@ -12,7 +13,13 @@
         <div class="panel">
             <div class="panel-header">
                 <h2>Leitura</h2>
-                <p>Escaneie o código de barras após preencher os campos.</p>
+                <p>
+                    <?php if ($retomadoDaSessao && $codinventario): ?>
+                        Retomando inventário <strong><?= e($codinventario) ?></strong>.
+                    <?php else: ?>
+                        Escaneie o código de barras após preencher os campos.
+                    <?php endif; ?>
+                </p>
             </div>
 
             <form action="inventario.php" method="get" autocomplete="off" id="inventory-form">

@@ -4,6 +4,7 @@
 /** @var string $defaultUsername */
 /** @var array|null $lastTest */
 /** @var bool $isConnected */
+/** @var array|null $lastInventario */
 ?>
 
 <div class="page-wrap">
@@ -68,6 +69,17 @@
                     <a href="inventario.php" class="btn btn-primary">Abrir inventário</a>
                 <?php endif; ?>
             </div>
+
+            <?php if ($isConnected && !empty($lastInventario['codinventario'])): ?>
+                <div class="resume-box">
+                    <p class="resume-title">Último inventário em andamento</p>
+                    <p class="resume-detail">
+                        <strong><?= e($lastInventario['codinventario']) ?></strong>
+                        · Local <?= e($lastInventario['codloc'] ?? '—') ?>
+                    </p>
+                    <a href="inventario.php" class="btn btn-secondary btn-block">Continuar este inventário</a>
+                </div>
+            <?php endif; ?>
         </form>
     </div>
 </div>

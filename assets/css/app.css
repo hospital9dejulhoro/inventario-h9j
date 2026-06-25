@@ -179,6 +179,39 @@ body {
     color: var(--text-muted);
 }
 
+.resume-box {
+    margin-top: 1.25rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border);
+}
+
+.resume-title {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    margin: 0 0 0.25rem;
+    color: var(--text);
+}
+
+.resume-detail {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    margin: 0 0 0.75rem;
+}
+
+.nav-inventario-link {
+    font-size: 0.8125rem;
+    color: var(--text);
+    text-decoration: none;
+    padding: 0.35rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+
+.nav-inventario-link:hover {
+    background: #f3f4f6;
+    color: var(--text);
+}
+
 /* Botões */
 .btn-row {
     display: flex;

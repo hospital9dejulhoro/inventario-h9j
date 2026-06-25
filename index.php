@@ -15,6 +15,7 @@ if ($selectedEnvironment === null && isset($_GET['ambiente']) && EnvironmentMana
 $defaultUsername = SessionManager::getUsername() ?: detect_os_username();
 $lastTest = SessionManager::getLastConnectionTest();
 $isConnected = SessionManager::isConnected();
+$lastInventario = SessionManager::getLastInventario();
 
 ob_start();
 require __DIR__ . '/views/home.php';

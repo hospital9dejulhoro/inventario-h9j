@@ -9,6 +9,36 @@ class SessionManager
     private const KEY_CONNECTED = 'rm_connected';
     private const KEY_USERNAME = 'rm_username';
     private const KEY_LAST_TEST = 'rm_last_connection_test';
+    private const KEY_LAST_INVENTARIO = 'rm_last_inventario';
+
+    public static function setLastInventario(string $codloc, string $codinventario, string $quantidade = '1'): void
+    {
+        $_SESSION[self::KEY_LAST_INVENTARIO] = [
+            'codloc'        => $codloc,
+            'codinventario' => $codinventario,
+            'quantidade'    => $quantidade,
+            'atualizado'    => time(),
+        ];
+    }
+
+    /**
+     * @return array{codloc: string, codinventario: string, quantidade: string, atualizado: int}|null
+     */
+    public static function getLastInventario(): ?array
+    {
+        return $_SESSION[self::KEY_LAST_INVENTARIO] ?? null;
+    }
+
+    public static function hasLastInventario(): bool
+    {
+        $last = self::getLastInventario();
+        return $last !== null && ($last['codinventario'] ?? '') !== '';
+    }
+
+    public static function clearLastInventario(): void
+    {
+        unset($_SESSION[self::KEY_LAST_INVENTARIO]);
+    }
 
     public static function setEnvironment(string $key): void
     {
