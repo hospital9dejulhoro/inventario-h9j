@@ -204,6 +204,100 @@ class InventarioRM
         return $itens;
     }
 
+    /**
+     * Inventários em aberto no RM (TINVENTARIO.STATUS = 'A').
+     *
+     * @return array<int, array{
+     *   codinventario: string,
+     *   status: string,
+     *   status_label: string,
+     *   codloc: string,
+     *   local_nome: string,
+     *   data: string,
+     *   data_status: string,
+     *   itens: int
+     * }>
+     */
+    public static function listarAbertos(int $limit = 50): array
+    {
+        $limit = max(1, min(200, $limit));
+        $col = self::CODCOLIGADA;
+
+        $c = new Connection('RM');
+        $SQL = "SELECT TOP {$limit}
+                    RTRIM(CODINVENTARIO) AS CODINVENTARIO,
+                    RTRIM(CAST(STATUS AS VARCHAR(10))) AS STATUS,
+                    DATABASEINVENTARIO,
+                    DATASTATUS
+                FROM TINVENTARIO
+                WHERE CODCOLIGADA = {$col}
+                  AND RTRIM(CAST(STATUS AS VARCHAR(10))) = 'A'
+                ORDER BY DATABASEINVENTARIO DESC, CODINVENTARIO DESC";
+        $c->Consulta($SQL);
+
+        $lista = [];
+        while ($c->Resultado()) {
+            $cod = encode_db_value((string) ($c->linha['CODINVENTARIO'] ?? ''));
+            $codloc = '';
+            if (class_exists('ZMDCODBARRAS')) {
+                $parsed = ZMDCODBARRAS::parseCodigoInventario($cod);
+                if (!empty($parsed['valid'])) {
+                    $codloc = (string) $parsed['codloc'];
+                }
+            }
+            if ($codloc === '' && preg_match('/^\d{2}\.(\d{3})\.\d{3}$/', $cod, $m)) {
+                $codloc = $m[1];
+            }
+
+            $lista[] = [
+                'codinventario' => $cod,
+                'status'        => encode_db_value((string) ($c->linha['STATUS'] ?? 'A')),
+                'status_label'  => 'Aberto',
+                'codloc'        => $codloc,
+                'local_nome'    => $codloc !== '' ? LocaisEstoque::nome($codloc) : '',
+                'data'          => self::formatDateTime($c->linha['DATABASEINVENTARIO'] ?? null),
+                'data_status'   => self::formatDateTime($c->linha['DATASTATUS'] ?? null),
+                'itens'         => 0,
+            ];
+        }
+
+        foreach ($lista as $i => $item) {
+            if ($item['codinventario'] !== '') {
+                $lista[$i]['itens'] = self::contarItensInventario($item['codinventario'], $item['codloc']);
+            }
+        }
+
+        return $lista;
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private static function formatDateTime($value): string
+    {
+        if ($value instanceof DateTimeInterface) {
+            return $value->format('d/m/Y H:i');
+        }
+        if ($value instanceof DateTime) {
+            return $value->format('d/m/Y H:i');
+        }
+        if (is_object($value) && method_exists($value, 'format')) {
+            try {
+                return (string) $value->format('d/m/Y H:i');
+            } catch (Throwable $e) {
+                // continua
+            }
+        }
+        if (is_string($value) && $value !== '') {
+            $ts = strtotime($value);
+            if ($ts !== false) {
+                return date('d/m/Y H:i', $ts);
+            }
+            return $value;
+        }
+        return '';
+    }
+
     public static function idprdDoBarcode(string $codigobarras): int
     {
         $digits = preg_replace('/\D/', '', $codigobarras);

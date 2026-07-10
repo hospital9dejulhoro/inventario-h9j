@@ -14,10 +14,12 @@
 /** @var string $nomeLocal */
 /** @var string $locaisEstoqueJson */
 /** @var string $statusInventarioRm */
+/** @var array $inventariosAbertos */
 $nomeLocal = $nomeLocal ?? '';
 $locaisEstoqueJson = $locaisEstoqueJson ?? '{}';
 $qtdItensRm = (int) ($qtdItensRm ?? 0);
 $statusInventarioRm = $statusInventarioRm ?? '';
+$inventariosAbertos = $inventariosAbertos ?? [];
 ?>
 
 <script type="application/json" id="locais-estoque-data"><?= $locaisEstoqueJson ?></script>
@@ -34,10 +36,59 @@ $statusInventarioRm = $statusInventarioRm ?? '';
             <?php if ($modoLeitura): ?>
                 Altere o inventário na etapa 1 se precisar. Quantidade e leitura ficam na etapa 2.
             <?php else: ?>
-                Informe o inventário abaixo para começar a leitura.
+                Escolha um inventário em aberto ou informe o código para começar.
             <?php endif; ?>
         </p>
     </header>
+
+    <?php if (!$modoLeitura): ?>
+    <section class="inv-section panel inv-open-list" aria-labelledby="secao-abertos">
+        <div class="inv-section-head">
+            <span class="inv-step">0</span>
+            <div>
+                <h2 id="secao-abertos" class="section-title">Inventários em aberto</h2>
+                <p class="section-desc">Status <strong>A</strong> no RM — toque para iniciar a leitura.</p>
+            </div>
+        </div>
+
+        <?php if (empty($inventariosAbertos)): ?>
+            <p class="inv-open-empty">Nenhum inventário em aberto no momento.</p>
+        <?php else: ?>
+            <ul class="inv-open-items">
+                <?php foreach ($inventariosAbertos as $aberto): ?>
+                    <li>
+                        <a class="inv-open-item"
+                           href="inventario.php?<?= e(http_build_query([
+                               'CODINVENTARIO' => $aberto['codinventario'],
+                               'CODLOC' => $aberto['codloc'],
+                               'QUANTIDADE' => '1',
+                               'aplicar' => '1',
+                           ])) ?>">
+                            <span class="inv-open-main">
+                                <strong class="mono"><?= e($aberto['codinventario']) ?></strong>
+                                <span class="inv-open-badge">Aberto</span>
+                            </span>
+                            <span class="inv-open-meta">
+                                <?php if ($aberto['codloc'] !== ''): ?>
+                                    Local <?= e($aberto['codloc']) ?>
+                                    <?php if ($aberto['local_nome'] !== ''): ?>
+                                        — <?= e($aberto['local_nome']) ?>
+                                    <?php endif; ?>
+                                    ·
+                                <?php endif; ?>
+                                <?= (int) $aberto['itens'] ?> itens no RM
+                                <?php if ($aberto['data'] !== ''): ?>
+                                    · <?= e($aberto['data']) ?>
+                                <?php endif; ?>
+                            </span>
+                            <span class="inv-open-action">Abrir</span>
+                        </a>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+    </section>
+    <?php endif; ?>
 
     <?php if ($modoLeitura && $envAtual): ?>
     <div class="inv-stats-bar" aria-label="Resumo da sessão">

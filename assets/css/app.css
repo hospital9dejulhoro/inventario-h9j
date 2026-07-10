@@ -921,6 +921,99 @@ body {
     to { transform: rotate(360deg); }
 }
 
+/* Inventários em aberto */
+.inv-open-list {
+    margin-bottom: 1.25rem;
+}
+
+.inv-open-empty {
+    margin: 0;
+    padding: 0.75rem 0 0.25rem;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.inv-open-items {
+    list-style: none;
+    margin: 0.75rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.inv-open-item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 0.15rem 0.75rem;
+    align-items: center;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    text-decoration: none;
+    color: inherit;
+    background: #f8fbff;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.inv-open-item:hover {
+    border-color: var(--brand, #0b5cab);
+    background: #fff;
+    box-shadow: 0 4px 14px rgba(11, 92, 171, 0.08);
+}
+
+.inv-open-main {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    grid-column: 1;
+}
+
+.inv-open-main strong {
+    font-size: 1rem;
+    color: #0a3d6e;
+}
+
+.inv-open-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #047857;
+    background: #d1fae5;
+}
+
+.inv-open-meta {
+    grid-column: 1;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.inv-open-action {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--brand, #0b5cab);
+}
+
+@media (max-width: 480px) {
+    .inv-open-item {
+        grid-template-columns: 1fr;
+    }
+    .inv-open-action {
+        grid-column: 1;
+        grid-row: auto;
+        justify-self: start;
+        margin-top: 0.25rem;
+    }
+}
+
 .container-fluid {
     width: 100%;
 }

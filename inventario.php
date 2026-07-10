@@ -21,7 +21,9 @@ $statusInventarioRm = '';
 $deveValidarAcao = isset($_GET['aplicar'])
     || (isset($_GET['CODIGOBARRAS']) && trim((string) $_GET['CODIGOBARRAS']) !== '');
 
-// Retomar último inventário
+$veioDaUrl = isset($_GET['CODINVENTARIO']) && trim((string) $_GET['CODINVENTARIO']) !== '';
+
+// Retomar último inventário (só preenche; não entra em leitura sem Aplicar)
 if ($codinventario === '' && SessionManager::hasLastInventario()) {
     $last = SessionManager::getLastInventario();
     $codloc = (string) ($last['codloc'] ?? '');
@@ -73,8 +75,11 @@ $rmOk = false;
 if ($mascaraOk && $codloc !== '') {
     $rmCheck = InventarioRM::validarParaUso($codinventario, $codloc);
     if ($rmCheck['valid']) {
-        $rmOk = true;
         $statusInventarioRm = $rmCheck['status'];
+        // Sessão sozinha só pré-preenche; leitura exige URL/Aplicar/bipagem
+        if ($deveValidarAcao || $veioDaUrl) {
+            $rmOk = true;
+        }
     } elseif ($deveValidarAcao) {
         flash_set('danger', $rmCheck['error']);
         redirect_to('inventario.php?' . http_build_query($redirectParams()));
@@ -83,6 +88,7 @@ if ($mascaraOk && $codloc !== '') {
 
 $nomeLocal = LocaisEstoque::nome($codloc);
 $locaisEstoqueJson = json_encode(LocaisEstoque::todos(), JSON_UNESCAPED_UNICODE);
+$inventariosAbertos = InventarioRM::listarAbertos();
 
 if ($rmOk) {
     $mostrarTabela = true;
