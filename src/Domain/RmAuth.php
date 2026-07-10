@@ -44,16 +44,23 @@ class RmAuth
             ];
         }
 
-        $sql = "SELECT TOP 1 CODUSUARIO, NOME, SENHA, STATUS
+        // Busca case-insensitive; SENHA pode ser longa (bcrypt PHC)
+        $sql = "SELECT TOP 1
+                    RTRIM(CODUSUARIO) AS CODUSUARIO,
+                    NOME,
+                    CAST(SENHA AS VARCHAR(1000)) AS SENHA,
+                    STATUS
                 FROM GUSUARIO
-                WHERE CODUSUARIO = ?";
+                WHERE UPPER(RTRIM(CODUSUARIO)) = UPPER(?)";
         $stmt = sqlsrv_query($conn, $sql, [$codusuario]);
 
         if ($stmt === false) {
+            $errors = sqlsrv_errors();
             sqlsrv_close($conn);
+            $detail = is_array($errors) && isset($errors[0]['message']) ? $errors[0]['message'] : '';
             return [
                 'success'    => false,
-                'message'    => 'Falha ao consultar GUSUARIO.',
+                'message'    => 'Falha ao consultar GUSUARIO. ' . $detail,
                 'codusuario' => $codusuario,
                 'nome'       => '',
             ];
@@ -64,11 +71,17 @@ class RmAuth
         sqlsrv_close($conn);
 
         if (!$row) {
-            return $fail;
+            return [
+                'success'    => false,
+                'message'    => 'Usuário não encontrado no RM (GUSUARIO).',
+                'codusuario' => $codusuario,
+                'nome'       => '',
+            ];
         }
 
         $status = strtoupper(trim((string) ($row['STATUS'] ?? '')));
-        if ($status !== '' && $status !== 'A' && $status !== '1') {
+        // Só bloqueia status claramente inativos
+        if (in_array($status, ['I', 'B', 'N', 'INATIVO'], true)) {
             return [
                 'success'    => false,
                 'message'    => 'Usuário RM inativo ou bloqueado.',
@@ -79,7 +92,13 @@ class RmAuth
 
         $hash = (string) ($row['SENHA'] ?? '');
         if (!self::verifyPassword($senha, $hash)) {
-            return $fail;
+            $formato = self::detectHashFormat($hash);
+            return [
+                'success'    => false,
+                'message'    => 'Senha inválida para o usuário RM. (formato no banco: ' . $formato . ')',
+                'codusuario' => $codusuario,
+                'nome'       => '',
+            ];
         }
 
         $nome = encode_db_value($row['NOME'] ?? $codusuario);
@@ -92,6 +111,21 @@ class RmAuth
         ];
     }
 
+    public static function detectHashFormat(string $stored): string
+    {
+        $stored = trim($stored);
+        if ($stored === '') {
+            return 'vazio';
+        }
+        if (stripos($stored, '#HA=Bcrypt#') !== false || preg_match('/\$2[ayb]?\$/', $stored)) {
+            return 'bcrypt';
+        }
+        if (strlen($stored) <= 16) {
+            return 'legado(' . strlen($stored) . ' chars)';
+        }
+        return 'desconhecido(' . strlen($stored) . ' chars)';
+    }
+
     public static function verifyPassword(string $plain, string $stored): bool
     {
         $stored = trim($stored);
@@ -99,46 +133,110 @@ class RmAuth
             return false;
         }
 
-        // Formato PHC do RM moderno: ...#HA=Bcrypt#...#H=$2a$10$...
-        if (preg_match('/#H=(\$2[ayb]?\$\d{2}\$[A-Za-z0-9\.\/]{53})/', $stored, $m)) {
-            return password_verify($plain, $m[1]);
+        // Formato PHC do RM: ...#HA=Bcrypt#...#H=$2a$10$...
+        if (preg_match('/#H=(\$2[ayb]?\$[^\s#]+)/', $stored, $m)) {
+            if (self::verifyBcrypt($plain, $m[1])) {
+                return true;
+            }
+        }
+
+        // Qualquer bcrypt embutido na string
+        if (preg_match('/(\$2[ayb]?\$\d{2}\$[A-Za-z0-9\.\/]+)/', $stored, $m)) {
+            if (self::verifyBcrypt($plain, $m[1])) {
+                return true;
+            }
         }
 
         // Hash bcrypt puro
-        if (preg_match('/^\$2[ayb]?\$\d{2}\$[A-Za-z0-9\.\/]{53}$/', $stored)) {
-            return password_verify($plain, $stored);
+        if (preg_match('/^\$2[ayb]?\$/', $stored)) {
+            if (self::verifyBcrypt($plain, $stored)) {
+                return true;
+            }
         }
 
-        // Legado RM (campo curto criptografado)
-        $legacyVariants = [
-            self::encryptLegacy($plain),
-            self::encryptLegacy(strtoupper($plain)),
-            self::encryptLegacy(strtolower($plain)),
-        ];
-
-        foreach ($legacyVariants as $enc) {
+        // Algoritmos legados do RM
+        foreach (self::legacyCandidates($plain) as $enc) {
             if (hash_equals($stored, $enc)) {
                 return true;
             }
         }
 
-        // Comparação direta (ambientes raros / senha em claro)
-        return hash_equals($stored, $plain);
+        // Comparação binária sem trim (legado com espaços/nulos)
+        foreach (self::legacyCandidates($plain) as $enc) {
+            if ($stored === $enc || rtrim($stored) === rtrim($enc)) {
+                return true;
+            }
+        }
+
+        return hash_equals($stored, $plain)
+            || hash_equals(strtoupper($stored), strtoupper($plain));
+    }
+
+    private static function verifyBcrypt(string $plain, string $hash): bool
+    {
+        $hash = trim($hash);
+        if ($hash === '') {
+            return false;
+        }
+
+        // PHP trata melhor $2y$; hashes do BCrypt.Net costumam vir como $2a$
+        $variants = array_unique([
+            $hash,
+            preg_replace('/^\$2a\$/', '$2y$', $hash),
+            preg_replace('/^\$2b\$/', '$2y$', $hash),
+            preg_replace('/^\$2y\$/', '$2a$', $hash),
+        ]);
+
+        foreach ($variants as $candidate) {
+            if (is_string($candidate) && password_verify($plain, $candidate)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
-     * Algoritmo clássico de criptografia de senha do RM (até 8 caracteres).
+     * @return string[]
      */
-    public static function encryptLegacy(string $password): string
+    private static function legacyCandidates(string $password): array
+    {
+        $inputs = array_unique([
+            $password,
+            strtoupper($password),
+            strtolower($password),
+        ]);
+
+        $out = [];
+        foreach ($inputs as $p) {
+            $out[] = self::encryptLegacyAdd($p);
+            $out[] = self::encryptLegacyMul($p);
+            $out[] = self::encryptLegacyAdd(substr($p, 0, 8));
+            $out[] = self::encryptLegacyMul(substr($p, 0, 8));
+        }
+
+        return array_values(array_unique($out));
+    }
+
+    /** Legado: Ord + índice */
+    public static function encryptLegacyAdd(string $password): string
     {
         $password = substr($password . str_repeat(' ', 8), 0, 8);
         $out = '';
-
         for ($i = 0; $i < 8; $i++) {
-            $asc = ord($password[$i]);
-            $out .= chr($asc + ($i + 1));
+            $out .= chr((ord($password[$i]) + ($i + 1)) % 256);
         }
+        return $out;
+    }
 
+    /** Legado: (Ord * índice) mod 256 */
+    public static function encryptLegacyMul(string $password): string
+    {
+        $password = substr($password . str_repeat(' ', 8), 0, 8);
+        $out = '';
+        for ($i = 0; $i < 8; $i++) {
+            $out .= chr((ord($password[$i]) * ($i + 1)) % 256);
+        }
         return $out;
     }
 }

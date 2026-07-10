@@ -40,8 +40,17 @@
     }
 
     function vibrateSuccess() {
-        if (navigator.vibrate) {
+        try {
+            // Chrome bloqueia vibrate sem gesto do usuário (ex.: ao carregar flash da página)
+            if (!navigator.vibrate) {
+                return;
+            }
+            if (navigator.userActivation && !navigator.userActivation.hasBeenActive) {
+                return;
+            }
             navigator.vibrate(40);
+        } catch (e) {
+            /* vibração opcional */
         }
     }
 
@@ -246,13 +255,7 @@
         const type = flashEl.getAttribute('data-flash-type');
         if (type === 'success') {
             playSuccessBeep();
-            vibrateSuccess();
-        }
-        if (type === 'danger' || type === 'warning') {
-            vibrateSuccess();
-            if (navigator.vibrate) {
-                navigator.vibrate([30, 40, 30]);
-            }
+            // Não chama vibrate no carregamento da página (Chrome bloqueia sem gesto)
         }
     }
 
