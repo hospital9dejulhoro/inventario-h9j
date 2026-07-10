@@ -4,6 +4,7 @@
 /** @var string $quantidade */
 /** @var string $codigobarras */
 /** @var ZMDCODBARRAS[] $registros */
+/** @var array $itensInventario */
 /** @var bool $mostrarTabela */
 /** @var bool $retomadoDaSessao */
 /** @var bool $modoLeitura */
@@ -12,8 +13,11 @@
 /** @var array $recentInventarios */
 /** @var string $nomeLocal */
 /** @var string $locaisEstoqueJson */
+/** @var string $statusInventarioRm */
 $nomeLocal = $nomeLocal ?? '';
 $locaisEstoqueJson = $locaisEstoqueJson ?? '{}';
+$itensInventario = $itensInventario ?? [];
+$statusInventarioRm = $statusInventarioRm ?? '';
 ?>
 
 <script type="application/json" id="locais-estoque-data"><?= $locaisEstoqueJson ?></script>
@@ -40,6 +44,10 @@ $locaisEstoqueJson = $locaisEstoqueJson ?? '{}';
         <span><strong>Ambiente:</strong> <?= e($envAtual['label']) ?></span>
         <span><strong>Lidos agora:</strong> <span id="session-scan-count"><?= (int) $leiturasSessao ?></span></span>
         <span><strong>Total gravado:</strong> <?= count($registros) ?></span>
+        <span><strong>Itens no RM:</strong> <?= count($itensInventario) ?></span>
+        <?php if ($statusInventarioRm !== ''): ?>
+        <span><strong>Status RM:</strong> <?= e($statusInventarioRm) ?></span>
+        <?php endif; ?>
     </div>
     <?php endif; ?>
 
@@ -63,7 +71,7 @@ $locaisEstoqueJson = $locaisEstoqueJson ?? '{}';
                            title="Formato: AA.LLL.NNN — ano, local de estoque válido e número"
                            data-inventario-mask
                            value="<?= e($codinventario) ?>" required>
-                    <span class="form-hint" id="inventario-mask-hint">Formato AA.LLL.NNN (ano.local.número)</span>
+                    <span class="form-hint" id="inventario-mask-hint">Formato AA.LLL.NNN — deve existir no RM (TINVENTARIO)</span>
                 </div>
                 <div class="form-group">
                     <label for="CODLOC" class="form-label">Local de estoque</label>
@@ -131,7 +139,7 @@ $locaisEstoqueJson = $locaisEstoqueJson ?? '{}';
                         <?php if ($retomadoDaSessao): ?>
                             Dados do último inventário carregados. Confirme ou altere e clique em Aplicar.
                         <?php else: ?>
-                            Informe o código do inventário (AA.LLL.NNN). O local é preenchido automaticamente.
+                            Informe o código do inventário já cadastrado no RM (AA.LLL.NNN). O local é preenchido automaticamente.
                         <?php endif; ?>
                     </p>
                 </div>
@@ -145,7 +153,7 @@ $locaisEstoqueJson = $locaisEstoqueJson ?? '{}';
                            title="Formato: AA.LLL.NNN — ano, local de estoque válido e número"
                            data-inventario-mask
                            value="<?= e($codinventario) ?>" required autofocus>
-                    <span class="form-hint" id="inventario-mask-hint">Formato AA.LLL.NNN (ano.local.número)</span>
+                    <span class="form-hint" id="inventario-mask-hint">Formato AA.LLL.NNN — deve existir no RM (TINVENTARIO)</span>
                 </div>
                 <div class="form-group">
                     <label for="CODLOC" class="form-label">Local de estoque</label>
@@ -162,10 +170,55 @@ $locaisEstoqueJson = $locaisEstoqueJson ?? '{}';
         <?php endif; ?>
     </form>
 
+    <?php if ($modoLeitura): ?>
+    <section class="inv-section inv-section--rm-items panel panel-flush" aria-labelledby="secao-itens-rm">
+        <div class="panel-header">
+            <div class="inv-section-head inv-section-head--compact">
+                <span class="inv-step inv-step--muted">3</span>
+                <div class="inv-section-head-text">
+                    <h2 id="secao-itens-rm" class="section-title">Itens do inventário (RM)</h2>
+                    <p class="section-desc">
+                        Produtos gerados no inventário <strong><?= e($codinventario) ?></strong>
+                        · local <?= e($codloc) ?>
+                        (<?= count($itensInventario) ?> <?= count($itensInventario) === 1 ? 'item' : 'itens' ?>).
+                        Só estes produtos podem ser lidos.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table" id="itens-rm-table">
+                <thead>
+                <tr>
+                    <th>ID produto</th>
+                    <th>Produto</th>
+                    <th>Und</th>
+                    <th>Local</th>
+                </tr>
+                </thead>
+                <tbody>
+                <?php if (!empty($itensInventario)): ?>
+                    <?php foreach ($itensInventario as $itemRm): ?>
+                        <tr>
+                            <td class="mono"><?= e($itemRm['idprd']) ?></td>
+                            <td><?= e($itemRm['nome']) ?></td>
+                            <td><?= e($itemRm['und']) ?></td>
+                            <td><?= e($itemRm['codloc']) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <tr><td colspan="4" class="empty">Nenhum item encontrado em TITMINVENTARIO para este inventário/local.</td></tr>
+                <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </section>
+    <?php endif; ?>
+
     <section class="inv-section inv-section--records panel panel-flush" aria-labelledby="secao-registros">
         <div class="panel-header">
             <div class="inv-section-head inv-section-head--compact inv-section-head--with-action">
-                <span class="inv-step inv-step--muted"><?= $modoLeitura ? '3' : '2' ?></span>
+                <span class="inv-step inv-step--muted"><?= $modoLeitura ? '4' : '2' ?></span>
                 <div class="inv-section-head-text">
                     <h2 id="secao-registros" class="section-title">Itens gravados</h2>
                     <p class="section-desc">

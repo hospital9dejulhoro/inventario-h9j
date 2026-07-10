@@ -217,7 +217,7 @@ class ZMDCODBARRAS
     /**
      * Valida código de barras antes de gravar (13 dígitos, produto e lote no RM).
      *
-     * @return array{valid: bool, errors: string[], warnings: string[], nome: string, und: string, lote: string}
+     * @return array{valid: bool, errors: string[], warnings: string[], nome: string, und: string, lote: string, idprd: int}
      */
     public static function validarCodigoBarras(string $codigobarras): array
     {
@@ -228,6 +228,7 @@ class ZMDCODBARRAS
             'nome'     => '',
             'und'      => '',
             'lote'     => '',
+            'idprd'    => 0,
         ];
 
         $codigobarras = preg_replace('/\D/', '', $codigobarras);
@@ -255,6 +256,7 @@ class ZMDCODBARRAS
         $result['nome'] = encode_db_value($c->linha['NOME'] ?? '');
         $result['und'] = encode_db_value($c->linha['UND'] ?? '');
         $result['lote'] = encode_db_value($c->linha['NUMLOTE'] ?? '');
+        $result['idprd'] = (int) ($c->linha['IDPRD'] ?? 0);
 
         if (trim($result['nome']) === '') {
             $result['errors'][] = 'Produto não encontrado no RM para este código de barras.';

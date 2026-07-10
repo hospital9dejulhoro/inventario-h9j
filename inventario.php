@@ -11,10 +11,15 @@ $codigobarras = isset($_GET['CODIGOBARRAS']) ? (string) $_GET['CODIGOBARRAS'] : 
 $retomadoDaSessao = false;
 $modoLeitura = false;
 $registros = [];
+$itensInventario = [];
 $mostrarTabela = false;
 $envAtual = EnvironmentManager::getCurrent();
 $leiturasSessao = SessionManager::getSessionScans();
 $recentInventarios = SessionManager::getRecentInventarios();
+$statusInventarioRm = '';
+
+$deveValidarAcao = isset($_GET['aplicar'])
+    || (isset($_GET['CODIGOBARRAS']) && trim((string) $_GET['CODIGOBARRAS']) !== '');
 
 // Retomar último inventário
 if ($codinventario === '' && SessionManager::hasLastInventario()) {
@@ -25,13 +30,18 @@ if ($codinventario === '' && SessionManager::hasLastInventario()) {
     $retomadoDaSessao = true;
 }
 
-// Normaliza máscara AA.LLL.NNN, valida local e sincroniza CODLOC
+$redirectParams = function () use (&$codloc, &$codinventario, &$quantidade) {
+    return ZMDCODBARRAS::inventarioQueryParams($codloc, $codinventario, $quantidade);
+};
+
+// Normaliza máscara AA.LLL.NNN e sincroniza CODLOC
+$parsedInv = null;
 if ($codinventario !== '') {
     $parsedInv = ZMDCODBARRAS::parseCodigoInventario($codinventario);
     if ($parsedInv['valid']) {
         $codinventario = $parsedInv['formatted'];
         $codloc = $parsedInv['codloc'];
-    } elseif (isset($_GET['aplicar']) || (isset($_GET['CODIGOBARRAS']) && trim((string) $_GET['CODIGOBARRAS']) !== '')) {
+    } elseif ($deveValidarAcao) {
         flash_set('danger', $parsedInv['error']);
         redirect_to('inventario.php?' . http_build_query(ZMDCODBARRAS::inventarioQueryParams(
             $codloc,
@@ -43,6 +53,7 @@ if ($codinventario !== '') {
         if (strlen(preg_replace('/\D/', '', $codinventario)) >= 5) {
             $codloc = substr(preg_replace('/\D/', '', $codinventario), 2, 3);
         }
+        $parsedInv = ZMDCODBARRAS::parseCodigoInventario($codinventario);
     }
 }
 
@@ -50,28 +61,34 @@ if ($codloc !== '') {
     $localCheck = LocaisEstoque::validar($codloc);
     if ($localCheck['valid']) {
         $codloc = $localCheck['codloc'];
-    } elseif (isset($_GET['aplicar']) || (isset($_GET['CODIGOBARRAS']) && trim((string) $_GET['CODIGOBARRAS']) !== '')) {
+    } elseif ($deveValidarAcao) {
         flash_set('danger', $localCheck['error']);
-        redirect_to('inventario.php?' . http_build_query(ZMDCODBARRAS::inventarioQueryParams(
-            $codloc,
-            ZMDCODBARRAS::formatCodigoInventario($codinventario),
-            $quantidade
-        )));
+        redirect_to('inventario.php?' . http_build_query($redirectParams()));
+    }
+}
+
+$mascaraOk = is_array($parsedInv) && !empty($parsedInv['valid']);
+$rmOk = false;
+
+if ($mascaraOk && $codloc !== '') {
+    $rmCheck = InventarioRM::validarParaUso($codinventario, $codloc);
+    if ($rmCheck['valid']) {
+        $rmOk = true;
+        $statusInventarioRm = $rmCheck['status'];
+    } elseif ($deveValidarAcao) {
+        flash_set('danger', $rmCheck['error']);
+        redirect_to('inventario.php?' . http_build_query($redirectParams()));
     }
 }
 
 $nomeLocal = LocaisEstoque::nome($codloc);
 $locaisEstoqueJson = json_encode(LocaisEstoque::todos(), JSON_UNESCAPED_UNICODE);
 
-$redirectParams = function () use (&$codloc, &$codinventario, &$quantidade) {
-    return ZMDCODBARRAS::inventarioQueryParams($codloc, $codinventario, $quantidade);
-};
-
-if ($codinventario !== '') {
+if ($rmOk) {
     $mostrarTabela = true;
     $modoLeitura = true;
 
-    $barcodeInformado = isset($_GET['CODIGOBARRAS']) && trim($_GET['CODIGOBARRAS']) !== '';
+    $barcodeInformado = isset($_GET['CODIGOBARRAS']) && trim((string) $_GET['CODIGOBARRAS']) !== '';
 
     if ($barcodeInformado) {
         $codigobarras = preg_replace('/\D/', '', $_GET['CODIGOBARRAS']);
@@ -82,6 +99,16 @@ if ($codinventario !== '') {
 
         if (!$validacao['valid']) {
             flash_set('danger', implode(' ', $validacao['errors']));
+            redirect_to('inventario.php?' . http_build_query($redirectParams()));
+        }
+
+        $idprd = (int) ($validacao['idprd'] ?? InventarioRM::idprdDoBarcode($codigobarras));
+        if (!InventarioRM::itemPertenceAoInventario($codinventario, $codloc, $idprd)) {
+            $produtoLabel = $validacao['nome'] !== '' ? $validacao['nome'] : ('ID ' . $idprd);
+            flash_set(
+                'danger',
+                "Produto {$produtoLabel} não faz parte do inventário {$codinventario} no local {$codloc}. Item não gravado."
+            );
             redirect_to('inventario.php?' . http_build_query($redirectParams()));
         }
 
@@ -108,17 +135,27 @@ if ($codinventario !== '') {
         redirect_to('inventario.php?' . http_build_query($redirectParams()));
     }
 
-    // Aplicar / trocar inventário (sem código de barras)
     if (isset($_GET['aplicar'])) {
         SessionManager::resetSessionScans();
         SessionManager::setLastInventario($codloc, $codinventario, $quantidade);
-        flash_set('info', 'Inventário ' . $codinventario . ' ativo. Escaneie o código de barras.');
+        $qtdItens = count(InventarioRM::listarItensInventario($codinventario, $codloc));
+        flash_set(
+            'info',
+            'Inventário ' . $codinventario . ' ativo (' . $qtdItens . ' itens no RM). Escaneie o código de barras.'
+        );
         redirect_to('inventario.php?' . http_build_query($redirectParams()));
     }
 
     SessionManager::setLastInventario($codloc, $codinventario, $quantidade);
     $registros = ZMDCODBARRAS::listarPorInventario($codinventario);
+    $itensInventario = InventarioRM::listarItensInventario($codinventario, $codloc);
     $leiturasSessao = SessionManager::getSessionScans();
+} elseif ($mascaraOk && $codinventario !== '' && !$deveValidarAcao && !$retomadoDaSessao) {
+    // Código na URL sem ação: avisa se não existir no RM, sem entrar em modo leitura
+    $rmCheck = InventarioRM::validarParaUso($codinventario, $codloc);
+    if (!$rmCheck['valid']) {
+        flash_set('warning', $rmCheck['error']);
+    }
 }
 
 $pageTitle = 'Inventário RM — Leitura';

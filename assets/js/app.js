@@ -149,7 +149,7 @@
                 hintEl.textContent = 'Local de estoque inválido no código do inventário.';
                 hintEl.classList.add('is-error');
             } else {
-                hintEl.textContent = 'Formato AA.LLL.NNN (ano.local.número) — o local deve ser um código cadastrado';
+                hintEl.textContent = 'Formato AA.LLL.NNN — deve existir no RM (TINVENTARIO)';
                 hintEl.classList.remove('is-error');
             }
         }
