@@ -4,7 +4,7 @@
 /** @var string $quantidade */
 /** @var string $codigobarras */
 /** @var ZMDCODBARRAS[] $registros */
-/** @var array $itensInventario */
+/** @var int $qtdItensRm */
 /** @var bool $mostrarTabela */
 /** @var bool $retomadoDaSessao */
 /** @var bool $modoLeitura */
@@ -16,7 +16,7 @@
 /** @var string $statusInventarioRm */
 $nomeLocal = $nomeLocal ?? '';
 $locaisEstoqueJson = $locaisEstoqueJson ?? '{}';
-$itensInventario = $itensInventario ?? [];
+$qtdItensRm = (int) ($qtdItensRm ?? 0);
 $statusInventarioRm = $statusInventarioRm ?? '';
 ?>
 
@@ -42,9 +42,9 @@ $statusInventarioRm = $statusInventarioRm ?? '';
     <?php if ($modoLeitura && $envAtual): ?>
     <div class="inv-stats-bar" aria-label="Resumo da sessão">
         <span><strong>Ambiente:</strong> <?= e($envAtual['label']) ?></span>
-        <span><strong>Lidos agora:</strong> <span id="session-scan-count"><?= (int) $leiturasSessao ?></span></span>
-        <span><strong>Total gravado:</strong> <?= count($registros) ?></span>
-        <span><strong>Itens no RM:</strong> <?= count($itensInventario) ?></span>
+        <span><strong>Bipados agora:</strong> <span id="session-scan-count"><?= (int) $leiturasSessao ?></span></span>
+        <span><strong>Bipados (total):</strong> <?= count($registros) ?></span>
+        <span><strong>Itens no RM:</strong> <?= (int) $qtdItensRm ?></span>
         <?php if ($statusInventarioRm !== ''): ?>
         <span><strong>Status RM:</strong> <?= e($statusInventarioRm) ?></span>
         <?php endif; ?>
@@ -170,63 +170,19 @@ $statusInventarioRm = $statusInventarioRm ?? '';
         <?php endif; ?>
     </form>
 
-    <?php if ($modoLeitura): ?>
-    <section class="inv-section inv-section--rm-items panel panel-flush" aria-labelledby="secao-itens-rm">
-        <div class="panel-header">
-            <div class="inv-section-head inv-section-head--compact">
-                <span class="inv-step inv-step--muted">3</span>
-                <div class="inv-section-head-text">
-                    <h2 id="secao-itens-rm" class="section-title">Itens do inventário (RM)</h2>
-                    <p class="section-desc">
-                        Produtos gerados no inventário <strong><?= e($codinventario) ?></strong>
-                        · local <?= e($codloc) ?>
-                        (<?= count($itensInventario) ?> <?= count($itensInventario) === 1 ? 'item' : 'itens' ?>).
-                        Só estes produtos podem ser lidos.
-                    </p>
-                </div>
-            </div>
-        </div>
-        <div class="table-wrap">
-            <table class="data-table" id="itens-rm-table">
-                <thead>
-                <tr>
-                    <th>ID produto</th>
-                    <th>Produto</th>
-                    <th>Und</th>
-                    <th>Local</th>
-                </tr>
-                </thead>
-                <tbody>
-                <?php if (!empty($itensInventario)): ?>
-                    <?php foreach ($itensInventario as $itemRm): ?>
-                        <tr>
-                            <td class="mono"><?= e($itemRm['idprd']) ?></td>
-                            <td><?= e($itemRm['nome']) ?></td>
-                            <td><?= e($itemRm['und']) ?></td>
-                            <td><?= e($itemRm['codloc']) ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <tr><td colspan="4" class="empty">Nenhum item encontrado em TITMINVENTARIO para este inventário/local.</td></tr>
-                <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
-    </section>
-    <?php endif; ?>
-
     <section class="inv-section inv-section--records panel panel-flush" aria-labelledby="secao-registros">
         <div class="panel-header">
             <div class="inv-section-head inv-section-head--compact inv-section-head--with-action">
-                <span class="inv-step inv-step--muted"><?= $modoLeitura ? '4' : '2' ?></span>
+                <span class="inv-step inv-step--muted"><?= $modoLeitura ? '3' : '2' ?></span>
                 <div class="inv-section-head-text">
-                    <h2 id="secao-registros" class="section-title">Itens gravados</h2>
+                    <h2 id="secao-registros" class="section-title">Itens bipados</h2>
                     <p class="section-desc">
                         <?php if ($mostrarTabela): ?>
-                            Registros do inventário <strong><?= e($codinventario) ?></strong> no banco
-                            (<?= count($registros) ?> <?= count($registros) === 1 ? 'item' : 'itens' ?>).
+                            Leituras do inventário <strong><?= e($codinventario) ?></strong>
+                            · <?= (int) $qtdItensRm ?> itens no RM
+                            · <?= count($registros) ?> <?= count($registros) === 1 ? 'bipado' : 'bipados' ?>.
                         <?php else: ?>
-                            A lista aparece depois de aplicar um inventário.
+                            A lista de bipagens aparece depois de aplicar um inventário.
                         <?php endif; ?>
                     </p>
                 </div>

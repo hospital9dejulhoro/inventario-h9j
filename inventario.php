@@ -11,7 +11,7 @@ $codigobarras = isset($_GET['CODIGOBARRAS']) ? (string) $_GET['CODIGOBARRAS'] : 
 $retomadoDaSessao = false;
 $modoLeitura = false;
 $registros = [];
-$itensInventario = [];
+$qtdItensRm = 0;
 $mostrarTabela = false;
 $envAtual = EnvironmentManager::getCurrent();
 $leiturasSessao = SessionManager::getSessionScans();
@@ -138,7 +138,7 @@ if ($rmOk) {
     if (isset($_GET['aplicar'])) {
         SessionManager::resetSessionScans();
         SessionManager::setLastInventario($codloc, $codinventario, $quantidade);
-        $qtdItens = count(InventarioRM::listarItensInventario($codinventario, $codloc));
+        $qtdItens = InventarioRM::contarItensInventario($codinventario, $codloc);
         flash_set(
             'info',
             'Inventário ' . $codinventario . ' ativo (' . $qtdItens . ' itens no RM). Escaneie o código de barras.'
@@ -148,7 +148,7 @@ if ($rmOk) {
 
     SessionManager::setLastInventario($codloc, $codinventario, $quantidade);
     $registros = ZMDCODBARRAS::listarPorInventario($codinventario);
-    $itensInventario = InventarioRM::listarItensInventario($codinventario, $codloc);
+    $qtdItensRm = InventarioRM::contarItensInventario($codinventario, $codloc);
     $leiturasSessao = SessionManager::getSessionScans();
 } elseif ($mascaraOk && $codinventario !== '' && !$deveValidarAcao && !$retomadoDaSessao) {
     // Código na URL sem ação: avisa se não existir no RM, sem entrar em modo leitura

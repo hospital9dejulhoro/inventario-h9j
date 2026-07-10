@@ -118,6 +118,43 @@ class InventarioRM
     }
 
     /**
+     * Quantidade de itens gerados no inventário RM (TITMINVENTARIO).
+     */
+    public static function contarItensInventario(string $codinventario, string $codloc = ''): int
+    {
+        $codinventario = trim($codinventario);
+        if ($codinventario === '') {
+            return 0;
+        }
+
+        $c = new Connection('RM');
+        $inv = self::sqlStr($codinventario);
+        $col = self::CODCOLIGADA;
+        $whereLoc = '';
+
+        if ($codloc !== '') {
+            $loc = self::sqlStr(LocaisEstoque::normalizar($codloc));
+            $whereLoc = " AND (
+                LTRIM(RTRIM(CODLOC)) = '{$loc}'
+                OR RIGHT(REPLICATE('0', 3) + LTRIM(RTRIM(CODLOC)), 3) = '{$loc}'
+            )";
+        }
+
+        $SQL = "SELECT COUNT(*) AS TOTAL
+                FROM TITMINVENTARIO
+                WHERE CODCOLIGADA = {$col}
+                  AND CODINVENTARIO = '{$inv}'
+                  {$whereLoc}";
+        $c->Consulta($SQL);
+
+        if (!$c->Resultado()) {
+            return 0;
+        }
+
+        return (int) ($c->linha['TOTAL'] ?? 0);
+    }
+
+    /**
      * Itens gerados no inventário RM (TITMINVENTARIO).
      *
      * @return array<int, array{idprd: string, nome: string, und: string, codloc: string, numlote: string}>
