@@ -17,7 +17,7 @@ $selectedEnvironment = SessionManager::getEnvironment();
 if ($selectedEnvironment === null && isset($_GET['ambiente']) && EnvironmentManager::exists($_GET['ambiente'])) {
     $selectedEnvironment = $_GET['ambiente'];
 }
-$defaultUsername = SessionManager::getUsername() ?: detect_os_username();
+$defaultUsername = SessionManager::getUsername();
 $lastTest = SessionManager::getLastConnectionTest();
 $isConnected = SessionManager::isConnected();
 $lastInventario = SessionManager::getLastInventario();

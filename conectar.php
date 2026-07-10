@@ -8,6 +8,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $ambiente = $_POST['ambiente'] ?? '';
 $usuario = trim($_POST['usuario'] ?? '');
+$senha = (string) ($_POST['senha'] ?? '');
 $acao = $_POST['acao'] ?? 'conectar';
 
 if (!EnvironmentManager::exists($ambiente)) {
@@ -16,7 +17,12 @@ if (!EnvironmentManager::exists($ambiente)) {
 }
 
 if ($usuario === '') {
-    flash_set('danger', 'Informe o nome do usuário para continuar.');
+    flash_set('danger', 'Informe o usuário do RM (CODUSUARIO).');
+    redirect_to('index.php');
+}
+
+if ($senha === '') {
+    flash_set('danger', 'Informe a senha do RM.');
     redirect_to('index.php');
 }
 
@@ -26,20 +32,33 @@ SessionManager::setEnvironment($ambiente);
 $result = EnvironmentManager::testConnection($ambiente);
 SessionManager::setLastConnectionTest($result);
 
-if ($acao === 'testar') {
-    if (!$result['success']) {
-        SessionManager::setConnected(false);
-    }
-    flash_set($result['success'] ? 'success' : 'danger', $result['message']);
-    redirect_to('index.php');
-}
-
 if (!$result['success']) {
     SessionManager::setConnected(false);
     flash_set('danger', $result['message']);
     redirect_to('index.php');
 }
 
+$auth = RmAuth::authenticate($ambiente, $usuario, $senha);
+
+if (!$auth['success']) {
+    SessionManager::setConnected(false);
+    flash_set('danger', $auth['message']);
+    redirect_to('index.php');
+}
+
+SessionManager::setUsername($auth['codusuario']);
+SessionManager::setDisplayName($auth['nome']);
+
+if ($acao === 'testar') {
+    SessionManager::setConnected(false);
+    flash_set('success', 'Usuário e senha válidos no RM · ' . $result['message']);
+    redirect_to('index.php');
+}
+
 SessionManager::setConnected(true);
-flash_set('success', 'Conectado com sucesso! Ambiente: ' . EnvironmentManager::get($ambiente)['label']);
+flash_set(
+    'success',
+    'Conectado como ' . $auth['nome'] . ' (' . $auth['codusuario'] . ') · '
+    . EnvironmentManager::get($ambiente)['label']
+);
 redirect_to('inventario.php');

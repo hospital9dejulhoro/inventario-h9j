@@ -24,7 +24,10 @@
             <div class="d-flex align-items-center gap-3">
                 <span class="nav-meta">
                     <strong><?= e($env['label']) ?></strong>
-                    · <?= e(SessionManager::getUsername() ?: 'Operador') ?>
+                    · <?= e(SessionManager::getDisplayName() ?: 'Operador') ?>
+                    <?php if (SessionManager::getUsername() !== '' && SessionManager::getDisplayName() !== SessionManager::getUsername()): ?>
+                        <span class="nav-meta-user">(<?= e(SessionManager::getUsername()) ?>)</span>
+                    <?php endif; ?>
                 </span>
                 <a href="index.php?config=1" class="btn-ghost">Configuração</a>
                 <a href="desconectar.php" class="btn-ghost">Sair</a>

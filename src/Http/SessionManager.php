@@ -8,6 +8,7 @@ class SessionManager
     private const KEY_ENVIRONMENT = 'rm_environment';
     private const KEY_CONNECTED = 'rm_connected';
     private const KEY_USERNAME = 'rm_username';
+    private const KEY_DISPLAY_NAME = 'rm_display_name';
     private const KEY_LAST_TEST = 'rm_last_connection_test';
     private const KEY_LAST_INVENTARIO = 'rm_last_inventario';
     private const KEY_RECENT_INVENTARIOS = 'rm_recent_inventarios';
@@ -145,6 +146,17 @@ class SessionManager
         return (string) ($_SESSION[self::KEY_USERNAME] ?? '');
     }
 
+    public static function setDisplayName(string $name): void
+    {
+        $_SESSION[self::KEY_DISPLAY_NAME] = trim($name);
+    }
+
+    public static function getDisplayName(): string
+    {
+        $name = (string) ($_SESSION[self::KEY_DISPLAY_NAME] ?? '');
+        return $name !== '' ? $name : self::getUsername();
+    }
+
     public static function setLastConnectionTest(array $result): void
     {
         $_SESSION[self::KEY_LAST_TEST] = $result;
@@ -161,6 +173,7 @@ class SessionManager
             $_SESSION[self::KEY_ENVIRONMENT],
             $_SESSION[self::KEY_CONNECTED],
             $_SESSION[self::KEY_USERNAME],
+            $_SESSION[self::KEY_DISPLAY_NAME],
             $_SESSION[self::KEY_LAST_TEST]
         );
 
@@ -170,7 +183,7 @@ class SessionManager
     public static function requireConnection(): void
     {
         if (!self::isConnected()) {
-            flash_set('warning', 'Selecione um ambiente e conecte-se antes de acessar o inventário.');
+            flash_set('warning', 'Faça login com usuário e senha do RM antes de acessar o inventário.');
             header('Location: ' . url('index.php'));
             exit;
         }

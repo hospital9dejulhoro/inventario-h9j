@@ -11,7 +11,7 @@
 <div class="page-wrap">
     <header class="inv-page-header">
         <h1 class="page-title">Conectar ao RM</h1>
-        <p class="page-subtitle">Escolha o ambiente, informe seu nome e acesse a leitura de inventário.</p>
+        <p class="page-subtitle">Escolha o ambiente e entre com usuário e senha do TOTVS RM (GUSUARIO).</p>
     </header>
 
     <?php if ($isConnected && (!$lastTest || $lastTest['success'])): ?>
@@ -50,9 +50,16 @@
             </div>
 
             <div class="form-group">
-                <label for="usuario" class="form-label">Seu nome</label>
+                <label for="usuario" class="form-label">Usuário RM</label>
                 <input type="text" class="form-control" id="usuario" name="usuario"
-                       value="<?= e($defaultUsername) ?>" placeholder="Ex.: João Silva" required>
+                       value="<?= e($defaultUsername) ?>" placeholder="CODUSUARIO do RM" required
+                       autocomplete="username">
+            </div>
+
+            <div class="form-group">
+                <label for="senha" class="form-label">Senha RM</label>
+                <input type="password" class="form-control" id="senha" name="senha"
+                       placeholder="Senha do RM" required autocomplete="current-password">
             </div>
 
             <?php
@@ -71,8 +78,8 @@
             <?php endif; ?>
 
             <div class="btn-row">
-                <button type="submit" name="acao" value="testar" class="btn btn-secondary">Testar conexão</button>
-                <button type="submit" name="acao" value="conectar" class="btn btn-primary">Conectar</button>
+                <button type="submit" name="acao" value="testar" class="btn btn-secondary">Testar login</button>
+                <button type="submit" name="acao" value="conectar" class="btn btn-primary">Entrar</button>
             </div>
         </form>
     </section>
