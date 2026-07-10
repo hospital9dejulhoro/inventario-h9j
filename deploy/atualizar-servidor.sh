@@ -33,16 +33,19 @@ git fetch origin
 git checkout "$BRANCH"
 git pull origin "$BRANCH"
 
-# Garante ambiente Homologação (HomologaRM) sem remover Testes (ontemrm)
+# Garante os 3 ambientes: producao, homologacao (HomologaRM) e testes (ontemrm)
 ENV_FILE="config/environments.php"
-if [ -f "$ENV_FILE" ] && ! grep -q "'homologacao'" "$ENV_FILE"; then
-  echo "Incluindo ambiente homologacao (HomologaRM) em $ENV_FILE..."
+if [ -f "$ENV_FILE" ]; then
   cp "$ENV_FILE" "${ENV_FILE}.bak.$(date +%Y%m%d%H%M%S)"
+
   python3 - <<'PY'
 from pathlib import Path
+
 path = Path("config/environments.php")
 text = path.read_text(encoding="utf-8")
-block = """
+changed = False
+
+homolog_block = """
     'homologacao' => [
         'label'                    => 'Homologação',
         'host'                     => '172.20.0.15',
@@ -53,14 +56,40 @@ block = """
         'trust_server_certificate' => true,
     ],
 """
-# Insere homologacao antes de testes, se existir; senão antes do ]; final
-needle = "    'testes'"
-if needle in text:
-    text = text.replace(needle, block + needle, 1)
+
+testes_block = """
+    'testes' => [
+        'label'                    => 'Testes',
+        'host'                     => '172.20.0.15',
+        'database'                 => 'ontemrm',
+        'usuario'                  => 'rm',
+        'senha'                    => 'rm',
+        'badge_class'              => 'bg-info text-dark',
+        'trust_server_certificate' => true,
+    ],
+"""
+
+if "'homologacao'" not in text:
+    if "    'testes'" in text:
+        text = text.replace("    'testes'", homolog_block + "    'testes'", 1)
+    else:
+        text = text.replace("];", homolog_block + "];", 1)
+    changed = True
+    print("Ambiente homologacao inserido.")
+
+if "'testes'" not in text:
+    if "    'homologacao'" in text:
+        # Insere testes depois do bloco homologacao (antes do ]); final)
+        text = text.replace("];", testes_block + "];", 1)
+    else:
+        text = text.replace("];", testes_block + "];", 1)
+    changed = True
+    print("Ambiente testes (ontemrm) inserido.")
+
+if changed:
+    path.write_text(text, encoding="utf-8")
 else:
-    text = text.replace("];", block + "];", 1)
-path.write_text(text, encoding="utf-8")
-print("Ambiente homologacao inserido.")
+    print("Ambientes producao/homologacao/testes ja presentes.")
 PY
 fi
 
@@ -73,5 +102,5 @@ systemctl reload nginx 2>/dev/null || true
 
 echo "Atualizado com sucesso ($(git rev-parse --short HEAD))"
 if [ -f "$ENV_FILE" ]; then
-  grep -E "'(producao|homologacao|testes)'" "$ENV_FILE" || true
+  grep -E "'(producao|homologacao|testes)'|database" "$ENV_FILE" || true
 fi
