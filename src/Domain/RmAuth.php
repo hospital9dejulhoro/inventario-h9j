@@ -83,15 +83,27 @@ class RmAuth
             ];
         }
 
-        // 3) Fallback local GUSUARIO (bcrypt / legado) se a API estiver indisponível
-        $perfil = self::loadUsuario($env, $codusuario);
-        if (!$perfil['found']) {
-            $hint = (!$rest['tried'] && !$soap['tried'])
-                ? ' Configure api_url do RM Host em environments.php (ex.: http://IP:8051).'
-                : '';
+        // API inacessível a partir deste servidor (firewall / porta 8051)
+        // Senha legada de 8 chars não é confiável — falhar com diagnóstico claro
+        if (!$rest['tried']) {
+            $bases = implode(', ', self::apiBases($env));
+            $detail = $rest['message'] !== '' ? ' Detalhe: ' . $rest['message'] . '.' : '';
             return [
                 'success'    => false,
-                'message'    => 'Usuário não encontrado no RM (GUSUARIO).' . $hint,
+                'message'    => 'Não foi possível alcançar a API do RM Host (' . $bases . ').'
+                    . ' Libere a porta 8051 deste servidor até o Host, ou abra /diag_rm_api.php.'
+                    . $detail,
+                'codusuario' => $codusuario,
+                'nome'       => '',
+            ];
+        }
+
+        // 3) Fallback local GUSUARIO (bcrypt / legado) — só se a API respondeu mas sem token
+        $perfil = self::loadUsuario($env, $codusuario);
+        if (!$perfil['found']) {
+            return [
+                'success'    => false,
+                'message'    => 'Usuário não encontrado no RM (GUSUARIO).',
                 'codusuario' => $codusuario,
                 'nome'       => '',
             ];
@@ -119,13 +131,10 @@ class RmAuth
         }
 
         $formato = self::detectHashFormat($hash);
-        $apiHint = $rest['tried']
-            ? ''
-            : ' Dica: configure api_url do RM no environments.php (ex.: http://172.20.0.21:8051).';
 
         return [
             'success'    => false,
-            'message'    => 'Senha inválida para o usuário RM. (formato no banco: ' . $formato . ')' . $apiHint,
+            'message'    => 'Senha inválida para o usuário RM. (formato no banco: ' . $formato . ')',
             'codusuario' => $codusuario,
             'nome'       => '',
         ];
@@ -227,6 +236,7 @@ class RmAuth
                 CURLOPT_CONNECTTIMEOUT => 4,
                 CURLOPT_TIMEOUT        => 10,
                 CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
             ]);
             $body = curl_exec($ch);
             $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -234,7 +244,7 @@ class RmAuth
             curl_close($ch);
 
             if ($body === false || $code === 0) {
-                $lastErr = $err !== '' ? $err : 'sem resposta';
+                $lastErr = $err !== '' ? $err : 'sem resposta de ' . $url;
                 continue;
             }
 
@@ -290,10 +300,68 @@ class RmAuth
             }
         }
 
-        // Descoberta padrão na rede do hospital (RM Host)
+        // Hosts RM conhecidos na rede do hospital
         $bases[] = 'http://172.20.0.21:8051';
+        $bases[] = 'http://172.20.0.20:8051';
+        $bases[] = 'http://172.20.0.30:8051';
 
         return array_values(array_unique(array_filter($bases)));
+    }
+
+    /**
+     * Diagnóstico de conectividade com a API do RM (para /diag_rm_api.php).
+     *
+     * @return list<array{url: string, ok: bool, http: int, detail: string}>
+     */
+    public static function diagnoseApi(array $env = []): array
+    {
+        $rows = [];
+        $bases = self::apiBases($env !== [] ? $env : [
+            'api_url' => 'http://172.20.0.21:8051',
+        ]);
+
+        foreach ($bases as $base) {
+            $url = rtrim($base, '/') . '/api/connect/token';
+            $row = ['url' => $url, 'ok' => false, 'http' => 0, 'detail' => ''];
+
+            if (!function_exists('curl_init')) {
+                $row['detail'] = 'extensão curl ausente no PHP';
+                $rows[] = $row;
+                continue;
+            }
+
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_POST           => true,
+                CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Accept: application/json'],
+                CURLOPT_POSTFIELDS     => '{"grant_type":"password","username":"__diag__","password":"__diag__"}',
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_CONNECTTIMEOUT => 3,
+                CURLOPT_TIMEOUT        => 5,
+                CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
+            ]);
+            $body = curl_exec($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $err  = curl_error($ch);
+            curl_close($ch);
+
+            $row['http'] = $code;
+            if ($body === false || $code === 0) {
+                $row['detail'] = $err !== '' ? $err : 'sem resposta (firewall/timeout?)';
+            } elseif ($code === 400 || $code === 401 || $code === 403) {
+                // Host alcançável: rejeitou credencial de diagnóstico (esperado)
+                $row['ok'] = true;
+                $row['detail'] = 'Host alcançável (HTTP ' . $code . ' com credencial inválida)';
+            } elseif ($code >= 200 && $code < 300) {
+                $row['ok'] = true;
+                $row['detail'] = 'HTTP ' . $code;
+            } else {
+                $row['detail'] = 'HTTP ' . $code . ' ' . substr((string) $body, 0, 120);
+            }
+            $rows[] = $row;
+        }
+
+        return $rows;
     }
 
     /**
