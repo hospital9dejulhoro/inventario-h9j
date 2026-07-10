@@ -108,17 +108,17 @@ inventario/
 | Chave | Label | Host | Banco |
 |-------|-------|------|-------|
 | `producao` | Produção | 172.20.0.10 | CorporeRM |
-| `testes` | Testes | 172.20.0.15 | ontemrm |
+| `homologacao` | Homologação | 172.20.0.15 | HomologaRM |
 
 ### Adicionar um novo ambiente
 
 Edite apenas `config/environments.php`:
 
 ```php
-'homologacao' => [
-    'label'       => 'Homologação',
+'outro' => [
+    'label'       => 'Outro ambiente',
     'host'        => '172.20.0.20',
-    'database'    => 'CorporeRM_HML',
+    'database'    => 'CorporeRM',
     'usuario'     => 'rm',
     'senha'       => 'rm',
     'badge_class' => 'bg-info',
@@ -130,7 +130,7 @@ Nenhuma alteração de código é necessária — o seletor na tela inicial list
 ## Fluxo do usuário
 
 1. Acessar `/inventario/`
-2. Selecionar **Produção** ou **Testes**
+2. Selecionar **Produção** ou **Homologação**
 3. Informar o nome do usuário (pré-preenchido com o usuário do SO, quando disponível)
 4. Clicar em **Testar Conexão** ou **Conectar**
 5. Na tela de inventário, informar CODLOC, inventário, quantidade e código de barras
@@ -150,7 +150,7 @@ Nenhuma alteração de código é necessária — o seletor na tela inicial list
 As pastas `h9/` e `teste/` foram mantidas com redirecionamento automático:
 
 - `h9/` → ambiente **produção**
-- `teste/` → ambiente **testes**
+- `teste/` → ambiente **homologacao**
 
 URLs antigas continuam funcionando, direcionando para a aplicação unificada.
 

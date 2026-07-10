@@ -14,10 +14,10 @@ return [
         'badge_class'              => 'bg-danger',
         'trust_server_certificate' => true,
     ],
-    'testes' => [
-        'label'                    => 'Testes',
+    'homologacao' => [
+        'label'                    => 'Homologação',
         'host'                     => '172.20.0.15',
-        'database'                 => 'ontemrm',
+        'database'                 => 'HomologaRM',
         'usuario'                  => 'rm',
         'senha'                    => 'SUA_SENHA',
         'badge_class'              => 'bg-warning text-dark',

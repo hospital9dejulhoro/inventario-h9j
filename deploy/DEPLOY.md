@@ -72,7 +72,7 @@ No navegador: **http://172.20.0.43/**
 ## Passo 4 — Testar conexão com o RM
 
 1. Abra `http://172.20.0.43/`
-2. Selecione **Produção** (`172.20.0.10`) ou **Testes** (`172.20.0.15`)
+2. Selecione **Produção** (`172.20.0.10`) ou **Homologação** (`172.20.0.15` / HomologaRM)
 3. Clique em **Testar Conexão**
 
 Se falhar, verifique no servidor:
