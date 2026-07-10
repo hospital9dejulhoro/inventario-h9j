@@ -71,7 +71,10 @@ class Connection
             if ($this->res) {
                 $this->qtd = sqlsrv_num_rows($this->res);
             } else {
-                print_r(sqlsrv_errors());
+                $errors = sqlsrv_errors();
+                $this->erro = is_array($errors) ? print_r($errors, true) : 'Erro na consulta SQL.';
+                $this->res = false;
+                $this->qtd = 0;
             }
         }
     }

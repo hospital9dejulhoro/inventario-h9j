@@ -67,19 +67,16 @@ class InventarioRM
         $loc = self::sqlStr($codloc);
         $col = self::CODCOLIGADA;
 
+        // Local vem dos itens gerados (TITMINVENTARIO). A tabela TINVENTARIOLOCESTOQUE
+        // não existe em todos os bancos RM deste hospital.
         $SQL = "SELECT TOP 1 1 AS OK
-                WHERE EXISTS (
-                    SELECT 1 FROM TINVENTARIOLOCESTOQUE
-                    WHERE CODCOLIGADA = {$col}
-                      AND CODINVENTARIO = '{$inv}'
-                      AND LTRIM(RTRIM(CODLOC)) = '{$loc}'
-                )
-                OR EXISTS (
-                    SELECT 1 FROM TITMINVENTARIO
-                    WHERE CODCOLIGADA = {$col}
-                      AND CODINVENTARIO = '{$inv}'
-                      AND LTRIM(RTRIM(CODLOC)) = '{$loc}'
-                )";
+                FROM TITMINVENTARIO
+                WHERE CODCOLIGADA = {$col}
+                  AND CODINVENTARIO = '{$inv}'
+                  AND (
+                        LTRIM(RTRIM(CODLOC)) = '{$loc}'
+                     OR RIGHT(REPLICATE('0', 3) + LTRIM(RTRIM(CODLOC)), 3) = '{$loc}'
+                  )";
         $c->Consulta($SQL);
 
         return (bool) $c->Resultado();
@@ -139,7 +136,10 @@ class InventarioRM
 
         if ($codloc !== '') {
             $loc = self::sqlStr(LocaisEstoque::normalizar($codloc));
-            $whereLoc = " AND LTRIM(RTRIM(I.CODLOC)) = '{$loc}'";
+            $whereLoc = " AND (
+                LTRIM(RTRIM(I.CODLOC)) = '{$loc}'
+                OR RIGHT(REPLICATE('0', 3) + LTRIM(RTRIM(I.CODLOC)), 3) = '{$loc}'
+            )";
         }
 
         $SQL = "SELECT TOP 2000 I.IDPRD, I.CODLOC, T.NOMEFANTASIA AS NOME,
@@ -195,8 +195,11 @@ class InventarioRM
                 FROM TITMINVENTARIO
                 WHERE CODCOLIGADA = {$col}
                   AND CODINVENTARIO = '{$inv}'
-                  AND LTRIM(RTRIM(CODLOC)) = '{$loc}'
-                  AND IDPRD = {$idprd}";
+                  AND IDPRD = {$idprd}
+                  AND (
+                        LTRIM(RTRIM(CODLOC)) = '{$loc}'
+                     OR RIGHT(REPLICATE('0', 3) + LTRIM(RTRIM(CODLOC)), 3) = '{$loc}'
+                  )";
         $c->Consulta($SQL);
 
         return (bool) $c->Resultado();
