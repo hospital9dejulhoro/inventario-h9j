@@ -33,17 +33,35 @@ git fetch origin
 git checkout "$BRANCH"
 git pull origin "$BRANCH"
 
-# Migra ambiente antigo "testes/ontemrm" -> "homologacao/HomologaRM"
+# Garante ambiente Homologação (HomologaRM) sem remover Testes (ontemrm)
 ENV_FILE="config/environments.php"
-if [ -f "$ENV_FILE" ] && grep -q "'testes'" "$ENV_FILE"; then
-  echo "Migrando ambiente testes -> homologacao (HomologaRM)..."
+if [ -f "$ENV_FILE" ] && ! grep -q "'homologacao'" "$ENV_FILE"; then
+  echo "Incluindo ambiente homologacao (HomologaRM) em $ENV_FILE..."
   cp "$ENV_FILE" "${ENV_FILE}.bak.$(date +%Y%m%d%H%M%S)"
-  sed -i \
-    -e "s/'testes'/'homologacao'/g" \
-    -e "s/'Testes'/'Homologação'/g" \
-    -e "s/'ontemrm'/'HomologaRM'/g" \
-    "$ENV_FILE"
-  echo "Ambiente atualizado em $ENV_FILE (backup .bak criado)."
+  python3 - <<'PY'
+from pathlib import Path
+path = Path("config/environments.php")
+text = path.read_text(encoding="utf-8")
+block = """
+    'homologacao' => [
+        'label'                    => 'Homologação',
+        'host'                     => '172.20.0.15',
+        'database'                 => 'HomologaRM',
+        'usuario'                  => 'rm',
+        'senha'                    => 'rm',
+        'badge_class'              => 'bg-warning text-dark',
+        'trust_server_certificate' => true,
+    ],
+"""
+# Insere homologacao antes de testes, se existir; senão antes do ]; final
+needle = "    'testes'"
+if needle in text:
+    text = text.replace(needle, block + needle, 1)
+else:
+    text = text.replace("];", block + "];", 1)
+path.write_text(text, encoding="utf-8")
+print("Ambiente homologacao inserido.")
+PY
 fi
 
 chown -R www-data:www-data "$APP_DIR"
@@ -54,6 +72,6 @@ systemctl restart php8.3-fpm 2>/dev/null || true
 systemctl reload nginx 2>/dev/null || true
 
 echo "Atualizado com sucesso ($(git rev-parse --short HEAD))"
-if grep -q "'homologacao'" "$ENV_FILE" 2>/dev/null; then
-  echo "Ambiente Homologação presente em config/environments.php"
+if [ -f "$ENV_FILE" ]; then
+  grep -E "'(producao|homologacao|testes)'" "$ENV_FILE" || true
 fi

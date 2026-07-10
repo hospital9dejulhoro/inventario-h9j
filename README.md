@@ -109,6 +109,7 @@ inventario/
 |-------|-------|------|-------|
 | `producao` | Produção | 172.20.0.10 | CorporeRM |
 | `homologacao` | Homologação | 172.20.0.15 | HomologaRM |
+| `testes` | Testes | 172.20.0.15 | ontemrm |
 
 ### Adicionar um novo ambiente
 
@@ -130,7 +131,7 @@ Nenhuma alteração de código é necessária — o seletor na tela inicial list
 ## Fluxo do usuário
 
 1. Acessar `/inventario/`
-2. Selecionar **Produção** ou **Homologação**
+2. Selecionar **Produção**, **Homologação** ou **Testes**
 3. Informar o nome do usuário (pré-preenchido com o usuário do SO, quando disponível)
 4. Clicar em **Testar Conexão** ou **Conectar**
 5. Na tela de inventário, informar CODLOC, inventário, quantidade e código de barras

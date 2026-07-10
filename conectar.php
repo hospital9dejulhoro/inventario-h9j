@@ -11,7 +11,7 @@ $usuario = trim($_POST['usuario'] ?? '');
 $acao = $_POST['acao'] ?? 'conectar';
 
 if (!EnvironmentManager::exists($ambiente)) {
-    flash_set('danger', 'Ambiente inválido. Selecione Produção ou Homologação.');
+    flash_set('danger', 'Ambiente inválido. Selecione Produção, Homologação ou Testes.');
     redirect_to('index.php');
 }
 

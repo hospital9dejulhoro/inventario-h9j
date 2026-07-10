@@ -23,4 +23,13 @@ return [
         'badge_class'              => 'bg-warning text-dark',
         'trust_server_certificate' => true,
     ],
+    'testes' => [
+        'label'                    => 'Testes',
+        'host'                     => '172.20.0.15',
+        'database'                 => 'ontemrm',
+        'usuario'                  => 'rm',
+        'senha'                    => 'SUA_SENHA',
+        'badge_class'              => 'bg-info text-dark',
+        'trust_server_certificate' => true,
+    ],
 ];

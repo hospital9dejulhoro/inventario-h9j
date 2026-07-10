@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Gerencia ambientes de conexão TOTVS RM (Produção, Homologação, futuros).
+ * Gerencia ambientes de conexão TOTVS RM (Produção, Homologação, Testes).
  */
 class EnvironmentManager
 {
