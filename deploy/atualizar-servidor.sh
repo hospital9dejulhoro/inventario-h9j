@@ -33,6 +33,19 @@ git fetch origin
 git checkout "$BRANCH"
 git pull origin "$BRANCH"
 
+# Migra ambiente antigo "testes/ontemrm" -> "homologacao/HomologaRM"
+ENV_FILE="config/environments.php"
+if [ -f "$ENV_FILE" ] && grep -q "'testes'" "$ENV_FILE"; then
+  echo "Migrando ambiente testes -> homologacao (HomologaRM)..."
+  cp "$ENV_FILE" "${ENV_FILE}.bak.$(date +%Y%m%d%H%M%S)"
+  sed -i \
+    -e "s/'testes'/'homologacao'/g" \
+    -e "s/'Testes'/'Homologação'/g" \
+    -e "s/'ontemrm'/'HomologaRM'/g" \
+    "$ENV_FILE"
+  echo "Ambiente atualizado em $ENV_FILE (backup .bak criado)."
+fi
+
 chown -R www-data:www-data "$APP_DIR"
 find "$APP_DIR" -type d -exec chmod 755 {} \;
 find "$APP_DIR" -type f -exec chmod 644 {} \;
@@ -41,3 +54,6 @@ systemctl restart php8.3-fpm 2>/dev/null || true
 systemctl reload nginx 2>/dev/null || true
 
 echo "Atualizado com sucesso ($(git rev-parse --short HEAD))"
+if grep -q "'homologacao'" "$ENV_FILE" 2>/dev/null; then
+  echo "Ambiente Homologação presente em config/environments.php"
+fi
