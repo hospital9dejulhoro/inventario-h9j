@@ -78,9 +78,10 @@
             <?php endif; ?>
 
             <div class="btn-row">
-                <button type="submit" name="acao" value="testar" class="btn btn-secondary">Testar login</button>
                 <button type="submit" name="acao" value="conectar" class="btn btn-primary">Entrar</button>
+                <button type="submit" name="acao" value="testar" class="btn btn-secondary">Só testar</button>
             </div>
+            <p class="form-hint mt-2 mb-0">Pressione Enter ou <strong>Entrar</strong> para abrir o inventário. <strong>Só testar</strong> valida sem entrar.</p>
         </form>
     </section>
 

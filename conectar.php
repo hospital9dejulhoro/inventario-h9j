@@ -51,7 +51,11 @@ SessionManager::setDisplayName($auth['nome']);
 
 if ($acao === 'testar') {
     SessionManager::setConnected(false);
-    flash_set('success', 'Usuário e senha válidos no RM · ' . $result['message']);
+    flash_set(
+        'success',
+        'Usuário e senha válidos no RM · ' . $result['message']
+        . ' Clique em Entrar para abrir o inventário.'
+    );
     redirect_to('index.php');
 }
 
