@@ -86,6 +86,138 @@
         });
     });
 
+    function formatInventarioMask(raw) {
+        const digits = String(raw || '').replace(/\D/g, '').slice(0, 8);
+        const parts = [];
+        if (digits.length > 0) {
+            parts.push(digits.slice(0, 2));
+        }
+        if (digits.length > 2) {
+            parts.push(digits.slice(2, 5));
+        }
+        if (digits.length > 5) {
+            parts.push(digits.slice(5, 8));
+        }
+        return parts.join('.');
+    }
+
+    function loadLocaisEstoque() {
+        const el = document.getElementById('locais-estoque-data');
+        if (!el) {
+            return {};
+        }
+        try {
+            return JSON.parse(el.textContent || '{}');
+        } catch (e) {
+            return {};
+        }
+    }
+
+    const locaisEstoque = loadLocaisEstoque();
+
+    function nomeLocal(codloc) {
+        const code = String(codloc || '').replace(/\D/g, '').padStart(3, '0').slice(-3);
+        return locaisEstoque[code] || '';
+    }
+
+    function setLocalFeedback(codloc, options) {
+        options = options || {};
+        const nomeEl = document.querySelector('[data-codloc-nome]');
+        const hintEl = document.getElementById('inventario-mask-hint');
+        const invInput = document.getElementById('CODINVENTARIO');
+        const digits = String(codloc || '').replace(/\D/g, '');
+        const code = digits.length >= 3 ? digits.slice(0, 3) : digits;
+        const nome = code.length === 3 ? nomeLocal(code) : '';
+
+        if (nomeEl) {
+            if (code.length < 3) {
+                nomeEl.textContent = 'Informe o local no código do inventário';
+                nomeEl.classList.remove('is-error', 'is-ok');
+            } else if (nome) {
+                nomeEl.textContent = nome;
+                nomeEl.classList.remove('is-error');
+                nomeEl.classList.add('is-ok');
+            } else {
+                nomeEl.textContent = 'Local ' + code + ' não cadastrado';
+                nomeEl.classList.add('is-error');
+                nomeEl.classList.remove('is-ok');
+            }
+        }
+
+        if (hintEl) {
+            if (code.length === 3 && !nome) {
+                hintEl.textContent = 'Local de estoque inválido no código do inventário.';
+                hintEl.classList.add('is-error');
+            } else {
+                hintEl.textContent = 'Formato AA.LLL.NNN (ano.local.número) — o local deve ser um código cadastrado';
+                hintEl.classList.remove('is-error');
+            }
+        }
+
+        if (invInput && options.markValidity !== false && digits.length >= 5) {
+            if (code.length === 3 && !nome) {
+                invInput.setCustomValidity('Local de estoque ' + code + ' não é válido.');
+            } else {
+                invInput.setCustomValidity('');
+            }
+        } else if (invInput) {
+            invInput.setCustomValidity('');
+        }
+    }
+
+    function syncCodlocFromInventario(inventarioInput) {
+        const locInput = document.getElementById('CODLOC');
+        if (!locInput || !inventarioInput) {
+            return;
+        }
+        const digits = inventarioInput.value.replace(/\D/g, '');
+        const codloc = digits.length >= 5 ? digits.slice(2, 5) : '';
+        locInput.value = codloc;
+        setLocalFeedback(codloc);
+    }
+
+    document.querySelectorAll('[data-inventario-mask]').forEach(function (input) {
+        input.addEventListener('input', function () {
+            const formatted = formatInventarioMask(input.value);
+            input.value = formatted;
+            syncCodlocFromInventario(input);
+        });
+
+        if (input.value) {
+            input.value = formatInventarioMask(input.value);
+            syncCodlocFromInventario(input);
+        }
+    });
+
+    const editLocInput = document.getElementById('edit-loc');
+    const editLocNome = document.getElementById('edit-loc-nome');
+    if (editLocInput) {
+        editLocInput.addEventListener('input', function () {
+            const code = editLocInput.value.replace(/\D/g, '').slice(0, 3);
+            editLocInput.value = code;
+            const nome = nomeLocal(code);
+            if (editLocNome) {
+                if (code.length < 3) {
+                    editLocNome.textContent = '';
+                    editLocNome.classList.remove('is-error', 'is-ok');
+                } else if (nome) {
+                    editLocNome.textContent = nome;
+                    editLocNome.classList.add('is-ok');
+                    editLocNome.classList.remove('is-error');
+                } else {
+                    editLocNome.textContent = 'Local ' + code + ' não cadastrado';
+                    editLocNome.classList.add('is-error');
+                    editLocNome.classList.remove('is-ok');
+                }
+            }
+            if (code.length === 3 && !nome) {
+                editLocInput.setCustomValidity('Local de estoque ' + code + ' não é válido.');
+            } else {
+                editLocInput.setCustomValidity('');
+            }
+        });
+    }
+
     const barcodeInput = document.getElementById('CODIGOBARRAS');
     const inventoryForm = document.getElementById('inventory-form');
 
@@ -132,7 +264,9 @@
         document.getElementById('edit-id').value = data.id || '';
         document.getElementById('edit-barras').value = data.barras || '';
         document.getElementById('edit-qtd').value = data.qtd || '';
-        document.getElementById('edit-loc').value = data.loc || '';
+        const editLoc = document.getElementById('edit-loc');
+        editLoc.value = data.loc || '';
+        editLoc.dispatchEvent(new Event('input'));
         editModal.classList.remove('hidden');
         editModal.setAttribute('aria-hidden', 'false');
     }

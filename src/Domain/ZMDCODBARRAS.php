@@ -142,7 +142,67 @@ class ZMDCODBARRAS
     }
 
     /**
-     * @param string $inventario
+     * Máscara do código de inventário: AA.LLL.NNN (ano.local.número).
+     * Ex.: 26.065.002 — o local (LLL) deve existir em LocaisEstoque.
+     *
+     * @return array{valid: bool, formatted: string, ano: string, codloc: string, numero: string, nome_local: string, error: string}
+     */
+    public static function parseCodigoInventario(string $codigo): array
+    {
+        $result = [
+            'valid'      => false,
+            'formatted'  => '',
+            'ano'        => '',
+            'codloc'     => '',
+            'numero'     => '',
+            'nome_local' => '',
+            'error'      => '',
+        ];
+
+        $digits = preg_replace('/\D/', '', trim($codigo));
+
+        if (strlen($digits) !== 8) {
+            $result['error'] = 'Código do inventário deve seguir o formato AA.LLL.NNN (ano.local.número), ex.: 26.065.002.';
+            return $result;
+        }
+
+        $ano = substr($digits, 0, 2);
+        $codloc = substr($digits, 2, 3);
+        $numero = substr($digits, 5, 3);
+        $formatted = $ano . '.' . $codloc . '.' . $numero;
+
+        $result['ano'] = $ano;
+        $result['codloc'] = $codloc;
+        $result['numero'] = $numero;
+        $result['formatted'] = $formatted;
+
+        $local = LocaisEstoque::validar($codloc);
+        if (!$local['valid']) {
+            $result['error'] = $local['error'];
+            return $result;
+        }
+
+        $result['valid'] = true;
+        $result['nome_local'] = $local['nome'];
+
+        return $result;
+    }
+
+    /**
+     * Formata para AA.LLL.NNN quando houver 8 dígitos; caso contrário devolve o valor original.
+     * Não valida o local — use parseCodigoInventario() para validação completa.
+     */
+    public static function formatCodigoInventario(string $codigo): string
+    {
+        $digits = preg_replace('/\D/', '', trim($codigo));
+        if (strlen($digits) !== 8) {
+            return trim($codigo);
+        }
+
+        return substr($digits, 0, 2) . '.' . substr($digits, 2, 3) . '.' . substr($digits, 5, 3);
+    }
+
+    /**
      * @return array<string, string>
      */
     public static function inventarioQueryParams(string $codloc, string $inventario, string $quantidade = '1'): array

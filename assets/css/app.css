@@ -135,6 +135,32 @@ body {
     margin-bottom: 1rem;
 }
 
+.form-hint {
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.form-hint.is-ok {
+    color: #047857;
+}
+
+.form-hint.is-error {
+    color: #b91c1c;
+}
+
+.form-control[readonly] {
+    background: #f3f4f6;
+    color: var(--text-muted);
+    cursor: default;
+}
+
+.form-control.mono {
+    font-family: ui-monospace, "Cascadia Code", monospace;
+    letter-spacing: 0.04em;
+}
+
 /* Ambiente — radio simples */
 .env-list {
     display: flex;

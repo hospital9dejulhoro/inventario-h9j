@@ -28,6 +28,7 @@ require APP_ROOT . DS . 'src' . DS . 'Helpers' . DS . 'functions.php';
 require APP_ROOT . DS . 'src' . DS . 'Config' . DS . 'EnvironmentManager.php';
 require APP_ROOT . DS . 'src' . DS . 'Http' . DS . 'SessionManager.php';
 require APP_ROOT . DS . 'src' . DS . 'Database' . DS . 'Connection.php';
+require APP_ROOT . DS . 'src' . DS . 'Domain' . DS . 'LocaisEstoque.php';
 require APP_ROOT . DS . 'src' . DS . 'Domain' . DS . 'ZMDCODBARRAS.php';
 
 EnvironmentManager::boot(APP_ROOT . DS . 'config' . DS . 'environments.php');

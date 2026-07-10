@@ -66,11 +66,18 @@ if ($acao === 'editar') {
         redirect_to($redirectUrl);
     }
 
+    $itemCodloc = (string) ($_POST['ITEM_CODLOC'] ?? '');
+    $localCheck = LocaisEstoque::validar($itemCodloc);
+    if (!$localCheck['valid']) {
+        flash_set('danger', $localCheck['error']);
+        redirect_to($redirectUrl);
+    }
+
     $zmd = new ZMDCODBARRAS();
     $zmd->setId($id);
     $zmd->setCodigobarras($codigobarras);
     $zmd->setQuantidade($_POST['ITEM_QUANTIDADE'] ?? '1');
-    $zmd->setCodloc($_POST['ITEM_CODLOC'] ?? '');
+    $zmd->setCodloc($localCheck['codloc']);
 
     if ($zmd->atualizar()) {
         flash_set('success', 'Registro atualizado com sucesso.');

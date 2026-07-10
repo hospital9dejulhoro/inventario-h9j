@@ -25,6 +25,44 @@ if ($codinventario === '' && SessionManager::hasLastInventario()) {
     $retomadoDaSessao = true;
 }
 
+// Normaliza máscara AA.LLL.NNN, valida local e sincroniza CODLOC
+if ($codinventario !== '') {
+    $parsedInv = ZMDCODBARRAS::parseCodigoInventario($codinventario);
+    if ($parsedInv['valid']) {
+        $codinventario = $parsedInv['formatted'];
+        $codloc = $parsedInv['codloc'];
+    } elseif (isset($_GET['aplicar']) || (isset($_GET['CODIGOBARRAS']) && trim((string) $_GET['CODIGOBARRAS']) !== '')) {
+        flash_set('danger', $parsedInv['error']);
+        redirect_to('inventario.php?' . http_build_query(ZMDCODBARRAS::inventarioQueryParams(
+            $codloc,
+            ZMDCODBARRAS::formatCodigoInventario($codinventario),
+            $quantidade
+        )));
+    } else {
+        $codinventario = ZMDCODBARRAS::formatCodigoInventario($codinventario);
+        if (strlen(preg_replace('/\D/', '', $codinventario)) >= 5) {
+            $codloc = substr(preg_replace('/\D/', '', $codinventario), 2, 3);
+        }
+    }
+}
+
+if ($codloc !== '') {
+    $localCheck = LocaisEstoque::validar($codloc);
+    if ($localCheck['valid']) {
+        $codloc = $localCheck['codloc'];
+    } elseif (isset($_GET['aplicar']) || (isset($_GET['CODIGOBARRAS']) && trim((string) $_GET['CODIGOBARRAS']) !== '')) {
+        flash_set('danger', $localCheck['error']);
+        redirect_to('inventario.php?' . http_build_query(ZMDCODBARRAS::inventarioQueryParams(
+            $codloc,
+            ZMDCODBARRAS::formatCodigoInventario($codinventario),
+            $quantidade
+        )));
+    }
+}
+
+$nomeLocal = LocaisEstoque::nome($codloc);
+$locaisEstoqueJson = json_encode(LocaisEstoque::todos(), JSON_UNESCAPED_UNICODE);
+
 $redirectParams = function () use (&$codloc, &$codinventario, &$quantidade) {
     return ZMDCODBARRAS::inventarioQueryParams($codloc, $codinventario, $quantidade);
 };
