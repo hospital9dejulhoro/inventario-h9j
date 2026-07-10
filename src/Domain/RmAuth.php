@@ -91,7 +91,7 @@ class RmAuth
             return [
                 'success'    => false,
                 'message'    => 'Não foi possível alcançar a API do RM Host (' . $bases . ').'
-                    . ' Libere a porta 8051 deste servidor até o Host, ou abra /diag_rm_api.php.'
+                    . ' Libere a porta 8051 deste servidor até o Host (api_url).'
                     . $detail,
                 'codusuario' => $codusuario,
                 'nome'       => '',
@@ -368,47 +368,6 @@ class RmAuth
         $bases[] = 'http://172.20.0.30:8051';
 
         return array_values(array_unique(array_filter($bases)));
-    }
-
-    /**
-     * Diagnóstico de conectividade com a API do RM (para /diag_rm_api.php).
-     *
-     * @return list<array{url: string, ok: bool, http: int, detail: string, transport: string}>
-     */
-    public static function diagnoseApi(array $env = []): array
-    {
-        $rows = [];
-        $bases = self::apiBases($env !== [] ? $env : [
-            'api_url' => 'http://172.20.0.21:8051',
-        ]);
-        $payload = '{"grant_type":"password","username":"__diag__","password":"__diag__"}';
-
-        foreach ($bases as $base) {
-            $url = rtrim($base, '/') . '/api/connect/token';
-            $resp = self::httpPostJson($url, $payload, 5);
-            $row = [
-                'url'       => $url,
-                'ok'        => false,
-                'http'      => $resp['http'],
-                'detail'    => '',
-                'transport' => $resp['transport'],
-            ];
-
-            if ($resp['http'] === 0) {
-                $row['detail'] = $resp['error'] !== '' ? $resp['error'] : 'sem resposta (firewall/timeout?)';
-            } elseif ($resp['http'] === 400 || $resp['http'] === 401 || $resp['http'] === 403) {
-                $row['ok'] = true;
-                $row['detail'] = 'Host alcançável (HTTP ' . $resp['http'] . ' com credencial inválida)';
-            } elseif ($resp['http'] >= 200 && $resp['http'] < 300) {
-                $row['ok'] = true;
-                $row['detail'] = 'HTTP ' . $resp['http'];
-            } else {
-                $row['detail'] = 'HTTP ' . $resp['http'] . ' ' . substr($resp['body'], 0, 120);
-            }
-            $rows[] = $row;
-        }
-
-        return $rows;
     }
 
     /**
