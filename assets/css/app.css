@@ -558,6 +558,30 @@ body {
     gap: 0.75rem;
 }
 
+.inv-setup-row--inventario {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    max-width: 40rem;
+}
+
+.inv-scan-row {
+    display: grid;
+    grid-template-columns: 7rem minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: start;
+    margin-bottom: 0.875rem;
+}
+
+.inv-qtd-group {
+    margin-bottom: 0;
+}
+
+.inv-qtd-input {
+    text-align: center;
+    font-size: 1.25rem;
+    font-weight: 600;
+    padding: 0.875rem 0.5rem;
+}
+
 .inv-setup-details {
     margin: 0;
 }
@@ -591,7 +615,7 @@ body {
 }
 
 .inv-barcode-group {
-    margin-bottom: 0.875rem;
+    margin-bottom: 0;
 }
 
 .inv-barcode-input {
@@ -699,7 +723,9 @@ body {
 .mt-3 { margin-top: 1rem; }
 
 @media (max-width: 768px) {
-    .inv-setup-row {
+    .inv-setup-row,
+    .inv-setup-row--inventario,
+    .inv-scan-row {
         grid-template-columns: 1fr;
     }
 

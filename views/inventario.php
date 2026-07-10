@@ -28,7 +28,7 @@ $locaisEstoqueJson = $locaisEstoqueJson ?? '{}';
         <h1 class="page-title">Leitura de inventário</h1>
         <p class="page-subtitle">
             <?php if ($modoLeitura): ?>
-                Altere local ou inventário na etapa 1 quando precisar. Depois escaneie na etapa 2.
+                Altere o inventário na etapa 1 se precisar. Quantidade e leitura ficam na etapa 2.
             <?php else: ?>
                 Informe o inventário abaixo para começar a leitura.
             <?php endif; ?>
@@ -51,18 +51,10 @@ $locaisEstoqueJson = $locaisEstoqueJson ?? '{}';
                 <span class="inv-step">1</span>
                 <div>
                     <h2 id="secao-config" class="section-title">Inventário e local</h2>
-                    <p class="section-desc">Edite quando for mudar de inventário ou local de estoque. Clique em <strong>Aplicar</strong> para confirmar a troca.</p>
+                    <p class="section-desc">Edite o código do inventário quando precisar trocar. Clique em <strong>Aplicar</strong> para confirmar.</p>
                 </div>
             </div>
-            <div class="inv-setup-row">
-                <div class="form-group">
-                    <label for="CODLOC" class="form-label">Local de estoque</label>
-                    <input type="text" name="CODLOC" id="CODLOC" class="form-control"
-                           pattern=".{3,3}" maxlength="3" inputmode="numeric" readonly
-                           title="Preenchido automaticamente pelo código do inventário (AA.LLL.NNN)"
-                           value="<?= e($codloc) ?>" required>
-                    <span class="form-hint" id="codloc-nome" data-codloc-nome><?= e($nomeLocal !== '' ? $nomeLocal : 'Informe o local no código do inventário') ?></span>
-                </div>
+            <div class="inv-setup-row inv-setup-row--inventario">
                 <div class="form-group">
                     <label for="CODINVENTARIO" class="form-label">Código do inventário</label>
                     <input type="text" name="CODINVENTARIO" id="CODINVENTARIO" class="form-control mono"
@@ -71,12 +63,15 @@ $locaisEstoqueJson = $locaisEstoqueJson ?? '{}';
                            title="Formato: AA.LLL.NNN — ano, local de estoque válido e número"
                            data-inventario-mask
                            value="<?= e($codinventario) ?>" required>
-                    <span class="form-hint" id="inventario-mask-hint">Formato AA.LLL.NNN (ano.local.número) — o local deve ser um código cadastrado</span>
+                    <span class="form-hint" id="inventario-mask-hint">Formato AA.LLL.NNN (ano.local.número)</span>
                 </div>
                 <div class="form-group">
-                    <label for="QUANTIDADE" class="form-label">Quantidade padrão</label>
-                    <input type="text" name="QUANTIDADE" id="QUANTIDADE" class="form-control"
-                           value="<?= e($quantidade) ?>" required>
+                    <label for="CODLOC" class="form-label">Local de estoque</label>
+                    <input type="text" name="CODLOC" id="CODLOC" class="form-control"
+                           pattern=".{3,3}" maxlength="3" inputmode="numeric" readonly
+                           title="Preenchido automaticamente pelo código do inventário (AA.LLL.NNN)"
+                           value="<?= e($codloc) ?>" required>
+                    <span class="form-hint" id="codloc-nome" data-codloc-nome><?= e($nomeLocal !== '' ? $nomeLocal : 'Informe o local no código do inventário') ?></span>
                 </div>
             </div>
             <div class="inv-config-actions">
@@ -106,15 +101,22 @@ $locaisEstoqueJson = $locaisEstoqueJson ?? '{}';
                 <span class="inv-step">2</span>
                 <div>
                     <h2 id="secao-leitura" class="section-title">Ler código de barras</h2>
-                    <p class="section-desc">Aponte o leitor ou digite os 13 dígitos e pressione Enter.</p>
+                    <p class="section-desc">Ajuste a quantidade se precisar e escaneie os 13 dígitos (Enter para gravar).</p>
                 </div>
             </div>
-            <div class="form-group inv-barcode-group">
-                <label for="CODIGOBARRAS" class="form-label">Código de barras</label>
-                <input type="text" name="CODIGOBARRAS" id="CODIGOBARRAS" class="form-control inv-barcode-input"
-                       maxlength="13" inputmode="numeric"
-                       oninput="this.value = this.value.replace(/[^0-9]/g, '');"
-                       value="" placeholder="0000000000000" autofocus>
+            <div class="inv-scan-row">
+                <div class="form-group inv-qtd-group">
+                    <label for="QUANTIDADE" class="form-label">Quantidade</label>
+                    <input type="text" name="QUANTIDADE" id="QUANTIDADE" class="form-control inv-qtd-input"
+                           inputmode="numeric" value="<?= e($quantidade) ?>" required>
+                </div>
+                <div class="form-group inv-barcode-group">
+                    <label for="CODIGOBARRAS" class="form-label">Código de barras</label>
+                    <input type="text" name="CODIGOBARRAS" id="CODIGOBARRAS" class="form-control inv-barcode-input"
+                           maxlength="13" inputmode="numeric"
+                           oninput="this.value = this.value.replace(/[^0-9]/g, '');"
+                           value="" placeholder="0000000000000" autofocus>
+                </div>
             </div>
             <button type="submit" class="btn btn-primary" id="btn-registrar">Registrar leitura</button>
         </section>
@@ -129,20 +131,12 @@ $locaisEstoqueJson = $locaisEstoqueJson ?? '{}';
                         <?php if ($retomadoDaSessao): ?>
                             Dados do último inventário carregados. Confirme ou altere e clique em Aplicar.
                         <?php else: ?>
-                            Preencha o código do inventário (AA.LLL.NNN) e a quantidade padrão de cada leitura.
+                            Informe o código do inventário (AA.LLL.NNN). O local é preenchido automaticamente.
                         <?php endif; ?>
                     </p>
                 </div>
             </div>
-            <div class="inv-setup-row">
-                <div class="form-group">
-                    <label for="CODLOC" class="form-label">Local de estoque</label>
-                    <input type="text" name="CODLOC" id="CODLOC" class="form-control"
-                           pattern=".{3,3}" maxlength="3" inputmode="numeric" readonly
-                           title="Preenchido automaticamente pelo código do inventário (AA.LLL.NNN)"
-                           value="<?= e($codloc) ?>" required>
-                    <span class="form-hint" id="codloc-nome" data-codloc-nome><?= e($nomeLocal !== '' ? $nomeLocal : 'Informe o local no código do inventário') ?></span>
-                </div>
+            <div class="inv-setup-row inv-setup-row--inventario">
                 <div class="form-group">
                     <label for="CODINVENTARIO" class="form-label">Código do inventário</label>
                     <input type="text" name="CODINVENTARIO" id="CODINVENTARIO" class="form-control mono"
@@ -151,14 +145,18 @@ $locaisEstoqueJson = $locaisEstoqueJson ?? '{}';
                            title="Formato: AA.LLL.NNN — ano, local de estoque válido e número"
                            data-inventario-mask
                            value="<?= e($codinventario) ?>" required autofocus>
-                    <span class="form-hint" id="inventario-mask-hint">Formato AA.LLL.NNN (ano.local.número) — o local deve ser um código cadastrado</span>
+                    <span class="form-hint" id="inventario-mask-hint">Formato AA.LLL.NNN (ano.local.número)</span>
                 </div>
                 <div class="form-group">
-                    <label for="QUANTIDADE" class="form-label">Quantidade padrão</label>
-                    <input type="text" name="QUANTIDADE" id="QUANTIDADE" class="form-control"
-                           value="<?= e($quantidade) ?>" required>
+                    <label for="CODLOC" class="form-label">Local de estoque</label>
+                    <input type="text" name="CODLOC" id="CODLOC" class="form-control"
+                           pattern=".{3,3}" maxlength="3" inputmode="numeric" readonly
+                           title="Preenchido automaticamente pelo código do inventário (AA.LLL.NNN)"
+                           value="<?= e($codloc) ?>" required>
+                    <span class="form-hint" id="codloc-nome" data-codloc-nome><?= e($nomeLocal !== '' ? $nomeLocal : 'Informe o local no código do inventário') ?></span>
                 </div>
             </div>
+            <input type="hidden" name="QUANTIDADE" value="<?= e($quantidade !== '' ? $quantidade : '1') ?>">
             <button type="submit" name="aplicar" value="1" class="btn btn-primary">Aplicar e começar leitura</button>
         </section>
         <?php endif; ?>
