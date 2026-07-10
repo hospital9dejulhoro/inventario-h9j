@@ -33,63 +33,67 @@ git fetch origin
 git checkout "$BRANCH"
 git pull origin "$BRANCH"
 
-# Garante os 3 ambientes: producao, homologacao (HomologaRM) e testes (ontemrm)
+# Reescreve environments.php limpo com os 3 ambientes (preserva senhas existentes)
 ENV_FILE="config/environments.php"
 if [ -f "$ENV_FILE" ]; then
   cp "$ENV_FILE" "${ENV_FILE}.bak.$(date +%Y%m%d%H%M%S)"
 
   python3 - <<'PY'
+import re
 from pathlib import Path
 
 path = Path("config/environments.php")
 text = path.read_text(encoding="utf-8")
-changed = False
 
-homolog_block = """
+def extract_senha(src: str, key: str, default: str = "rm") -> str:
+    # Captura a senha dentro do bloco da chave
+    pattern = rf"'{key}'\s*=>\s*\[[^\]]*?'senha'\s*=>\s*'([^']*)'"
+    m = re.search(pattern, src, flags=re.S)
+    return m.group(1) if m else default
+
+senha_prod = extract_senha(text, "producao")
+senha_hml = extract_senha(text, "homologacao", senha_prod)
+senha_tst = extract_senha(text, "testes", senha_prod)
+
+content = f"""<?php
+
+/**
+ * Configuração centralizada dos ambientes TOTVS RM.
+ * Arquivo gerado/normalizado pelo deploy (atualizar-servidor.sh).
+ */
+return [
+    'producao' => [
+        'label'                    => 'Produção',
+        'host'                     => '172.20.0.10',
+        'database'                 => 'CorporeRM',
+        'usuario'                  => 'rm',
+        'senha'                    => '{senha_prod}',
+        'badge_class'              => 'bg-danger',
+        'trust_server_certificate' => true,
+    ],
     'homologacao' => [
         'label'                    => 'Homologação',
         'host'                     => '172.20.0.15',
         'database'                 => 'HomologaRM',
         'usuario'                  => 'rm',
-        'senha'                    => 'rm',
+        'senha'                    => '{senha_hml}',
         'badge_class'              => 'bg-warning text-dark',
         'trust_server_certificate' => true,
     ],
-"""
-
-testes_block = """
     'testes' => [
         'label'                    => 'Testes',
         'host'                     => '172.20.0.15',
         'database'                 => 'ontemrm',
         'usuario'                  => 'rm',
-        'senha'                    => 'rm',
+        'senha'                    => '{senha_tst}',
         'badge_class'              => 'bg-info text-dark',
         'trust_server_certificate' => true,
     ],
+];
 """
 
-if "'homologacao'" not in text:
-    if "    'testes'" in text:
-        text = text.replace("    'testes'", homolog_block + "    'testes'", 1)
-    else:
-        text = text.replace("];", homolog_block + "];", 1)
-    changed = True
-    print("Ambiente homologacao inserido.")
-
-if "'testes'" not in text:
-    if "    'homologacao'" in text:
-        # Insere testes depois do bloco homologacao (antes do ]); final)
-        text = text.replace("];", testes_block + "];", 1)
-    else:
-        text = text.replace("];", testes_block + "];", 1)
-    changed = True
-    print("Ambiente testes (ontemrm) inserido.")
-
-if changed:
-    path.write_text(text, encoding="utf-8")
-else:
-    print("Ambientes producao/homologacao/testes ja presentes.")
+path.write_text(content, encoding="utf-8")
+print("environments.php normalizado: producao, homologacao, testes.")
 PY
 fi
 
@@ -102,5 +106,6 @@ systemctl reload nginx 2>/dev/null || true
 
 echo "Atualizado com sucesso ($(git rev-parse --short HEAD))"
 if [ -f "$ENV_FILE" ]; then
-  grep -E "'(producao|homologacao|testes)'|database" "$ENV_FILE" || true
+  echo "--- ambientes ---"
+  grep -nE "'(producao|homologacao|testes)'|'database'" "$ENV_FILE" || true
 fi
