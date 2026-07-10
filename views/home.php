@@ -45,6 +45,19 @@ if ($selectedEnvironment === null && $environments !== []) {
 
             <form action="conectar.php" method="post" id="connect-form" class="login-form" novalidate>
                 <div class="form-group">
+                    <label for="usuario" class="form-label">Usuário</label>
+                    <input type="text" class="form-control" id="usuario" name="usuario"
+                           value="<?= e($defaultUsername) ?>" placeholder="Usuário do RM" required
+                           autocomplete="username" autofocus>
+                </div>
+
+                <div class="form-group">
+                    <label for="senha" class="form-label">Senha</label>
+                    <input type="password" class="form-control" id="senha" name="senha"
+                           placeholder="Senha do RM" required autocomplete="current-password">
+                </div>
+
+                <div class="form-group">
                     <label for="ambiente" class="form-label">Ambiente</label>
                     <div class="select-wrap">
                         <select class="form-control form-select" id="ambiente" name="ambiente" required>
@@ -56,19 +69,6 @@ if ($selectedEnvironment === null && $environments !== []) {
                             <?php endforeach; ?>
                         </select>
                     </div>
-                </div>
-
-                <div class="form-group">
-                    <label for="usuario" class="form-label">Usuário</label>
-                    <input type="text" class="form-control" id="usuario" name="usuario"
-                           value="<?= e($defaultUsername) ?>" placeholder="Usuário do RM" required
-                           autocomplete="username" autofocus>
-                </div>
-
-                <div class="form-group">
-                    <label for="senha" class="form-label">Senha</label>
-                    <input type="password" class="form-control" id="senha" name="senha"
-                           placeholder="Senha do RM" required autocomplete="current-password">
                 </div>
 
                 <?php
