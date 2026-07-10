@@ -11,6 +11,7 @@ $envKey = array_key_first(EnvironmentManager::all()) ?: '';
 $env = $envKey !== '' ? EnvironmentManager::get($envKey) : [];
 $rows = RmAuth::diagnoseApi($env);
 $curl = function_exists('curl_init');
+$fopen = (bool) ini_get('allow_url_fopen');
 $anyOk = false;
 foreach ($rows as $r) {
     if (!empty($r['ok'])) {
@@ -18,6 +19,7 @@ foreach ($rows as $r) {
         break;
     }
 }
+$transport = $rows[0]['transport'] ?? ($curl ? 'curl' : 'stream');
 ?>
 <!doctype html>
 <html lang="pt-BR">
@@ -35,13 +37,19 @@ foreach ($rows as $r) {
 </head>
 <body>
     <h1>Diagnóstico API RM</h1>
-    <p>PHP curl: <strong class="<?= $curl ? 'ok' : 'fail' ?>"><?= $curl ? 'OK' : 'AUSENTE' ?></strong></p>
+    <p>PHP curl: <strong class="<?= $curl ? 'ok' : 'fail' ?>"><?= $curl ? 'OK' : 'AUSENTE' ?></strong>
+        · allow_url_fopen: <strong class="<?= $fopen ? 'ok' : 'fail' ?>"><?= $fopen ? 'ON' : 'OFF' ?></strong>
+        · transporte: <code><?= htmlspecialchars($transport, ENT_QUOTES, 'UTF-8') ?></code>
+    </p>
+    <?php if (!$curl): ?>
+        <p class="fail">Instale no servidor: <code>sudo apt install php8.3-curl &amp;&amp; sudo systemctl restart php8.3-fpm</code></p>
+    <?php endif; ?>
     <p>Resultado geral:
         <?php if ($anyOk): ?>
             <strong class="ok">Host alcançável</strong> — o login deve funcionar pela API.
         <?php else: ?>
-            <strong class="fail">Host inacessível</strong> — libere <code>TCP 8051</code>
-            deste servidor (<code>172.20.0.43</code>) até o RM Host (<code>172.20.0.21</code>).
+            <strong class="fail">Host inacessível</strong> — confira curl/fopen e a porta <code>TCP 8051</code>
+            até o RM Host (<code>172.20.0.21</code>).
         <?php endif; ?>
     </p>
     <table>

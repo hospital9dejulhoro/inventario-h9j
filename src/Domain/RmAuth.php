@@ -202,11 +202,6 @@ class RmAuth
     {
         $fail = ['tried' => false, 'success' => false, 'rejected' => false, 'message' => ''];
 
-        if (!function_exists('curl_init')) {
-            $fail['message'] = 'cURL indisponível';
-            return $fail;
-        }
-
         $bases = self::apiBases($env);
         if ($bases === []) {
             $fail['message'] = 'Sem api_url';
@@ -224,34 +219,19 @@ class RmAuth
 
         foreach ($bases as $base) {
             $url = rtrim($base, '/') . '/api/connect/token';
-            $ch = curl_init($url);
-            curl_setopt_array($ch, [
-                CURLOPT_POST           => true,
-                CURLOPT_HTTPHEADER     => [
-                    'Content-Type: application/json',
-                    'Accept: application/json',
-                ],
-                CURLOPT_POSTFIELDS     => $payload,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_CONNECTTIMEOUT => 4,
-                CURLOPT_TIMEOUT        => 10,
-                CURLOPT_FOLLOWLOCATION => true,
-                CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
-            ]);
-            $body = curl_exec($ch);
-            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $err  = curl_error($ch);
-            curl_close($ch);
+            $resp = self::httpPostJson($url, (string) $payload, 10);
 
-            if ($body === false || $code === 0) {
-                $lastErr = $err !== '' ? $err : 'sem resposta de ' . $url;
+            if ($resp['http'] === 0) {
+                $lastErr = $resp['error'] !== '' ? $resp['error'] : 'sem resposta de ' . $url;
                 continue;
             }
 
             $reached = true;
+            $code = $resp['http'];
+            $body = $resp['body'];
 
             if ($code >= 200 && $code < 300) {
-                $json = json_decode((string) $body, true);
+                $json = json_decode($body, true);
                 if (is_array($json) && !empty($json['access_token'])) {
                     return [
                         'tried'    => true,
@@ -262,7 +242,6 @@ class RmAuth
                 }
             }
 
-            // Credencial rejeitada — não tentar outro host
             if ($code === 400 || $code === 401 || $code === 403) {
                 return [
                     'tried'    => true,
@@ -280,6 +259,89 @@ class RmAuth
             'success'  => false,
             'rejected' => false,
             'message'  => $lastErr !== '' ? $lastErr : 'API falhou',
+        ];
+    }
+
+    /**
+     * POST JSON — prefer curl; fallback file_get_contents (allow_url_fopen).
+     *
+     * @return array{http: int, body: string, error: string, transport: string}
+     */
+    private static function httpPostJson(string $url, string $payload, int $timeout = 10): array
+    {
+        if (function_exists('curl_init')) {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_POST           => true,
+                CURLOPT_HTTPHEADER     => [
+                    'Content-Type: application/json',
+                    'Accept: application/json',
+                ],
+                CURLOPT_POSTFIELDS     => $payload,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_CONNECTTIMEOUT => min(4, $timeout),
+                CURLOPT_TIMEOUT        => $timeout,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
+            ]);
+            $body = curl_exec($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $err  = curl_error($ch);
+            curl_close($ch);
+
+            if ($body === false || $code === 0) {
+                return [
+                    'http'      => 0,
+                    'body'      => '',
+                    'error'     => $err !== '' ? $err : 'curl sem resposta',
+                    'transport' => 'curl',
+                ];
+            }
+
+            return [
+                'http'      => $code,
+                'body'      => (string) $body,
+                'error'     => '',
+                'transport' => 'curl',
+            ];
+        }
+
+        // Fallback sem extensão curl
+        $ctx = stream_context_create([
+            'http' => [
+                'method'        => 'POST',
+                'header'        => "Content-Type: application/json\r\nAccept: application/json\r\n",
+                'content'       => $payload,
+                'timeout'       => $timeout,
+                'ignore_errors' => true,
+            ],
+        ]);
+
+        $body = @file_get_contents($url, false, $ctx);
+        $code = 0;
+        if (isset($http_response_header) && is_array($http_response_header)) {
+            foreach ($http_response_header as $line) {
+                if (preg_match('#^HTTP/\S+\s+(\d+)#', $line, $m)) {
+                    $code = (int) $m[1];
+                    break;
+                }
+            }
+        }
+
+        if ($body === false && $code === 0) {
+            return [
+                'http'      => 0,
+                'body'      => '',
+                'error'     => 'file_get_contents falhou (allow_url_fopen? rede?)',
+                'transport' => 'stream',
+            ];
+        }
+
+        return [
+            'http'      => $code,
+            'body'      => is_string($body) ? $body : '',
+            'error'     => '',
+            'transport' => 'stream',
         ];
     }
 
@@ -311,7 +373,7 @@ class RmAuth
     /**
      * Diagnóstico de conectividade com a API do RM (para /diag_rm_api.php).
      *
-     * @return list<array{url: string, ok: bool, http: int, detail: string}>
+     * @return list<array{url: string, ok: bool, http: int, detail: string, transport: string}>
      */
     public static function diagnoseApi(array $env = []): array
     {
@@ -319,44 +381,29 @@ class RmAuth
         $bases = self::apiBases($env !== [] ? $env : [
             'api_url' => 'http://172.20.0.21:8051',
         ]);
+        $payload = '{"grant_type":"password","username":"__diag__","password":"__diag__"}';
 
         foreach ($bases as $base) {
             $url = rtrim($base, '/') . '/api/connect/token';
-            $row = ['url' => $url, 'ok' => false, 'http' => 0, 'detail' => ''];
+            $resp = self::httpPostJson($url, $payload, 5);
+            $row = [
+                'url'       => $url,
+                'ok'        => false,
+                'http'      => $resp['http'],
+                'detail'    => '',
+                'transport' => $resp['transport'],
+            ];
 
-            if (!function_exists('curl_init')) {
-                $row['detail'] = 'extensão curl ausente no PHP';
-                $rows[] = $row;
-                continue;
-            }
-
-            $ch = curl_init($url);
-            curl_setopt_array($ch, [
-                CURLOPT_POST           => true,
-                CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Accept: application/json'],
-                CURLOPT_POSTFIELDS     => '{"grant_type":"password","username":"__diag__","password":"__diag__"}',
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_CONNECTTIMEOUT => 3,
-                CURLOPT_TIMEOUT        => 5,
-                CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
-            ]);
-            $body = curl_exec($ch);
-            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $err  = curl_error($ch);
-            curl_close($ch);
-
-            $row['http'] = $code;
-            if ($body === false || $code === 0) {
-                $row['detail'] = $err !== '' ? $err : 'sem resposta (firewall/timeout?)';
-            } elseif ($code === 400 || $code === 401 || $code === 403) {
-                // Host alcançável: rejeitou credencial de diagnóstico (esperado)
+            if ($resp['http'] === 0) {
+                $row['detail'] = $resp['error'] !== '' ? $resp['error'] : 'sem resposta (firewall/timeout?)';
+            } elseif ($resp['http'] === 400 || $resp['http'] === 401 || $resp['http'] === 403) {
                 $row['ok'] = true;
-                $row['detail'] = 'Host alcançável (HTTP ' . $code . ' com credencial inválida)';
-            } elseif ($code >= 200 && $code < 300) {
+                $row['detail'] = 'Host alcançável (HTTP ' . $resp['http'] . ' com credencial inválida)';
+            } elseif ($resp['http'] >= 200 && $resp['http'] < 300) {
                 $row['ok'] = true;
-                $row['detail'] = 'HTTP ' . $code;
+                $row['detail'] = 'HTTP ' . $resp['http'];
             } else {
-                $row['detail'] = 'HTTP ' . $code . ' ' . substr((string) $body, 0, 120);
+                $row['detail'] = 'HTTP ' . $resp['http'] . ' ' . substr($resp['body'], 0, 120);
             }
             $rows[] = $row;
         }

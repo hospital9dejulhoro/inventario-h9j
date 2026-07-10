@@ -22,8 +22,10 @@ echo "==> Instalando PHP-FPM e dependencias (nginx nao sera substituido)..."
 apt-get install -y \
   php-fpm \
   php-cli \
+  php-curl \
   php-xml \
   php-mbstring \
+  php-soap \
   php-dev \
   php-pear \
   build-essential \

@@ -33,6 +33,15 @@ git fetch origin
 git checkout "$BRANCH"
 git pull origin "$BRANCH"
 
+# Garante php-curl (necessário para autenticar na API do RM Host)
+PHP_VER="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || echo 8.3)"
+if ! php -m 2>/dev/null | grep -qi '^curl$'; then
+  echo "Instalando php${PHP_VER}-curl..."
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update -qq
+  apt-get install -y "php${PHP_VER}-curl" || apt-get install -y php-curl || true
+fi
+
 # Reescreve environments.php limpo com os 3 ambientes (preserva senhas existentes)
 ENV_FILE="config/environments.php"
 if [ -f "$ENV_FILE" ]; then
