@@ -7,9 +7,8 @@ if (SessionManager::isConnected() && !isset($_GET['config'])) {
     redirect_to('inventario.php');
 }
 
-$pageTitle = 'Inventário RM — Seleção de Ambiente';
-$bodyClass = 'page-home';
-$showNavbar = true;
+$pageTitle = 'Inventário — Hospital 9 de Julho';
+$bodyClass = 'page-login';
 
 $environments = EnvironmentManager::all();
 $selectedEnvironment = SessionManager::getEnvironment();
@@ -17,9 +16,11 @@ $selectedEnvironment = SessionManager::getEnvironment();
 if ($selectedEnvironment === null && isset($_GET['ambiente']) && EnvironmentManager::exists($_GET['ambiente'])) {
     $selectedEnvironment = $_GET['ambiente'];
 }
+
 $defaultUsername = SessionManager::getUsername();
 $lastTest = SessionManager::getLastConnectionTest();
 $isConnected = SessionManager::isConnected();
+$showNavbar = $isConnected;
 $lastInventario = SessionManager::getLastInventario();
 $recentInventarios = SessionManager::getRecentInventarios();
 

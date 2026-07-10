@@ -4,10 +4,11 @@
     --border: #e5e7eb;
     --text: #1f2937;
     --text-muted: #6b7280;
-    --accent: #374151;
-    --accent-hover: #111827;
-    --radius: 8px;
-    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --accent: #0b5cab;
+    --accent-hover: #084a8c;
+    --brand: #0b5cab;
+    --radius: 10px;
+    --font: "Manrope", "Segoe UI", sans-serif;
 }
 
 * {
@@ -939,3 +940,246 @@ body {
 
 /* Bootstrap override — esconder o que não usamos */
 .alert { display: none; }
+
+/* ========== Tela de login ========== */
+body.page-login {
+    background: #dceefc;
+    min-height: 100vh;
+}
+
+body.page-login .app-main {
+    min-height: 100vh;
+    padding: 0;
+    position: relative;
+}
+
+body.page-login .flash-wrap {
+    position: absolute;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(420px, calc(100% - 2rem));
+    z-index: 20;
+    margin: 0;
+    padding: 0;
+}
+
+.login-screen {
+    position: relative;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 2rem 1rem 2.5rem;
+    overflow: hidden;
+}
+
+.login-atmosphere {
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(ellipse 80% 60% at 50% -10%, rgba(255, 255, 255, 0.85), transparent 55%),
+        radial-gradient(ellipse 50% 40% at 100% 80%, rgba(59, 130, 246, 0.18), transparent 50%),
+        radial-gradient(ellipse 45% 35% at 0% 70%, rgba(14, 116, 180, 0.14), transparent 50%),
+        linear-gradient(165deg, #e8f4fc 0%, #d4eaf8 45%, #c5e0f5 100%);
+    pointer-events: none;
+}
+
+.login-shell {
+    position: relative;
+    z-index: 1;
+    width: min(420px, 100%);
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.login-brand {
+    text-align: center;
+    animation: loginRise 0.55s ease-out both;
+}
+
+.login-brand-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    border-radius: 18px;
+    padding: 0.85rem 1.25rem;
+    margin-bottom: 1.15rem;
+    box-shadow: 0 12px 32px rgba(11, 92, 171, 0.18);
+}
+
+.login-logo {
+    display: block;
+    width: min(240px, 72vw);
+    height: auto;
+}
+
+.login-title {
+    margin: 0;
+    font-family: var(--font);
+    font-size: clamp(1.85rem, 5vw, 2.35rem);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: #0a3d6e;
+    line-height: 1.1;
+}
+
+.login-tagline {
+    margin: 0.4rem 0 0;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #4a7aa3;
+}
+
+.login-panel {
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.95);
+    border-radius: 18px;
+    padding: 1.5rem 1.35rem 1.35rem;
+    box-shadow: 0 16px 40px rgba(14, 80, 140, 0.1);
+    animation: loginRise 0.65s ease-out 0.08s both;
+}
+
+.login-panel--resume {
+    padding: 1.15rem 1.25rem;
+    animation-delay: 0.04s;
+}
+
+.login-panel--recent {
+    animation-delay: 0.12s;
+}
+
+.login-panel-title {
+    margin: 0 0 1.1rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #5b8bb0;
+}
+
+.login-resume-text {
+    margin: 0 0 0.9rem;
+    font-size: 0.9rem;
+    color: var(--text);
+    line-height: 1.45;
+}
+
+.login-form .form-label {
+    color: #3d5a73;
+    font-weight: 600;
+}
+
+.login-form .form-control {
+    border-color: #c9dff0;
+    background: #f7fbfe;
+    border-radius: 10px;
+    padding: 0.65rem 0.85rem;
+    font-size: 0.95rem;
+}
+
+.login-form .form-control:focus {
+    border-color: var(--brand);
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(11, 92, 171, 0.14);
+}
+
+.select-wrap {
+    position: relative;
+}
+
+.select-wrap::after {
+    content: "";
+    position: absolute;
+    right: 0.9rem;
+    top: 50%;
+    width: 0.45rem;
+    height: 0.45rem;
+    border-right: 2px solid #5b8bb0;
+    border-bottom: 2px solid #5b8bb0;
+    transform: translateY(-60%) rotate(45deg);
+    pointer-events: none;
+}
+
+.form-select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 2.25rem;
+    cursor: pointer;
+}
+
+.login-actions {
+    margin-top: 1.35rem;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+
+.login-actions .btn-primary {
+    padding: 0.7rem 1rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border-radius: 10px;
+    background: var(--brand);
+    border-color: var(--brand);
+}
+
+.login-actions .btn-primary:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+}
+
+.login-actions .btn-secondary {
+    background: transparent;
+    border-color: #b7d4ea;
+    color: #3d5a73;
+}
+
+.login-actions .btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.7);
+    border-color: #8eb8d8;
+    color: #0a3d6e;
+}
+
+.login-foot {
+    text-align: center;
+    margin: 0.25rem 0 0;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #6a93b3;
+    animation: loginRise 0.7s ease-out 0.16s both;
+}
+
+body.page-login .recent-list-item a {
+    border-color: #d5e8f5;
+    background: #f7fbfe;
+}
+
+body.page-login .recent-list-item a:hover {
+    border-color: var(--brand);
+    background: #fff;
+}
+
+@keyframes loginRise {
+    from {
+        opacity: 0;
+        transform: translateY(14px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (max-width: 480px) {
+    .login-brand-mark {
+        padding: 0.7rem 1rem;
+        border-radius: 14px;
+    }
+
+    .login-panel {
+        padding: 1.25rem 1.1rem 1.15rem;
+        border-radius: 14px;
+    }
+}
