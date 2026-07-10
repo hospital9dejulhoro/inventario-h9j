@@ -70,6 +70,7 @@ return [
         'senha'                    => '{senha_prod}',
         'badge_class'              => 'bg-danger',
         'trust_server_certificate' => true,
+        'api_url'                  => 'http://172.20.0.21:8051',
     ],
     'homologacao' => [
         'label'                    => 'Homologação',
@@ -79,6 +80,7 @@ return [
         'senha'                    => '{senha_hml}',
         'badge_class'              => 'bg-warning text-dark',
         'trust_server_certificate' => true,
+        'api_url'                  => 'http://172.20.0.21:8051',
     ],
     'testes' => [
         'label'                    => 'Testes',
@@ -88,6 +90,7 @@ return [
         'senha'                    => '{senha_tst}',
         'badge_class'              => 'bg-info text-dark',
         'trust_server_certificate' => true,
+        'api_url'                  => 'http://172.20.0.21:8051',
     ],
 ];
 """

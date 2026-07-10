@@ -1,11 +1,14 @@
 <?php
 
 /**
- * Autenticação TOTVS RM via GUSUARIO + SOAP (mesma validação do RM).
+ * Autenticação TOTVS RM.
  *
- * STATUS na GUSUARIO é SMALLINT: 1 = ativo, 0 = inativo.
- * SENHA legada tem 8 chars (algoritmo proprietário); senha moderna usa bcrypt PHC.
- * Quando possível, valida via WebService do RM (ws_url / porta 8051).
+ * Ordem:
+ * 1) API oficial POST /api/connect/token (api_url / ws_url)
+ * 2) SOAP wsDataServer (fallback)
+ * 3) GUSUARIO (bcrypt / legado) — só quando a API não estiver disponível
+ *
+ * STATUS na GUSUARIO é SMALLINT: 1 = ativo.
  */
 class RmAuth
 {
@@ -38,24 +41,57 @@ class RmAuth
 
         $env = EnvironmentManager::get($envKey);
 
-        // 1) Preferir autenticação oficial do RM via SOAP (usa a mesma regra do TOTVS)
+        // 1) API REST oficial do RM Host
+        $rest = self::authenticateViaRest($env, $codusuario, $senha);
+        if ($rest['success']) {
+            $perfil = self::loadUsuario($env, $codusuario);
+            if ($perfil['found'] && !$perfil['ativo']) {
+                return [
+                    'success'    => false,
+                    'message'    => 'Usuário RM inativo neste ambiente (STATUS <> 1).',
+                    'codusuario' => $codusuario,
+                    'nome'       => '',
+                ];
+            }
+            return [
+                'success'    => true,
+                'message'    => 'Autenticado via RM API.',
+                'codusuario' => $perfil['codusuario'] ?: $codusuario,
+                'nome'       => ($perfil['nome'] !== '' ? $perfil['nome'] : $codusuario),
+            ];
+        }
+
+        // Credencial rejeitada pela API — não usar fallback legado (algoritmo incerto)
+        if (!empty($rest['rejected'])) {
+            return [
+                'success'    => false,
+                'message'    => 'Senha inválida (rejeitada pela API do RM).',
+                'codusuario' => $codusuario,
+                'nome'       => '',
+            ];
+        }
+
+        // 2) SOAP (versões antigas / sem REST)
         $soap = self::authenticateViaSoap($env, $codusuario, $senha);
-        if ($soap['tried'] && $soap['success']) {
+        if ($soap['success']) {
             $perfil = self::loadUsuario($env, $codusuario);
             return [
                 'success'    => true,
                 'message'    => 'Autenticado via RM WebService.',
                 'codusuario' => $perfil['codusuario'] ?: $codusuario,
-                'nome'       => $perfil['nome'] ?: $codusuario,
+                'nome'       => ($perfil['nome'] !== '' ? $perfil['nome'] : $codusuario),
             ];
         }
 
-        // 2) Fallback: validação direta em GUSUARIO
+        // 3) Fallback local GUSUARIO (bcrypt / legado) se a API estiver indisponível
         $perfil = self::loadUsuario($env, $codusuario);
         if (!$perfil['found']) {
+            $hint = (!$rest['tried'] && !$soap['tried'])
+                ? ' Configure api_url do RM Host em environments.php (ex.: http://IP:8051).'
+                : '';
             return [
                 'success'    => false,
-                'message'    => 'Usuário não encontrado no RM (GUSUARIO).',
+                'message'    => 'Usuário não encontrado no RM (GUSUARIO).' . $hint,
                 'codusuario' => $codusuario,
                 'nome'       => '',
             ];
@@ -83,13 +119,13 @@ class RmAuth
         }
 
         $formato = self::detectHashFormat($hash);
-        $soapHint = $soap['tried']
-            ? ' SOAP também falhou.'
-            : ' Dica: configure ws_url do RM no environments.php para validar pela API oficial.';
+        $apiHint = $rest['tried']
+            ? ''
+            : ' Dica: configure api_url do RM no environments.php (ex.: http://172.20.0.21:8051).';
 
         return [
             'success'    => false,
-            'message'    => 'Senha inválida para o usuário RM. (formato no banco: ' . $formato . ')' . $soapHint,
+            'message'    => 'Senha inválida para o usuário RM. (formato no banco: ' . $formato . ')' . $apiHint,
             'codusuario' => $codusuario,
             'nome'       => '',
         ];
@@ -136,7 +172,6 @@ class RmAuth
             return $empty;
         }
 
-        // STATUS SMALLINT: 1 = ativo (padrão Totvs / script mestre)
         $status = (int) ($row['STATUS'] ?? 0);
 
         return [
@@ -150,6 +185,118 @@ class RmAuth
     }
 
     /**
+     * Valida usuário/senha via POST /api/connect/token (RM Host).
+     *
+     * @return array{tried: bool, success: bool, rejected: bool, message: string}
+     */
+    private static function authenticateViaRest(array $env, string $usuario, string $senha): array
+    {
+        $fail = ['tried' => false, 'success' => false, 'rejected' => false, 'message' => ''];
+
+        if (!function_exists('curl_init')) {
+            $fail['message'] = 'cURL indisponível';
+            return $fail;
+        }
+
+        $bases = self::apiBases($env);
+        if ($bases === []) {
+            $fail['message'] = 'Sem api_url';
+            return $fail;
+        }
+
+        $payload = json_encode([
+            'grant_type' => 'password',
+            'username'   => $usuario,
+            'password'   => $senha,
+        ], JSON_UNESCAPED_UNICODE);
+
+        $lastErr = '';
+        $reached = false;
+
+        foreach ($bases as $base) {
+            $url = rtrim($base, '/') . '/api/connect/token';
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_POST           => true,
+                CURLOPT_HTTPHEADER     => [
+                    'Content-Type: application/json',
+                    'Accept: application/json',
+                ],
+                CURLOPT_POSTFIELDS     => $payload,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_CONNECTTIMEOUT => 4,
+                CURLOPT_TIMEOUT        => 10,
+                CURLOPT_FOLLOWLOCATION => true,
+            ]);
+            $body = curl_exec($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $err  = curl_error($ch);
+            curl_close($ch);
+
+            if ($body === false || $code === 0) {
+                $lastErr = $err !== '' ? $err : 'sem resposta';
+                continue;
+            }
+
+            $reached = true;
+
+            if ($code >= 200 && $code < 300) {
+                $json = json_decode((string) $body, true);
+                if (is_array($json) && !empty($json['access_token'])) {
+                    return [
+                        'tried'    => true,
+                        'success'  => true,
+                        'rejected' => false,
+                        'message'  => $url,
+                    ];
+                }
+            }
+
+            // Credencial rejeitada — não tentar outro host
+            if ($code === 400 || $code === 401 || $code === 403) {
+                return [
+                    'tried'    => true,
+                    'success'  => false,
+                    'rejected' => true,
+                    'message'  => "HTTP $code",
+                ];
+            }
+
+            $lastErr = "HTTP $code";
+        }
+
+        return [
+            'tried'    => $reached,
+            'success'  => false,
+            'rejected' => false,
+            'message'  => $lastErr !== '' ? $lastErr : 'API falhou',
+        ];
+    }
+
+    /**
+     * @return string[]
+     */
+    private static function apiBases(array $env): array
+    {
+        $bases = [];
+        foreach (['api_url', 'ws_url'] as $key) {
+            if (empty($env[$key]) || !is_string($env[$key])) {
+                continue;
+            }
+            $raw = trim($env[$key]);
+            // Aceita base (http://host:8051) ou WSDL completo
+            if (preg_match('#^https?://[^/]+#i', $raw, $m)) {
+                $bases[] = $m[0];
+            }
+        }
+
+        // Descoberta padrão na rede do hospital (RM Host)
+        $bases[] = 'http://172.20.0.21:8051';
+
+        return array_values(array_unique(array_filter($bases)));
+    }
+
+    /**
      * @return array{tried: bool, success: bool, message: string}
      */
     private static function authenticateViaSoap(array $env, string $usuario, string $senha): array
@@ -159,13 +306,12 @@ class RmAuth
         }
 
         $candidates = [];
-        if (!empty($env['ws_url'])) {
-            $candidates[] = $env['ws_url'];
+        foreach (self::apiBases($env) as $base) {
+            $candidates[] = rtrim($base, '/') . '/wsDataServer/MEX?wsdl';
+            $candidates[] = rtrim($base, '/') . '/WSDataServer/MEX?wsdl';
         }
-        $host = $env['host'] ?? '';
-        if ($host !== '') {
-            $candidates[] = "http://{$host}:8051/wsDataServer/MEX?wsdl";
-            $candidates[] = "http://{$host}:8051/WSDataServer/MEX?wsdl";
+        if (!empty($env['ws_url']) && is_string($env['ws_url'])) {
+            array_unshift($candidates, $env['ws_url']);
         }
 
         $candidates = array_values(array_unique(array_filter($candidates)));
@@ -176,18 +322,16 @@ class RmAuth
         foreach ($candidates as $wsdl) {
             try {
                 $client = @new SoapClient($wsdl, [
-                    'login'          => $usuario,
-                    'password'       => $senha,
-                    'authentication' => SOAP_AUTHENTICATION_BASIC,
+                    'login'              => $usuario,
+                    'password'           => $senha,
+                    'authentication'     => SOAP_AUTHENTICATION_BASIC,
                     'connection_timeout' => 5,
-                    'exceptions'     => true,
-                    'trace'          => false,
-                    'cache_wsdl'     => WSDL_CACHE_MEMORY,
+                    'exceptions'         => true,
+                    'trace'              => false,
+                    'cache_wsdl'         => WSDL_CACHE_MEMORY,
                 ]);
 
-                // Se o WSDL abriu com basic auth, o IIS/RM já validou usuário/senha
                 if ($client instanceof SoapClient) {
-                    // Tenta método explícito quando existir
                     foreach (['AutenticaAcessoAuth', 'AutenticaAcesso'] as $method) {
                         try {
                             if (!is_callable([$client, $method])) {
@@ -199,13 +343,12 @@ class RmAuth
                             ]]);
                             return ['tried' => true, 'success' => true, 'message' => $method];
                         } catch (Throwable $e) {
-                            // continua; basic auth do WSDL já pode ter bastado
+                            // método inexistente ou senha inválida — tenta próximo
                         }
                     }
-                    return ['tried' => true, 'success' => true, 'message' => 'SOAP basic auth OK'];
+                    // WSDL aberto sem método de autenticação não prova a senha
                 }
             } catch (Throwable $e) {
-                // tenta próxima URL
                 continue;
             }
         }
@@ -237,7 +380,6 @@ class RmAuth
 
         $storedTrim = rtrim($stored);
 
-        // bcrypt PHC / puro
         if (preg_match('/#H=(\$2[ayb]?\$[^\s#]+)/', $storedTrim, $m) && self::verifyBcrypt($plain, $m[1])) {
             return true;
         }
@@ -248,12 +390,10 @@ class RmAuth
             return true;
         }
 
-        // Legado: não usar trim no meio (pode ter espaços significativos)
         foreach (self::legacyCandidates($plain) as $enc) {
             if ($stored === $enc || $storedTrim === $enc || rtrim($stored) === rtrim($enc)) {
                 return true;
             }
-            // comparação binária segura
             if (strlen($stored) === strlen($enc) && hash_equals($stored, $enc)) {
                 return true;
             }
