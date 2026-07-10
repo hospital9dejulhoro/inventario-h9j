@@ -22,6 +22,8 @@ return [
         'senha'                    => 'SUA_SENHA',
         'badge_class'              => 'bg-warning text-dark',
         'trust_server_certificate' => true,
+        // Opcional: URL do WebService RM para autenticar com a mesma regra do TOTVS
+        // 'ws_url'                => 'http://172.20.0.15:8051/wsDataServer/MEX?wsdl',
     ],
     'testes' => [
         'label'                    => 'Testes',
@@ -31,5 +33,6 @@ return [
         'senha'                    => 'SUA_SENHA',
         'badge_class'              => 'bg-info text-dark',
         'trust_server_certificate' => true,
+        // 'ws_url'                => 'http://172.20.0.15:8051/wsDataServer/MEX?wsdl',
     ],
 ];
