@@ -61,11 +61,13 @@ class RmAuth
             ];
         }
 
-        // Credencial rejeitada pela API — não usar fallback legado (algoritmo incerto)
+        // Credencial rejeitada pela API principal — não usar fallback legado (algoritmo incerto)
         if (!empty($rest['rejected'])) {
+            $detalhe = trim((string) ($rest['message'] ?? ''));
             return [
                 'success'    => false,
-                'message'    => 'Senha inválida (rejeitada pela API do RM).',
+                'message'    => 'Senha inválida (rejeitada pela API do RM)'
+                    . ($detalhe !== '' ? ' — ' . $detalhe : '.'),
                 'codusuario' => $codusuario,
                 'nome'       => '',
             ];
@@ -202,31 +204,106 @@ class RmAuth
     {
         $fail = ['tried' => false, 'success' => false, 'rejected' => false, 'message' => ''];
 
-        $bases = self::apiBases($env);
-        if ($bases === []) {
+        $primary = self::apiBasesConfigured($env);
+        $fallbacks = self::apiBasesFallback($primary);
+        if ($primary === [] && $fallbacks === []) {
             $fail['message'] = 'Sem api_url';
             return $fail;
         }
 
-        $payload = json_encode([
-            'grant_type' => 'password',
-            'username'   => $usuario,
-            'password'   => $senha,
-        ], JSON_UNESCAPED_UNICODE);
-
         $lastErr = '';
-        $reached = false;
+        $primaryReached = false;
+        $primaryRejectMsg = '';
 
-        foreach ($bases as $base) {
-            $url = rtrim($base, '/') . '/api/connect/token';
-            $resp = self::httpPostJson($url, (string) $payload, 10);
+        // 1) Host configurado no ambiente — só ele decide se a senha é inválida
+        foreach ($primary as $base) {
+            $result = self::tryTokenOnBase($base, $usuario, $senha);
+            if ($result['success']) {
+                return $result;
+            }
+            if ($result['http'] === 0) {
+                $lastErr = $result['message'];
+                continue;
+            }
+            $primaryReached = true;
+            if ($result['rejected']) {
+                $primaryRejectMsg = $result['message'];
+            } else {
+                $lastErr = $result['message'];
+            }
+        }
 
+        if ($primaryReached && $primaryRejectMsg !== '') {
+            return [
+                'tried'    => true,
+                'success'  => false,
+                'rejected' => true,
+                'message'  => $primaryRejectMsg,
+            ];
+        }
+
+        // 2) Hosts alternativos: só para obter sucesso se o principal estiver fora
+        //    (rejeição neles NÃO conta como "senha inválida" — pode ser outro RM Host)
+        foreach ($fallbacks as $base) {
+            $result = self::tryTokenOnBase($base, $usuario, $senha);
+            if ($result['success']) {
+                return $result;
+            }
+            if ($result['http'] === 0) {
+                $lastErr = $result['message'];
+            } else {
+                $lastErr = $result['message'];
+            }
+        }
+
+        return [
+            'tried'    => $primaryReached,
+            'success'  => false,
+            'rejected' => false,
+            'message'  => $lastErr !== '' ? $lastErr : 'API falhou',
+        ];
+    }
+
+    /**
+     * Tenta JSON e form-urlencoded em /api/connect/token.
+     *
+     * @return array{tried: bool, success: bool, rejected: bool, message: string, http: int}
+     */
+    private static function tryTokenOnBase(string $base, string $usuario, string $senha): array
+    {
+        $url = rtrim($base, '/') . '/api/connect/token';
+        $attempts = [
+            [
+                'ct'   => 'application/json',
+                'body' => (string) json_encode([
+                    'grant_type' => 'password',
+                    'username'   => $usuario,
+                    'password'   => $senha,
+                ], JSON_UNESCAPED_UNICODE),
+            ],
+            [
+                'ct'   => 'application/x-www-form-urlencoded',
+                'body' => http_build_query([
+                    'grant_type' => 'password',
+                    'username'   => $usuario,
+                    'password'   => $senha,
+                ]),
+            ],
+        ];
+
+        $lastHttp = 0;
+        $lastMsg = '';
+        $sawReject = false;
+        $rejectMsg = '';
+
+        foreach ($attempts as $attempt) {
+            $resp = self::httpPost($url, $attempt['body'], $attempt['ct'], 10);
             if ($resp['http'] === 0) {
-                $lastErr = $resp['error'] !== '' ? $resp['error'] : 'sem resposta de ' . $url;
+                $lastMsg = $resp['error'] !== '' ? $resp['error'] : ('sem resposta de ' . $url);
                 continue;
             }
 
-            $reached = true;
+            $lastHttp = $resp['http'];
             $code = $resp['http'];
             $body = $resp['body'];
 
@@ -238,43 +315,64 @@ class RmAuth
                         'success'  => true,
                         'rejected' => false,
                         'message'  => $url,
+                        'http'     => $code,
                     ];
                 }
+                $lastMsg = "HTTP $code sem access_token em $url";
+                continue;
             }
 
             if ($code === 400 || $code === 401 || $code === 403) {
-                return [
-                    'tried'    => true,
-                    'success'  => false,
-                    'rejected' => true,
-                    'message'  => "HTTP $code",
-                ];
+                $sawReject = true;
+                $snippet = self::apiErrorSnippet($body);
+                $rejectMsg = "HTTP $code em $url" . ($snippet !== '' ? " ($snippet)" : '');
+                $lastMsg = $rejectMsg;
+                continue;
             }
 
-            $lastErr = "HTTP $code";
+            $lastMsg = "HTTP $code em $url";
         }
 
         return [
-            'tried'    => $reached,
+            'tried'    => $lastHttp > 0,
             'success'  => false,
-            'rejected' => false,
-            'message'  => $lastErr !== '' ? $lastErr : 'API falhou',
+            'rejected' => $sawReject,
+            'message'  => $sawReject ? $rejectMsg : ($lastMsg !== '' ? $lastMsg : ('falhou ' . $url)),
+            'http'     => $lastHttp,
         ];
     }
 
+    private static function apiErrorSnippet(string $body): string
+    {
+        $body = trim($body);
+        if ($body === '') {
+            return '';
+        }
+        $json = json_decode($body, true);
+        if (is_array($json)) {
+            foreach (['error_description', 'error', 'message', 'Message', 'title'] as $k) {
+                if (!empty($json[$k]) && is_string($json[$k])) {
+                    return mb_substr(trim($json[$k]), 0, 120);
+                }
+            }
+        }
+        $plain = preg_replace('/\s+/', ' ', strip_tags($body)) ?? '';
+        return mb_substr(trim($plain), 0, 120);
+    }
+
     /**
-     * POST JSON — prefer curl; fallback file_get_contents (allow_url_fopen).
+     * POST — prefer curl; fallback file_get_contents (allow_url_fopen).
      *
      * @return array{http: int, body: string, error: string, transport: string}
      */
-    private static function httpPostJson(string $url, string $payload, int $timeout = 10): array
+    private static function httpPost(string $url, string $payload, string $contentType, int $timeout = 10): array
     {
         if (function_exists('curl_init')) {
             $ch = curl_init($url);
             curl_setopt_array($ch, [
                 CURLOPT_POST           => true,
                 CURLOPT_HTTPHEADER     => [
-                    'Content-Type: application/json',
+                    'Content-Type: ' . $contentType,
                     'Accept: application/json',
                 ],
                 CURLOPT_POSTFIELDS     => $payload,
@@ -306,11 +404,10 @@ class RmAuth
             ];
         }
 
-        // Fallback sem extensão curl
         $ctx = stream_context_create([
             'http' => [
                 'method'        => 'POST',
-                'header'        => "Content-Type: application/json\r\nAccept: application/json\r\n",
+                'header'        => "Content-Type: {$contentType}\r\nAccept: application/json\r\n",
                 'content'       => $payload,
                 'timeout'       => $timeout,
                 'ignore_errors' => true,
@@ -345,10 +442,16 @@ class RmAuth
         ];
     }
 
+    /** @deprecated use httpPost */
+    private static function httpPostJson(string $url, string $payload, int $timeout = 10): array
+    {
+        return self::httpPost($url, $payload, 'application/json', $timeout);
+    }
+
     /**
      * @return string[]
      */
-    private static function apiBases(array $env): array
+    private static function apiBasesConfigured(array $env): array
     {
         $bases = [];
         foreach (['api_url', 'ws_url'] as $key) {
@@ -356,18 +459,42 @@ class RmAuth
                 continue;
             }
             $raw = trim($env[$key]);
-            // Aceita base (http://host:8051) ou WSDL completo
             if (preg_match('#^https?://[^/]+#i', $raw, $m)) {
                 $bases[] = $m[0];
             }
         }
-
-        // Hosts RM conhecidos na rede do hospital
-        $bases[] = 'http://172.20.0.21:8051';
-        $bases[] = 'http://172.20.0.20:8051';
-        $bases[] = 'http://172.20.0.30:8051';
-
         return array_values(array_unique(array_filter($bases)));
+    }
+
+    /**
+     * @param string[] $already
+     * @return string[]
+     */
+    private static function apiBasesFallback(array $already = []): array
+    {
+        $bases = [
+            'http://172.20.0.21:8051',
+            'http://172.20.0.20:8051',
+            'http://172.20.0.30:8051',
+        ];
+        $out = [];
+        foreach ($bases as $b) {
+            if (!in_array($b, $already, true)) {
+                $out[] = $b;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * @return string[]
+     */
+    private static function apiBases(array $env): array
+    {
+        return array_values(array_unique(array_merge(
+            self::apiBasesConfigured($env),
+            self::apiBasesFallback(self::apiBasesConfigured($env))
+        )));
     }
 
     /**
