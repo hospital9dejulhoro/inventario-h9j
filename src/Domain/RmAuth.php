@@ -339,8 +339,15 @@ class RmAuth
             }
 
             if ($code === 400 || $code === 401 || $code === 403) {
-                $sawReject = true;
                 $snippet = self::apiErrorSnippet($body);
+                // openresty: pediu HTTPS — não é senha errada
+                if (stripos($body, 'plain HTTP request was sent to HTTPS') !== false
+                    || stripos($snippet, 'plain HTTP request was sent to HTTPS') !== false) {
+                    $lastMsg = "HTTP $code em $url (use https:// neste Host)";
+                    $lastHttp = $code;
+                    continue;
+                }
+                $sawReject = true;
                 $rejectMsg = "HTTP $code em $url" . ($snippet !== '' ? " ($snippet)" : '');
                 $lastMsg = $rejectMsg;
                 continue;
@@ -398,6 +405,9 @@ class RmAuth
                 CURLOPT_FOLLOWLOCATION => true,
                 CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
                 CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
+                // Host RM interno costuma usar certificado autoassinado
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => 0,
             ]);
             $body = curl_exec($ch);
             $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -428,6 +438,10 @@ class RmAuth
                 'content'       => $payload,
                 'timeout'       => $timeout,
                 'ignore_errors' => true,
+            ],
+            'ssl' => [
+                'verify_peer'      => false,
+                'verify_peer_name' => false,
             ],
         ]);
 
@@ -491,6 +505,9 @@ class RmAuth
     {
         // Ordem: Host que está respondendo hoje (.20), depois demais
         $bases = [
+            'https://172.20.0.20:8051',
+            'https://172.20.0.21:8051',
+            'https://172.20.0.30:8051',
             'http://172.20.0.20:8051',
             'http://172.20.0.21:8051',
             'http://172.20.0.30:8051',
