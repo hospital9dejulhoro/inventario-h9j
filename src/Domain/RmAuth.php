@@ -214,6 +214,8 @@ class RmAuth
         $lastErr = '';
         $primaryReached = false;
         $primaryRejectMsg = '';
+        $fallbackReached = false;
+        $fallbackRejectMsg = '';
 
         // 1) Host configurado no ambiente — só ele decide se a senha é inválida
         foreach ($primary as $base) {
@@ -242,8 +244,7 @@ class RmAuth
             ];
         }
 
-        // 2) Hosts alternativos: só para obter sucesso se o principal estiver fora
-        //    (rejeição neles NÃO conta como "senha inválida" — pode ser outro RM Host)
+        // 2) Hosts alternativos se o principal estiver fora (ex.: .21:8051 offline, .20 no ar)
         foreach ($fallbacks as $base) {
             $result = self::tryTokenOnBase($base, $usuario, $senha);
             if ($result['success']) {
@@ -251,13 +252,28 @@ class RmAuth
             }
             if ($result['http'] === 0) {
                 $lastErr = $result['message'];
+                continue;
+            }
+            $fallbackReached = true;
+            if ($result['rejected']) {
+                $fallbackRejectMsg = $result['message'];
             } else {
                 $lastErr = $result['message'];
             }
         }
 
+        // Host alternativo respondeu 400/401 — trata como credencial inválida (não como rede)
+        if (!$primaryReached && $fallbackReached && $fallbackRejectMsg !== '') {
+            return [
+                'tried'    => true,
+                'success'  => false,
+                'rejected' => true,
+                'message'  => $fallbackRejectMsg,
+            ];
+        }
+
         return [
-            'tried'    => $primaryReached,
+            'tried'    => $primaryReached || $fallbackReached,
             'success'  => false,
             'rejected' => false,
             'message'  => $lastErr !== '' ? $lastErr : 'API falhou',
@@ -381,6 +397,7 @@ class RmAuth
                 CURLOPT_TIMEOUT        => $timeout,
                 CURLOPT_FOLLOWLOCATION => true,
                 CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
+                CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
             ]);
             $body = curl_exec($ch);
             $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -472,9 +489,10 @@ class RmAuth
      */
     private static function apiBasesFallback(array $already = []): array
     {
+        // Ordem: Host que está respondendo hoje (.20), depois demais
         $bases = [
-            'http://172.20.0.21:8051',
             'http://172.20.0.20:8051',
+            'http://172.20.0.21:8051',
             'http://172.20.0.30:8051',
         ];
         $out = [];
