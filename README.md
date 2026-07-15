@@ -2,6 +2,8 @@
 
 Sistema unificado para leitura de código de barras em inventários do **TOTVS RM**, substituindo as pastas duplicadas `h9/` (produção) e `teste/` (homologação).
 
+> **Como funciona (Inventário + RH + autenticação):** [docs/COMO-FUNCIONA.md](docs/COMO-FUNCIONA.md)
+
 ## Git — versionamento e deploy
 
 ### Primeira vez (desenvolvimento)
