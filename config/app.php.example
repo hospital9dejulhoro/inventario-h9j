@@ -1,0 +1,9 @@
+<?php
+
+return [
+    // Subdomínio inventario.h9julho-ro.com.br = raiz → ''
+    // Path legado /inventario/ no IP → '/inventario'
+    'debug'     => false,
+    'app_name'  => 'Inventário RM',
+    'base_path' => '',
+];

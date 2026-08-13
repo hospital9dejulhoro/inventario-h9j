@@ -105,6 +105,138 @@ class ZMDCODBARRAS
         return $c->manipula($SQL);
     }
 
+    private static function sqlStr(string $value): string
+    {
+        return str_replace("'", "''", $value);
+    }
+
+    /**
+     * Inventários que já têm bipagem em ZMDCODBARRAS.
+     *
+     * @return array<int, array{codinventario: string, codloc: string, local_nome: string, bipagens: int, quantidade: float}>
+     */
+    public static function listarInventariosComContagem(int $limit = 80): array
+    {
+        $limit = max(1, min(200, $limit));
+        $c = new Connection('RM');
+        $SQL = "SELECT TOP {$limit}
+                    RTRIM(ZMD.CODINVENTARIO) AS CODINVENTARIO,
+                    RTRIM(MAX(ZMD.CODLOC)) AS CODLOC,
+                    COUNT(*) AS BIPAGENS,
+                    SUM(TRY_CAST(REPLACE(LTRIM(RTRIM(CAST(ZMD.QUANTIDADE AS VARCHAR(30)))), ',', '.') AS DECIMAL(18, 4))) AS QUANTIDADE
+                FROM ZMDCODBARRAS ZMD
+                GROUP BY RTRIM(ZMD.CODINVENTARIO)
+                ORDER BY RTRIM(ZMD.CODINVENTARIO) DESC";
+        $c->Consulta($SQL);
+
+        $lista = [];
+        while ($c->Resultado()) {
+            $cod = encode_db_value((string) ($c->linha['CODINVENTARIO'] ?? ''));
+            $codloc = encode_db_value((string) ($c->linha['CODLOC'] ?? ''));
+            if ($codloc === '') {
+                $parsed = self::parseCodigoInventario($cod);
+                if (!empty($parsed['valid'])) {
+                    $codloc = (string) $parsed['codloc'];
+                }
+            }
+            $lista[] = [
+                'codinventario' => $cod,
+                'codloc'        => $codloc,
+                'local_nome'    => $codloc !== '' ? LocaisEstoque::nome($codloc) : '',
+                'bipagens'      => (int) ($c->linha['BIPAGENS'] ?? 0),
+                'quantidade'    => (float) ($c->linha['QUANTIDADE'] ?? 0),
+            ];
+        }
+
+        return $lista;
+    }
+
+    /**
+     * Relatório de contagem: totais + itens agrupados por produto/lote.
+     *
+     * @return array{
+     *   totais: array{bipagens: int, quantidade: float, produtos: int, lotes: int},
+     *   itens: array<int, array{idprd: int, nome: string, und: string, lote: string, codloc: string, bipagens: int, quantidade: float}>
+     * }
+     */
+    public static function relatorioContagem(string $codinventario): array
+    {
+        $vazio = [
+            'totais' => ['bipagens' => 0, 'quantidade' => 0.0, 'produtos' => 0, 'lotes' => 0],
+            'itens'  => [],
+        ];
+
+        $codinventario = trim($codinventario);
+        if ($codinventario === '') {
+            return $vazio;
+        }
+
+        $c = new Connection('RM');
+        $inv = self::sqlStr($codinventario);
+        $SQL = "SELECT
+                    CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 0, 7)) AS IDPRD,
+                    T.NOMEFANTASIA AS NOME,
+                    TPRODUTODEF.CODUNDCONTROLE AS UND,
+                    TLOTEPRD.NUMLOTE AS NUMLOTE,
+                    RTRIM(ZMD.CODLOC) AS CODLOC,
+                    COUNT(*) AS BIPAGENS,
+                    SUM(TRY_CAST(REPLACE(LTRIM(RTRIM(CAST(ZMD.QUANTIDADE AS VARCHAR(30)))), ',', '.') AS DECIMAL(18, 4))) AS QUANTIDADE
+                FROM ZMDCODBARRAS ZMD
+                LEFT JOIN TPRODUTO T ON T.IDPRD = CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 0, 7))
+                LEFT JOIN TPRODUTODEF ON TPRODUTODEF.IDPRD = T.IDPRD
+                LEFT JOIN TLOTEPRD ON TLOTEPRD.IDPRD = T.IDPRD
+                    AND TLOTEPRD.IDLOTE = CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 8, 5))
+                WHERE ZMD.CODINVENTARIO = '{$inv}'
+                GROUP BY
+                    CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 0, 7)),
+                    T.NOMEFANTASIA,
+                    TPRODUTODEF.CODUNDCONTROLE,
+                    TLOTEPRD.NUMLOTE,
+                    RTRIM(ZMD.CODLOC)
+                ORDER BY T.NOMEFANTASIA, TLOTEPRD.NUMLOTE, RTRIM(ZMD.CODLOC)";
+        $c->Consulta($SQL);
+
+        $itens = [];
+        $qtd = 0.0;
+        $bipagens = 0;
+        $produtos = [];
+        $lotes = [];
+
+        while ($c->Resultado()) {
+            $idprd = (int) ($c->linha['IDPRD'] ?? 0);
+            $lote = encode_db_value((string) ($c->linha['NUMLOTE'] ?? ''));
+            $q = (float) ($c->linha['QUANTIDADE'] ?? 0);
+            $b = (int) ($c->linha['BIPAGENS'] ?? 0);
+            $qtd += $q;
+            $bipagens += $b;
+            if ($idprd > 0) {
+                $produtos[$idprd] = true;
+            }
+            if (trim($lote) !== '') {
+                $lotes[$lote] = true;
+            }
+            $itens[] = [
+                'idprd'      => $idprd,
+                'nome'       => encode_db_value((string) ($c->linha['NOME'] ?? '')),
+                'und'        => encode_db_value((string) ($c->linha['UND'] ?? '')),
+                'lote'       => $lote,
+                'codloc'     => encode_db_value((string) ($c->linha['CODLOC'] ?? '')),
+                'bipagens'   => $b,
+                'quantidade' => $q,
+            ];
+        }
+
+        return [
+            'totais' => [
+                'bipagens'   => $bipagens,
+                'quantidade' => $qtd,
+                'produtos'   => count($produtos),
+                'lotes'      => count($lotes),
+            ],
+            'itens' => $itens,
+        ];
+    }
+
     /**
      * Conta registros de um inventário.
      */

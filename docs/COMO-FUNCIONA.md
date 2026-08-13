@@ -2,10 +2,12 @@
 
 Documentação simples dos apps web do Hospital 9 de Julho integrados ao **TOTVS RM**.
 
-| App | URL (servidor) | Pasta |
-|-----|----------------|-------|
-| Inventário | http://172.20.0.43:9080/ | `/var/www/inventario` |
-| RH (escala) | http://172.20.0.43:9080/rh/ | `/var/www/rh` |
+| App | URL pública | Backend | Pasta |
+|-----|-------------|---------|-------|
+| Inventário | https://inventario.h9julho-ro.com.br/ | host `:9080/` | `/var/www/inventario` |
+| RH (escala) | https://172.20.0.43/rh/ | host `:9080/rh/` | `/var/www/rh` |
+
+Proxy: Docker `nginx-proxy` do portal-colaborador. Detalhes: [deploy/PROXY-DOCKER.md](../deploy/PROXY-DOCKER.md).
 
 Local (XAMPP): `http://localhost/inventario/` e `http://localhost/rh/`.
 
@@ -16,9 +18,11 @@ Local (XAMPP): `http://localhost/inventario/` e `http://localhost/rh/`.
 Os dois sistemas são **PHP** (sem framework), usam **SQL Server** (sqlsrv) e a mesma lógica de **login do usuário RM**.
 
 ```
-Navegador → Nginx (.43:9080) → PHP-FPM → App PHP
-                                      ├─ SQL Server (dados RM)
-                                      └─ RM Host :8051 (login / API)
+Navegador → nginx-proxy (.43:80/443)
+              ├─ inventario.h9julho-ro.com.br → Nginx host (:9080) → inventário
+              └─ /rh/                         → Nginx host (:9080/rh) → RH
+                                                               ├─ SQL Server (dados RM)
+                                                               └─ RM Host :8051 (login / API)
 ```
 
 - **Inventário** — conta física de estoque (códigos de barras → tabelas `TINVENTARIO` / `TITMINVENTARIO`).
