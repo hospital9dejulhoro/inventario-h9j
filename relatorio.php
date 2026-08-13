@@ -66,6 +66,24 @@ if ($export === 'csv' && $codinventario !== '') {
     exit;
 }
 
+if ($export === 'pdf' && $codinventario !== '') {
+    $envAtual = EnvironmentManager::getCurrent();
+    $localLabel = $codloc;
+    if ($nomeLocal !== '') {
+        $localLabel = $codloc !== '' ? ($codloc . ' — ' . $nomeLocal) : $nomeLocal;
+    }
+    RelatorioContagemPdf::gerar([
+        'codinventario' => $codinventario,
+        'local_label'   => $localLabel,
+        'ambiente'      => (string) ($envAtual['label'] ?? ''),
+        'operador'      => SessionManager::getDisplayName() ?: SessionManager::getUsername(),
+        'status_rm'     => $rmStatus,
+        'totais'        => $relatorio['totais'],
+        'itens'         => $relatorio['itens'],
+    ]);
+    exit;
+}
+
 $pageTitle = 'Relatório de contagem';
 $showNavbar = true;
 $envAtual = EnvironmentManager::getCurrent();

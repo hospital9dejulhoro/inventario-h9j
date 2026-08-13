@@ -44,6 +44,7 @@ $itens = $relatorio['itens'] ?? [];
             <div class="rpt-filter-actions">
                 <button type="submit" class="btn btn-primary">Gerar relatório</button>
                 <?php if ($codinventario !== ''): ?>
+                    <a class="btn btn-primary" href="<?= e(url('relatorio.php?' . http_build_query(['CODINVENTARIO' => $codinventario, 'export' => 'pdf']))) ?>">Exportar PDF (A4)</a>
                     <a class="btn btn-secondary" href="<?= e(url('relatorio.php?' . http_build_query(['CODINVENTARIO' => $codinventario, 'export' => 'csv']))) ?>">Exportar CSV</a>
                     <button type="button" class="btn btn-ghost" onclick="window.print()">Imprimir</button>
                     <a class="btn btn-ghost" href="<?= e(url('inventario.php?' . http_build_query(['CODINVENTARIO' => $codinventario, 'aplicar' => '1']))) ?>">Ir para leitura</a>
