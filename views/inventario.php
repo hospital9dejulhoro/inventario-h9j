@@ -169,12 +169,13 @@ $inventariosAbertos = $inventariosAbertos ?? [];
                 <div class="form-group inv-qtd-group">
                     <label for="QUANTIDADE" class="form-label">Quantidade</label>
                     <input type="text" name="QUANTIDADE" id="QUANTIDADE" class="form-control inv-qtd-input"
-                           inputmode="numeric" value="<?= e($quantidade) ?>" required>
+                           inputmode="numeric" value="<?= e($quantidade) ?>" required
+                           autocomplete="off" tabindex="2">
                 </div>
                 <div class="form-group inv-barcode-group">
                     <label for="CODIGOBARRAS" class="form-label">Código de barras</label>
                     <input type="text" name="CODIGOBARRAS" id="CODIGOBARRAS" class="form-control inv-barcode-input"
-                           maxlength="13" inputmode="numeric"
+                           maxlength="13" inputmode="numeric" autocomplete="off" tabindex="1"
                            oninput="this.value = this.value.replace(/[^0-9]/g, '');"
                            value="" placeholder="0000000000000" autofocus>
                 </div>

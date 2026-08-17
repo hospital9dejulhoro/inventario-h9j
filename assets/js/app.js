@@ -54,13 +54,87 @@
         }
     }
 
+    const barcodeInput = document.getElementById('CODIGOBARRAS');
+    const qtyInput = document.getElementById('QUANTIDADE');
+    const inventoryForm = document.getElementById('inventory-form');
+
     function focusBarcode() {
         const input = document.getElementById('CODIGOBARRAS');
-        if (input) {
-            input.value = '';
-            input.focus();
-            input.select();
+        if (!input) {
+            return;
         }
+        input.value = '';
+        input.focus({ preventScroll: true });
+        input.select();
+    }
+
+    function scheduleFocusBarcode() {
+        focusBarcode();
+        window.setTimeout(focusBarcode, 0);
+        window.setTimeout(focusBarcode, 80);
+        window.setTimeout(focusBarcode, 200);
+    }
+
+    function submitBarcode(digits) {
+        if (!barcodeInput || !inventoryForm || digits.length !== 13) {
+            return;
+        }
+        barcodeInput.value = digits;
+        inventoryForm.requestSubmit();
+    }
+
+    if (barcodeInput && inventoryForm) {
+        barcodeInput.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                const digits = barcodeInput.value.replace(/\D/g, '');
+                if (digits.length === 13) {
+                    submitBarcode(digits);
+                }
+            }
+        });
+
+        window.addEventListener('pageshow', function () {
+            hideLoading();
+            scheduleFocusBarcode();
+        });
+
+        scheduleFocusBarcode();
+    }
+
+    if (qtyInput && inventoryForm) {
+        qtyInput.dataset.lastQty = qtyInput.value || '1';
+
+        qtyInput.addEventListener('focus', function () {
+            qtyInput.dataset.lastQty = qtyInput.value || '1';
+            qtyInput.select();
+        });
+
+        qtyInput.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter' || event.key === 'Tab') {
+                const digits = qtyInput.value.replace(/\D/g, '');
+                if (digits.length === 13) {
+                    event.preventDefault();
+                    qtyInput.value = qtyInput.dataset.lastQty || '1';
+                    submitBarcode(digits);
+                    return;
+                }
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    qtyInput.dataset.lastQty = qtyInput.value || '1';
+                    focusBarcode();
+                }
+            }
+        });
+
+        // Leitor costuma enviar 13 dígitos muito rápido no campo focado
+        qtyInput.addEventListener('input', function () {
+            const digits = qtyInput.value.replace(/\D/g, '');
+            if (digits.length === 13) {
+                qtyInput.value = qtyInput.dataset.lastQty || '1';
+                submitBarcode(digits);
+            }
+        });
     }
 
     document.querySelectorAll('form').forEach(function (form) {
@@ -228,29 +302,6 @@
                 editLocInput.setCustomValidity('');
             }
         });
-    }
-
-    const barcodeInput = document.getElementById('CODIGOBARRAS');
-    const inventoryForm = document.getElementById('inventory-form');
-
-    if (barcodeInput && inventoryForm) {
-        barcodeInput.addEventListener('keydown', function (event) {
-            if (event.key === 'Enter') {
-                event.preventDefault();
-                const digits = barcodeInput.value.replace(/\D/g, '');
-                if (digits.length === 13) {
-                    barcodeInput.value = digits;
-                    inventoryForm.requestSubmit();
-                }
-            }
-        });
-
-        window.addEventListener('pageshow', function () {
-            hideLoading();
-            focusBarcode();
-        });
-
-        focusBarcode();
     }
 
     const flashEl = document.querySelector('.flash[data-flash-type]');
