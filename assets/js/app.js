@@ -65,6 +65,9 @@
 
     document.querySelectorAll('form').forEach(function (form) {
         form.addEventListener('submit', function (event) {
+            if (form.hasAttribute('data-ajax') || form.classList.contains('js-no-loading')) {
+                return;
+            }
             if (form.id === 'inventory-form') {
                 const barcode = document.getElementById('CODIGOBARRAS');
                 const hasBarcode = barcode && barcode.value.trim() !== '';

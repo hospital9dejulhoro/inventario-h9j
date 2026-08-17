@@ -135,6 +135,7 @@ $inventariosAbertos = $inventariosAbertos ?? [];
             </div>
             <div class="inv-config-actions">
                 <button type="submit" name="aplicar" value="1" class="btn btn-secondary" id="btn-aplicar">Aplicar inventário</button>
+                <a class="btn btn-ghost" href="<?= e(url('sem-lote.php?' . http_build_query(['CODINVENTARIO' => $codinventario, 'aplicar' => '1']))) ?>">Itens sem lote</a>
                 <a class="btn btn-ghost" href="<?= e(url('relatorio.php?' . http_build_query(['CODINVENTARIO' => $codinventario]))) ?>">Relatório de contagem</a>
                 <?php if (!empty($recentInventarios) && count($recentInventarios) > 1): ?>
                 <div class="inv-status-recent inv-status-recent--inline">

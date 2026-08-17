@@ -205,6 +205,64 @@ class InventarioRM
     }
 
     /**
+     * Itens do inventário RM sem controle de lote (sem cadastro em TLOTEPRD).
+     *
+     * @return array<int, array{idprd: int, codigo: string, nome: string, und: string, codloc: string}>
+     */
+    public static function listarItensSemLote(string $codinventario, string $codloc = ''): array
+    {
+        $codinventario = trim($codinventario);
+        if ($codinventario === '') {
+            return [];
+        }
+
+        $c = new Connection('RM');
+        $inv = self::sqlStr($codinventario);
+        $col = self::CODCOLIGADA;
+        $whereLoc = '';
+
+        if ($codloc !== '') {
+            $loc = self::sqlStr(LocaisEstoque::normalizar($codloc));
+            $whereLoc = " AND (
+                LTRIM(RTRIM(I.CODLOC)) = '{$loc}'
+                OR RIGHT(REPLICATE('0', 3) + LTRIM(RTRIM(I.CODLOC)), 3) = '{$loc}'
+            )";
+        }
+
+        $SQL = "SELECT TOP 4000
+                    I.IDPRD,
+                    MAX(RTRIM(I.CODLOC)) AS CODLOC,
+                    MAX(T.CODIGOPRD) AS CODIGO,
+                    MAX(T.NOMEFANTASIA) AS NOME,
+                    MAX(TPRODUTODEF.CODUNDCONTROLE) AS UND
+                FROM TITMINVENTARIO I
+                LEFT JOIN TPRODUTO T ON T.IDPRD = I.IDPRD
+                LEFT JOIN TPRODUTODEF ON TPRODUTODEF.IDPRD = I.IDPRD
+                WHERE I.CODCOLIGADA = {$col}
+                  AND I.CODINVENTARIO = '{$inv}'
+                  {$whereLoc}
+                  AND NOT EXISTS (
+                        SELECT 1 FROM TLOTEPRD L WHERE L.IDPRD = I.IDPRD
+                  )
+                GROUP BY I.IDPRD
+                ORDER BY MAX(T.NOMEFANTASIA), I.IDPRD";
+        $c->Consulta($SQL);
+
+        $itens = [];
+        while ($c->Resultado()) {
+            $itens[] = [
+                'idprd'  => (int) ($c->linha['IDPRD'] ?? 0),
+                'codigo' => encode_db_value((string) ($c->linha['CODIGO'] ?? '')),
+                'nome'   => encode_db_value((string) ($c->linha['NOME'] ?? '')),
+                'und'    => encode_db_value((string) ($c->linha['UND'] ?? '')),
+                'codloc' => encode_db_value((string) ($c->linha['CODLOC'] ?? '')),
+            ];
+        }
+
+        return $itens;
+    }
+
+    /**
      * Inventários em aberto no RM (TINVENTARIO.STATUS = 'A').
      *
      * @return array<int, array{

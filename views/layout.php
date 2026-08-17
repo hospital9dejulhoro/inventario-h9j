@@ -34,6 +34,8 @@
                         <span class="nav-meta-user">(<?= e(SessionManager::getUsername()) ?>)</span>
                     <?php endif; ?>
                 </span>
+                <a href="inventario.php" class="btn-ghost<?= (($bodyClass ?? '') === 'page-inventory' || str_contains((string) ($bodyClass ?? ''), 'page-inventory')) && !str_contains((string) ($bodyClass ?? ''), 'page-sem-lote') ? ' is-nav-on' : '' ?>">Leitura</a>
+                <a href="sem-lote.php" class="btn-ghost<?= str_contains((string) ($bodyClass ?? ''), 'page-sem-lote') ? ' is-nav-on' : '' ?>">Sem lote</a>
                 <a href="relatorio.php" class="btn-ghost">Relatório</a>
                 <a href="index.php?config=1" class="btn-ghost">Configuração</a>
                 <a href="desconectar.php" class="btn-ghost">Sair</a>

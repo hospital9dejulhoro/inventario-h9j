@@ -84,6 +84,46 @@ class ZMDCODBARRAS
         return $c->manipula($SQL);
     }
 
+    /**
+     * Código sintético 13 dígitos para item sem lote: IDPRD(7) + 000000.
+     */
+    public static function barcodeSemLote(int $idprd): string
+    {
+        return str_pad((string) max(0, $idprd), 7, '0', STR_PAD_LEFT) . '000000';
+    }
+
+    /**
+     * Quantidade já contada por produto neste inventário.
+     *
+     * @return array<int, float> idprd => quantidade
+     */
+    public static function totaisPorProduto(string $codinventario): array
+    {
+        $codinventario = trim($codinventario);
+        if ($codinventario === '') {
+            return [];
+        }
+
+        $c = new Connection('RM');
+        $inv = self::sqlStr($codinventario);
+        $SQL = "SELECT CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 0, 7)) AS IDPRD,
+                       SUM(TRY_CAST(REPLACE(LTRIM(RTRIM(CAST(ZMD.QUANTIDADE AS VARCHAR(30)))), ',', '.') AS DECIMAL(18, 4))) AS QUANTIDADE
+                FROM ZMDCODBARRAS ZMD
+                WHERE ZMD.CODINVENTARIO = '{$inv}'
+                GROUP BY CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 0, 7))";
+        $c->Consulta($SQL);
+
+        $mapa = [];
+        while ($c->Resultado()) {
+            $idprd = (int) ($c->linha['IDPRD'] ?? 0);
+            if ($idprd > 0) {
+                $mapa[$idprd] = (float) ($c->linha['QUANTIDADE'] ?? 0);
+            }
+        }
+
+        return $mapa;
+    }
+
     public function atualizar()
     {
         if (empty($this->id)) {
