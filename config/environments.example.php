@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 /**
  * Copie este arquivo para environments.php e ajuste os valores.
@@ -6,18 +6,18 @@
  */
 return [
     'producao' => [
-        'label'                    => 'ProduÃ§Ã£o',
+        'label'                    => 'Produção',
         'host'                     => '172.20.0.10',
         'database'                 => 'CorporeRM',
         'usuario'                  => 'rm',
         'senha'                    => 'SUA_SENHA',
         'badge_class'              => 'bg-danger',
         'trust_server_certificate' => true,
-        // RM Host (porta 8051) â€” valida usuÃ¡rio/senha pela API oficial
+        // RM Host (porta 8051) â€” valida usuário/senha pela API oficial
         'api_url'                  => 'https://172.20.0.20:8051',
     ],
     'homologacao' => [
-        'label'                    => 'HomologaÃ§Ã£o',
+        'label'                    => 'Homologação',
         'host'                     => '172.20.0.15',
         'database'                 => 'HomologaRM',
         'usuario'                  => 'rm',

@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 # Atualiza a aplicacao no servidor via git pull
 # Uso: sudo bash atualizar-servidor.sh
 
@@ -33,7 +33,7 @@ git fetch origin
 git checkout "$BRANCH"
 git pull origin "$BRANCH"
 
-# Garante php-curl (necessÃ¡rio para autenticar na API do RM Host)
+# Garante php-curl (necessário para autenticar na API do RM Host)
 PHP_VER="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || echo 8.3)"
 if ! php -m 2>/dev/null | grep -qi '^curl$'; then
   echo "Instalando php${PHP_VER}-curl..."
@@ -67,12 +67,12 @@ senha_tst = extract_senha(text, "testes", senha_prod)
 content = f"""<?php
 
 /**
- * ConfiguraÃ§Ã£o centralizada dos ambientes TOTVS RM.
+ * Configuração centralizada dos ambientes TOTVS RM.
  * Arquivo gerado/normalizado pelo deploy (atualizar-servidor.sh).
  */
 return [
     'producao' => [
-        'label'                    => 'ProduÃ§Ã£o',
+        'label'                    => 'Produção',
         'host'                     => '172.20.0.10',
         'database'                 => 'CorporeRM',
         'usuario'                  => 'rm',
@@ -82,7 +82,7 @@ return [
         'api_url'                  => 'https://172.20.0.20:8051',
     ],
     'homologacao' => [
-        'label'                    => 'HomologaÃ§Ã£o',
+        'label'                    => 'Homologação',
         'host'                     => '172.20.0.15',
         'database'                 => 'HomologaRM',
         'usuario'                  => 'rm',
