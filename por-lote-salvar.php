@@ -49,14 +49,18 @@ if (empty($parsed['valid'])) {
 $codinventario = $parsed['formatted'];
 $codloc = $parsed['codloc'] !== '' ? $parsed['codloc'] : LocaisEstoque::normalizar($codloc);
 
-$rmCheck = InventarioRM::validarParaUso($codinventario, $codloc);
-if (!$rmCheck['valid']) {
-    pl_falha($rmCheck['error']);
-}
+// Contagem avulsa nao tem inventario no RM para validar contra; o local ja foi
+// conferido pela mascara do codigo.
+if (!ZMDCODBARRAS::ehCodigoAvulso($codinventario)) {
+    $rmCheck = InventarioRM::validarParaUso($codinventario, $codloc);
+    if (!$rmCheck['valid']) {
+        pl_falha($rmCheck['error']);
+    }
 
-// Pertencimento no RM é por produto: o lote vem do cadastro do próprio produto.
-if (!InventarioRM::itemPertenceAoInventario($codinventario, $codloc, $idprd)) {
-    pl_falha('Este produto não faz parte do inventário neste local.');
+    // Pertencimento no RM é por produto: o lote vem do cadastro do próprio produto.
+    if (!InventarioRM::itemPertenceAoInventario($codinventario, $codloc, $idprd)) {
+        pl_falha('Este produto não faz parte do inventário neste local.');
+    }
 }
 
 $codigobarras = ZMDCODBARRAS::barcodeComLote($idprd, $idlote);

@@ -276,6 +276,125 @@ class ZMDCODBARRAS
         return $mapa;
     }
 
+    /** Primeiro numero da faixa reservada a contagens avulsas. */
+    public const NUMERO_AVULSO_INICIAL = 900;
+
+    /**
+     * Um codigo avulso e um AA.LLL.NNN bem formado com NNN a partir de 900 que
+     * simplesmente nao existe em TINVENTARIO.
+     *
+     * Manter o mesmo formato em vez de inventar "AVULSA-..." tem tres motivos:
+     * cabe na coluna CODINVENTARIO como qualquer outro, todas as telas e
+     * relatorios ja sabem ler, e quando o inventario de verdade for criado no RM
+     * basta renomear - nao ha migracao de formato.
+     */
+    public static function ehCodigoAvulso(string $codinventario): bool
+    {
+        $parsed = self::parseCodigoInventario($codinventario);
+
+        return !empty($parsed['valid'])
+            && (int) $parsed['numero'] >= self::NUMERO_AVULSO_INICIAL;
+    }
+
+    /**
+     * Proximo codigo avulso livre para o ano e local.
+     *
+     * Olha tanto a contagem ja gravada quanto TINVENTARIO: se alguem cadastrou
+     * um inventario de verdade na faixa 9xx, nao podemos escolher o mesmo numero
+     * e comecar a misturar contagens.
+     *
+     * @return array{codinventario: string, numero: int, error: string}
+     */
+    public static function proximoCodigoAvulso(string $codloc, ?string $ano = null): array
+    {
+        $codloc = LocaisEstoque::normalizar($codloc);
+        $falha = ['codinventario' => '', 'numero' => 0, 'error' => ''];
+
+        if ($codloc === '' || !LocaisEstoque::existe($codloc)) {
+            $falha['error'] = 'Local de estoque invalido para abrir contagem avulsa.';
+            return $falha;
+        }
+
+        $ano = $ano !== null && $ano !== '' ? substr(preg_replace('/\D/', '', $ano), -2) : date('y');
+        $prefixo = $ano . '.' . $codloc . '.';
+        $pref = self::sqlStr($prefixo);
+        $inicio = self::NUMERO_AVULSO_INICIAL;
+
+        $c = new Connection('RM');
+        $SQL = "SELECT MAX(N) AS ULTIMO FROM (
+                    SELECT TRY_CAST(RIGHT(RTRIM(CODINVENTARIO), 3) AS INT) AS N
+                    FROM ZMDCODBARRAS
+                    WHERE LEFT(RTRIM(CODINVENTARIO), 7) = '{$pref}'
+                    UNION ALL
+                    SELECT TRY_CAST(RIGHT(RTRIM(CODINVENTARIO), 3) AS INT) AS N
+                    FROM TINVENTARIO
+                    WHERE CODCOLIGADA = 1
+                      AND LEFT(RTRIM(CODINVENTARIO), 7) = '{$pref}'
+                ) X
+                WHERE N >= {$inicio}";
+        $c->Consulta($SQL);
+
+        $ultimo = 0;
+        if ($c->Resultado()) {
+            $ultimo = (int) ($c->linha['ULTIMO'] ?? 0);
+        }
+
+        $numero = max($ultimo + 1, $inicio);
+        if ($numero > 999) {
+            $falha['error'] = 'A faixa de contagens avulsas do local ' . $codloc . ' acabou neste ano.';
+            return $falha;
+        }
+
+        return [
+            'codinventario' => $prefixo . str_pad((string) $numero, 3, '0', STR_PAD_LEFT),
+            'numero'        => $numero,
+            'error'         => '',
+        ];
+    }
+
+    /**
+     * Passa a contagem de um codigo para outro - o caminho de volta do avulso
+     * para o inventario que o RM criou depois.
+     *
+     * @return array{ok: bool, movidos: int, error: string}
+     */
+    public static function renomearInventario(string $de, string $para): array
+    {
+        $de = trim($de);
+        $para = trim($para);
+        $r = ['ok' => false, 'movidos' => 0, 'error' => ''];
+
+        if ($de === '' || $para === '') {
+            $r['error'] = 'Informe o codigo de origem e o de destino.';
+            return $r;
+        }
+
+        if ($de === $para) {
+            $r['error'] = 'Os codigos de origem e destino sao o mesmo.';
+            return $r;
+        }
+
+        $total = self::contarPorInventario($de);
+        if ($total === 0) {
+            $r['error'] = "Nao ha contagem gravada em {$de}.";
+            return $r;
+        }
+
+        $c = new Connection('RM');
+        $SQL = "UPDATE ZMDCODBARRAS SET CODINVENTARIO = '" . self::sqlStr($para) . "'
+                WHERE CODINVENTARIO = '" . self::sqlStr($de) . "'";
+
+        if (!$c->manipula($SQL)) {
+            $r['error'] = 'Nao foi possivel mover a contagem. Tente novamente.';
+            return $r;
+        }
+
+        $r['ok'] = true;
+        $r['movidos'] = $total;
+
+        return $r;
+    }
+
     public function atualizar()
     {
         if (empty($this->id)) {

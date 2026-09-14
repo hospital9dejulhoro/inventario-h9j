@@ -28,6 +28,9 @@ class ContextoInventario
     /** @var string */
     public $nomeLocal = '';
 
+    /** @var bool Contagem avulsa: codigo bem formado que nao existe no RM. */
+    public $avulso = false;
+
     /**
      * @param string $script Página que recebe os redirects de validação.
      * @param array<string, string> $paramsExtra Parâmetros preservados nos redirects.
@@ -82,15 +85,23 @@ class ContextoInventario
         $mascaraOk = is_array($parsed) && !empty($parsed['valid']);
 
         if ($mascaraOk && $ctx->codloc !== '') {
-            $rm = InventarioRM::validarParaUso($ctx->codinventario, $ctx->codloc);
-
-            if ($rm['valid']) {
-                $ctx->statusRm = $rm['status'];
-                // Sessão sozinha só pré-preenche; entrar na lista exige URL ou Aplicar.
+            // Faixa 9xx e contagem avulsa: vale contar sem o inventario existir no
+            // RM. O codigo segue o mesmo formato, entao quando o RM criar o
+            // inventario de verdade basta mover a contagem para o codigo dele.
+            if (ZMDCODBARRAS::ehCodigoAvulso($ctx->codinventario)) {
+                $ctx->avulso = true;
                 $ctx->ativo = $deveValidar || $veioDaUrl;
-            } elseif ($deveValidar) {
-                flash_set('danger', $rm['error']);
-                $ctx->redirecionar($script, $paramsExtra);
+            } else {
+                $rm = InventarioRM::validarParaUso($ctx->codinventario, $ctx->codloc);
+
+                if ($rm['valid']) {
+                    $ctx->statusRm = $rm['status'];
+                    // Sessão sozinha só pré-preenche; entrar na lista exige URL ou Aplicar.
+                    $ctx->ativo = $deveValidar || $veioDaUrl;
+                } elseif ($deveValidar) {
+                    flash_set('danger', $rm['error']);
+                    $ctx->redirecionar($script, $paramsExtra);
+                }
             }
         }
 

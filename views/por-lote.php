@@ -5,6 +5,7 @@
 /** @var string $grupoContabil */
 /** @var bool $somenteComSaldo */
 /** @var bool $modoLista */
+/** @var bool $avulso */
 /** @var bool $retomadoDaSessao */
 /** @var bool $listaTruncada */
 /** @var array $linhas */
@@ -26,6 +27,7 @@ $totaisProdutoLote = $totaisProdutoLote ?? [];
 $inventariosAbertos = $inventariosAbertos ?? [];
 $listaTruncada = !empty($listaTruncada);
 $somenteComSaldo = !empty($somenteComSaldo);
+$avulso = !empty($avulso);
 $foraDoInventario = (int) ($foraDoInventario ?? 0);
 $valorTotal = (float) ($valorTotal ?? 0);
 
@@ -124,6 +126,32 @@ $moeda = function ($v) {
         </form>
     </section>
 
+    <section class="inv-section panel" aria-labelledby="secao-avulsa">
+        <div class="inv-section-head">
+            <span class="inv-step">2</span>
+            <div>
+                <h2 id="secao-avulsa" class="section-title">Ou conte sem inventário cadastrado</h2>
+                <p class="section-desc">
+                    Abre uma contagem avulsa do local, sem esperar o inventário existir no RM.
+                    Quando ele for criado, você move a contagem para o código dele em um clique.
+                </p>
+            </div>
+        </div>
+        <form action="por-lote.php" method="get" autocomplete="off" class="pl-filtro-linha">
+            <input type="hidden" name="avulsa" value="1">
+            <label class="pl-filtro-campo">
+                <span>Local</span>
+                <select name="CODLOC" class="form-control" required>
+                    <option value="">Escolha o local...</option>
+                    <?php foreach (LocaisEstoque::todos() as $cod => $descricao): ?>
+                        <option value="<?= e($cod) ?>"><?= e($cod . ' — ' . $descricao) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </label>
+            <button type="submit" class="btn btn-secondary">Abrir contagem avulsa</button>
+        </form>
+    </section>
+
     <?php else: ?>
 
     <div class="sl-toolbar pl-toolbar">
@@ -134,11 +162,28 @@ $moeda = function ($v) {
                 <span><?= e($envAtual['label']) ?></span>
             <?php endif; ?>
             <span id="pl-counts"><?= (int) $contados ?>/<?= count($linhas) ?> contados</span>
+            <?php if ($avulso): ?>
+                <span class="pl-badge-avulsa" title="Código não existe em TINVENTARIO">Avulsa · fora do RM</span>
+            <?php endif; ?>
             <span class="pl-valor-total"><?= e($moeda($valorTotal)) ?> em estoque</span>
         </div>
         <div class="sl-toolbar-actions">
             <a class="btn btn-ghost sl-link" href="inventario.php?<?= e(http_build_query(['CODINVENTARIO' => $codinventario, 'aplicar' => '1'])) ?>">Leitura</a>
             <a class="btn btn-ghost sl-link" href="sem-lote.php?<?= e(http_build_query(['CODINVENTARIO' => $codinventario, 'aplicar' => '1'])) ?>">Sem lote</a>
+            <?php if ($avulso): ?>
+            <details class="pl-vincular">
+                <summary class="btn btn-ghost sl-link">Vincular ao RM</summary>
+                <form action="<?= e(url('vincular-contagem.php')) ?>" method="post" class="pl-vincular-form js-no-loading"
+                      onsubmit="return confirm('Mover toda a contagem de <?= e($codinventario) ?> para o código informado?');">
+                    <input type="hidden" name="de" value="<?= e($codinventario) ?>">
+                    <p>Informe o inventário que o RM criou para o local <?= e($codloc) ?>. A contagem inteira passa para ele.</p>
+                    <input type="text" name="para" class="form-control mono" required
+                           inputmode="numeric" maxlength="10" placeholder="<?= e(substr($codinventario, 0, 7)) ?>001"
+                           pattern="\d{2}\.\d{3}\.\d{3}" data-inventario-mask>
+                    <button type="submit" class="btn btn-primary">Mover contagem</button>
+                </form>
+            </details>
+            <?php endif; ?>
             <a class="btn btn-ghost sl-link" href="por-lote.php">Trocar inventário</a>
         </div>
     </div>
@@ -225,7 +270,9 @@ $moeda = function ($v) {
                             $idlote = (int) $linha['idlote'];
                             $ja = (float) ($totaisProdutoLote[$idprd . ':' . $idlote] ?? 0);
                             $saldo = (float) $linha['saldo'];
-                            $dentro = !empty($noInventario[$idprd]);
+                            // Avulsa nao tem itens gerados no RM: lista vazia significa
+                            // "tudo contavel", nao "nada contavel".
+                            $dentro = $avulso || !empty($noInventario[$idprd]);
                             $nomeProduto = $linha['nome'] !== '' ? $linha['nome'] : 'ID ' . $idprd;
                             $numlote = $linha['numlote'] !== '' ? $linha['numlote'] : '—';
                             $validade = $linha['validade'] !== '' ? $linha['validade'] : '—';

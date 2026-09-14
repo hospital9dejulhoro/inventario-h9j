@@ -22,6 +22,25 @@ if (!$somenteComSaldo) {
     $paramsFiltro['todos'] = '1';
 }
 
+// Abrir contagem avulsa: gera o proximo codigo livre do local e entra nele.
+if (isset($_GET['avulsa'])) {
+    $novo = ZMDCODBARRAS::proximoCodigoAvulso((string) ($_GET['CODLOC'] ?? ''));
+    if ($novo['error'] !== '') {
+        flash_set('danger', $novo['error']);
+        redirect_to('por-lote.php');
+    }
+    flash_set(
+        'info',
+        'Contagem avulsa ' . $novo['codinventario'] . ' aberta. Ela ainda nao existe no RM — '
+        . 'quando o inventario for criado, use "Vincular ao RM" para mover a contagem.'
+    );
+    redirect_to('por-lote.php?' . http_build_query([
+        'CODINVENTARIO' => $novo['codinventario'],
+        'CODLOC'        => LocaisEstoque::normalizar((string) ($_GET['CODLOC'] ?? '')),
+        'aplicar'       => '1',
+    ]));
+}
+
 $ctx = ContextoInventario::resolver('por-lote.php', $paramsFiltro);
 
 $codloc = $ctx->codloc;
@@ -30,6 +49,7 @@ $nomeLocal = $ctx->nomeLocal;
 $statusInventarioRm = $ctx->statusRm;
 $retomadoDaSessao = $ctx->retomadoDaSessao;
 $modoLista = $ctx->ativo;
+$avulso = $ctx->avulso;
 
 $linhas = [];
 $grupos = [];
@@ -50,13 +70,15 @@ if ($modoLista) {
 
     $linhas = InventarioRM::listarPosicaoPorLote($codloc, $busca, $grupoContabil, $somenteComSaldo);
     $grupos = InventarioRM::gruposContabeisDoLocal($codloc, $somenteComSaldo);
-    $noInventario = InventarioRM::idprdsDoInventario($codinventario, $codloc);
+    // Avulsa nao tem itens gerados no RM para comparar: tudo que tem posicao no
+    // local pode ser contado.
+    $noInventario = $avulso ? [] : InventarioRM::idprdsDoInventario($codinventario, $codloc);
     $totaisProdutoLote = ZMDCODBARRAS::totaisPorProdutoLote($codinventario);
     $listaTruncada = count($linhas) >= InventarioRM::LIMITE_LOTES;
 
     foreach ($linhas as $linha) {
         $valorTotal += (float) $linha['saldo_financeiro'];
-        if (empty($noInventario[(int) $linha['idprd']])) {
+        if (!$avulso && empty($noInventario[(int) $linha['idprd']])) {
             $foraDoInventario++;
         }
     }
