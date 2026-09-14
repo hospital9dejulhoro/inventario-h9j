@@ -6,6 +6,14 @@
  */
 class ZMDCODBARRAS
 {
+    /**
+     * Teto de linhas da listagem em tela.
+     *
+     * O total real de bipagens NÃO sai de count() sobre essa lista — use
+     * totalBipagens(), senão o contador congela ao bater neste limite.
+     */
+    public const LIMITE_LISTAGEM = 1000;
+
     private $id;
     private $codigobarras;
     private $codinventario;
@@ -20,7 +28,7 @@ class ZMDCODBARRAS
      */
     private static function baseSelectSql(): string
     {
-        return "SELECT TOP 1000 zmd.ID, ZMD.CODIGOBARRAS, ZMD.CODINVENTARIO, ZMD.QUANTIDADE, ZMD.CODLOC, T.NOMEFANTASIA AS NOME, TPRODUTODEF.CODUNDCONTROLE AS UND, TLOTEPRD.NUMLOTE
+        return "SELECT TOP " . self::LIMITE_LISTAGEM . " zmd.ID, ZMD.CODIGOBARRAS, ZMD.CODINVENTARIO, ZMD.QUANTIDADE, ZMD.CODLOC, T.NOMEFANTASIA AS NOME, TPRODUTODEF.CODUNDCONTROLE AS UND, TLOTEPRD.NUMLOTE
                 FROM ZMDCODBARRAS ZMD
                 LEFT JOIN TPRODUTO T ON T.IDPRD = CONVERT(INT,SUBSTRING(ZMD.CODIGOBARRAS,0,7))
                 LEFT JOIN TPRODUTODEF ON TPRODUTODEF.IDPRD = T.IDPRD
@@ -303,7 +311,8 @@ class ZMDCODBARRAS
         }
 
         $c = new Connection('RM');
-        $SQL = "SELECT COUNT(*) AS TOTAL FROM ZMDCODBARRAS WHERE CODINVENTARIO = '{$codinventario}'";
+        $inv = self::sqlStr($codinventario);
+        $SQL = "SELECT COUNT(*) AS TOTAL FROM ZMDCODBARRAS WHERE CODINVENTARIO = '{$inv}'";
         $c->Consulta($SQL);
 
         if (!$c->Resultado()) {
@@ -311,6 +320,66 @@ class ZMDCODBARRAS
         }
 
         return (int) ($c->linha['TOTAL'] ?? 0);
+    }
+
+    /**
+     * Total real de bipagens do inventário.
+     *
+     * A listagem em tela é limitada a LIMITE_LISTAGEM. Enquanto o limite não é
+     * atingido, os registros carregados JÁ são o total e não vale gastar uma
+     * consulta; passando do limite, count() mentiria e o COUNT vira obrigatório.
+     *
+     * @param ZMDCODBARRAS[] $registrosCarregados
+     */
+    public static function totalBipagens(string $codinventario, array $registrosCarregados): int
+    {
+        $carregados = count($registrosCarregados);
+
+        if ($carregados < self::LIMITE_LISTAGEM) {
+            return $carregados;
+        }
+
+        return self::contarPorInventario($codinventario);
+    }
+
+    /**
+     * Quantas vezes este código já foi bipado no inventário e a quantidade somada.
+     *
+     * Serve para avisar o operador sobre releitura do mesmo produto/lote. O
+     * registro é mantido de propósito — contar duas caixas do mesmo lote é
+     * legítimo —, mas a bipagem repetida por engano precisa ficar visível.
+     *
+     * @return array{leituras: int, quantidade: float}
+     */
+    public static function resumoDoCodigo(string $codinventario, string $codigobarras): array
+    {
+        $vazio = ['leituras' => 0, 'quantidade' => 0.0];
+
+        $codinventario = trim($codinventario);
+        $codigobarras = preg_replace('/\D/', '', $codigobarras);
+
+        if ($codinventario === '' || $codigobarras === '') {
+            return $vazio;
+        }
+
+        $c = new Connection('RM');
+        $inv = self::sqlStr($codinventario);
+        $bc = self::sqlStr($codigobarras);
+        $SQL = "SELECT COUNT(*) AS LEITURAS,
+                       SUM(TRY_CAST(REPLACE(LTRIM(RTRIM(CAST(QUANTIDADE AS VARCHAR(30)))), ',', '.') AS DECIMAL(18, 4))) AS QUANTIDADE
+                FROM ZMDCODBARRAS
+                WHERE CODINVENTARIO = '{$inv}'
+                  AND CODIGOBARRAS = '{$bc}'";
+        $c->Consulta($SQL);
+
+        if (!$c->Resultado()) {
+            return $vazio;
+        }
+
+        return [
+            'leituras'   => (int) ($c->linha['LEITURAS'] ?? 0),
+            'quantidade' => (float) ($c->linha['QUANTIDADE'] ?? 0),
+        ];
     }
 
     /**

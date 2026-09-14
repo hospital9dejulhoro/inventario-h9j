@@ -4,6 +4,8 @@
 /** @var string $quantidade */
 /** @var string $codigobarras */
 /** @var ZMDCODBARRAS[] $registros */
+/** @var int $totalBipagens */
+/** @var bool $listaTruncada */
 /** @var int $qtdItensRm */
 /** @var bool $mostrarTabela */
 /** @var bool $retomadoDaSessao */
@@ -18,6 +20,8 @@
 $nomeLocal = $nomeLocal ?? '';
 $locaisEstoqueJson = $locaisEstoqueJson ?? '{}';
 $qtdItensRm = (int) ($qtdItensRm ?? 0);
+$totalBipagens = (int) ($totalBipagens ?? 0);
+$listaTruncada = !empty($listaTruncada);
 $statusInventarioRm = $statusInventarioRm ?? '';
 $inventariosAbertos = $inventariosAbertos ?? [];
 ?>
@@ -94,7 +98,7 @@ $inventariosAbertos = $inventariosAbertos ?? [];
     <div class="inv-stats-bar" aria-label="Resumo da sessão">
         <span><strong>Ambiente:</strong> <?= e($envAtual['label']) ?></span>
         <span><strong>Bipados agora:</strong> <span id="session-scan-count"><?= (int) $leiturasSessao ?></span></span>
-        <span><strong>Bipados (total):</strong> <?= count($registros) ?></span>
+        <span><strong>Bipados (total):</strong> <?= $totalBipagens ?></span>
         <span><strong>Itens no RM:</strong> <?= (int) $qtdItensRm ?></span>
         <?php if ($statusInventarioRm !== ''): ?>
         <span><strong>Status RM:</strong> <?= e($statusInventarioRm) ?></span>
@@ -234,7 +238,10 @@ $inventariosAbertos = $inventariosAbertos ?? [];
                         <?php if ($mostrarTabela): ?>
                             Leituras do inventário <strong><?= e($codinventario) ?></strong>
                             · <?= (int) $qtdItensRm ?> itens no RM
-                            · <?= count($registros) ?> <?= count($registros) === 1 ? 'bipado' : 'bipados' ?>.
+                            · <?= $totalBipagens ?> <?= $totalBipagens === 1 ? 'bipado' : 'bipados' ?>.
+                            <?php if ($listaTruncada): ?>
+                                <strong>A tabela mostra só as <?= (int) ZMDCODBARRAS::LIMITE_LISTAGEM ?> leituras mais recentes</strong> — use o relatório para a contagem completa.
+                            <?php endif; ?>
                         <?php else: ?>
                             A lista de bipagens aparece depois de aplicar um inventário.
                         <?php endif; ?>
@@ -242,7 +249,7 @@ $inventariosAbertos = $inventariosAbertos ?? [];
                 </div>
                 <?php if ($mostrarTabela && $codinventario !== ''): ?>
                 <form action="inventario-item.php" method="post" class="inv-delete-inventario-form"
-                      onsubmit="return confirm('Excluir o inventário <?= e($codinventario) ?> e todos os <?= count($registros) ?> itens gravados?\n\nEsta ação não pode ser desfeita.');">
+                      onsubmit="return confirm('Excluir o inventário <?= e($codinventario) ?> e todos os <?= $totalBipagens ?> itens gravados?\n\nEsta ação não pode ser desfeita.');">
                     <input type="hidden" name="acao" value="excluir_inventario">
                     <input type="hidden" name="CODINVENTARIO" value="<?= e($codinventario) ?>">
                     <input type="hidden" name="CODLOC" value="<?= e($codloc) ?>">

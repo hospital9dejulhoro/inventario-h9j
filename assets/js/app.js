@@ -17,23 +17,47 @@
         }
     }
 
+    function criarAudioContext() {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        return AudioContext ? new AudioContext() : null;
+    }
+
+    function tocarTom(ctx, frequencia, atraso, duracao) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const inicio = ctx.currentTime + atraso;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = frequencia;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0.15, inicio);
+        gain.gain.exponentialRampToValueAtTime(0.001, inicio + duracao);
+        osc.start(inicio);
+        osc.stop(inicio + duracao);
+    }
+
     function playSuccessBeep() {
         try {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            if (!AudioContext) {
+            const ctx = criarAudioContext();
+            if (!ctx) {
                 return;
             }
-            const ctx = new AudioContext();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.frequency.value = 880;
-            osc.type = 'sine';
-            gain.gain.setValueAtTime(0.15, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
-            osc.start(ctx.currentTime);
-            osc.stop(ctx.currentTime + 0.12);
+            tocarTom(ctx, 880, 0, 0.12);
+        } catch (e) {
+            /* áudio opcional */
+        }
+    }
+
+    // Dois tons graves e mais longos: o operador precisa distinguir releitura do
+    // bipe normal sem tirar os olhos da prateleira.
+    function playWarningBeep() {
+        try {
+            const ctx = criarAudioContext();
+            if (!ctx) {
+                return;
+            }
+            tocarTom(ctx, 440, 0, 0.16);
+            tocarTom(ctx, 300, 0.2, 0.26);
         } catch (e) {
             /* áudio opcional */
         }
@@ -310,6 +334,9 @@
         if (type === 'success') {
             playSuccessBeep();
             // Não chama vibrate no carregamento da página (Chrome bloqueia sem gesto)
+        } else if (type === 'warning') {
+            // Releitura do mesmo código — antes o aviso era só visual.
+            playWarningBeep();
         }
     }
 

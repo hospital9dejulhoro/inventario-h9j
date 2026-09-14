@@ -11,6 +11,8 @@ $codigobarras = isset($_GET['CODIGOBARRAS']) ? (string) $_GET['CODIGOBARRAS'] : 
 $retomadoDaSessao = false;
 $modoLeitura = false;
 $registros = [];
+$totalBipagens = 0;
+$listaTruncada = false;
 $qtdItensRm = 0;
 $mostrarTabela = false;
 $envAtual = EnvironmentManager::getCurrent();
@@ -136,7 +138,29 @@ if ($rmOk) {
             if (!empty($validacao['warnings'])) {
                 $msg .= ' (' . implode(' ', $validacao['warnings']) . ')';
             }
-            flash_set('success', $msg);
+
+            // Releitura do mesmo produto/lote: grava mesmo assim (contar duas
+            // caixas do mesmo lote é legítimo), mas avisa em vez de confirmar em
+            // silêncio — bipagem repetida por engano é o erro mais comum aqui.
+            $resumo = ZMDCODBARRAS::resumoDoCodigo($codinventario, $codigobarras);
+
+            if ($resumo['leituras'] > 1) {
+                $item = $validacao['nome'];
+                if (!empty($validacao['lote'])) {
+                    $item .= ' · Lote ' . $validacao['lote'];
+                }
+
+                $und = trim((string) $validacao['und']);
+                $acumulado = formatar_quantidade($resumo['quantidade']) . ($und !== '' ? ' ' . $und : '');
+
+                flash_set(
+                    'warning',
+                    $resumo['leituras'] . 'ª leitura de ' . $item . ' — acumulado ' . $acumulado
+                    . '. Se foi bipagem repetida, use Excluir na lista abaixo.'
+                );
+            } else {
+                flash_set('success', $msg);
+            }
         } else {
             flash_set('danger', 'Não foi possível salvar o registro. Tente novamente.');
         }
@@ -157,6 +181,9 @@ if ($rmOk) {
 
     SessionManager::setLastInventario($codloc, $codinventario, $quantidade);
     $registros = ZMDCODBARRAS::listarPorInventario($codinventario);
+    // count($registros) para no teto da listagem — o total real vem daqui.
+    $totalBipagens = ZMDCODBARRAS::totalBipagens($codinventario, $registros);
+    $listaTruncada = $totalBipagens > count($registros);
     $qtdItensRm = InventarioRM::contarItensInventario($codinventario, $codloc);
     $leiturasSessao = SessionManager::getSessionScans();
 } elseif ($mascaraOk && $codinventario !== '' && !$deveValidarAcao && !$retomadoDaSessao) {

@@ -25,6 +25,17 @@ function encode_db_value($value)
 }
 
 /**
+ * Formata quantidade no padrão pt-BR sem zeros à direita: 12 · 1,5 · 1.250.
+ */
+function formatar_quantidade(float $quantidade): string
+{
+    // number_format sempre emite 3 casas, então sempre há vírgula para aparar.
+    $formatado = number_format($quantidade, 3, ',', '.');
+
+    return rtrim(rtrim($formatado, '0'), ',');
+}
+
+/**
  * Obtém o nome do usuário do sistema operacional / servidor web.
  */
 function detect_os_username(): string
