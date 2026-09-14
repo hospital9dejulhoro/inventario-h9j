@@ -85,11 +85,26 @@ class ZMDCODBARRAS
     }
 
     /**
-     * Código sintético 13 dígitos para item sem lote: IDPRD(7) + 000000.
+     * Código sintético de 13 dígitos para item sem lote.
+     *
+     * Layout lido por todas as consultas: IDPRD nos dígitos 1-6 e IDLOTE nos
+     * dígitos 8-12. No SQL Server, SUBSTRING(CODIGOBARRAS, 0, 7) começa no 1º
+     * caractere e devolve 6 (start + length - 1), não 7 — gravar o IDPRD em 7
+     * dígitos deslocava tudo e o item era lido como outro produto.
+     * IDLOTE zerado significa "sem lote".
+     *
+     * Devolve '' quando o IDPRD não cabe em 6 dígitos, para o chamador recusar a
+     * gravação em vez de gravar um código que seria lido como outro produto.
      */
     public static function barcodeSemLote(int $idprd): string
     {
-        return str_pad((string) max(0, $idprd), 7, '0', STR_PAD_LEFT) . '000000';
+        $idprd = max(0, $idprd);
+
+        if ($idprd > 999999) {
+            return '';
+        }
+
+        return str_pad((string) $idprd, 6, '0', STR_PAD_LEFT) . '0000000';
     }
 
     /**

@@ -53,8 +53,17 @@ if (!InventarioRM::itemPertenceAoInventario($codinventario, $codloc, $idprd)) {
     exit;
 }
 
+$codigobarras = ZMDCODBARRAS::barcodeSemLote($idprd);
+if ($codigobarras === '') {
+    echo json_encode([
+        'ok'      => false,
+        'message' => 'Produto ' . $idprd . ' não cabe no código de 13 dígitos (IDPRD acima de 999999). Conte este item pela leitura de código de barras.',
+    ]);
+    exit;
+}
+
 $zmd = new ZMDCODBARRAS();
-$zmd->setCodigobarras(ZMDCODBARRAS::barcodeSemLote($idprd));
+$zmd->setCodigobarras($codigobarras);
 $zmd->setCodinventario($codinventario);
 $zmd->setQuantidade($quantidade);
 $zmd->setCodloc($codloc);
