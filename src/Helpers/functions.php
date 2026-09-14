@@ -9,7 +9,15 @@ function e($value): string
 }
 
 /**
- * Compatível com a codificação usada nas versões anteriores do sistema.
+ * Normaliza texto vindo do banco para UTF-8.
+ *
+ * A conversão é condicional de propósito. O driver sqlsrv devolve Latin-1 ou
+ * UTF-8 conforme o sistema e a configuração — no Windows e no Linux o padrão
+ * difere. Convertendo sempre, um texto que já veio em UTF-8 é codificado duas
+ * vezes e "LÍNGUA" chega na tela como "LÃNGUA": os bytes C3 8D do Í passam a
+ * ser lidos como "Ã" mais um caractere de controle invisível.
+ *
+ * Texto ASCII puro já é UTF-8 válido e passa intacto.
  */
 function encode_db_value($value)
 {
@@ -17,11 +25,21 @@ function encode_db_value($value)
         return '';
     }
 
-    if (function_exists('mb_convert_encoding')) {
-        return mb_convert_encoding((string) $value, 'UTF-8', 'ISO-8859-1');
+    $texto = (string) $value;
+
+    if ($texto === '') {
+        return '';
     }
 
-    return utf8_encode((string) $value);
+    if (function_exists('mb_check_encoding') && mb_check_encoding($texto, 'UTF-8')) {
+        return $texto;
+    }
+
+    if (function_exists('mb_convert_encoding')) {
+        return mb_convert_encoding($texto, 'UTF-8', 'ISO-8859-1');
+    }
+
+    return utf8_encode($texto);
 }
 
 /**
