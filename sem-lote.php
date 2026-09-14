@@ -77,7 +77,8 @@ if ($mascaraOk && $codloc !== '') {
 }
 
 $nomeLocal = LocaisEstoque::nome($codloc);
-$inventariosAbertos = InventarioRM::listarAbertos();
+// Só a tela de seleção usa a lista (view: if (!$modoLista), e $modoLista === $rmOk).
+$inventariosAbertos = $rmOk ? [] : InventarioRM::listarAbertos();
 
 if ($rmOk) {
     $modoLista = true;

@@ -89,6 +89,9 @@ class EnvironmentManager
             'Database' => $env['database'],
             'UID'      => $env['usuario'],
             'PWD'      => $env['senha'],
+            // Explícito porque a conexão é reaproveitada na requisição inteira:
+            // permite abrir um statement novo com o result set anterior ainda vivo.
+            'MultipleActiveResultSets' => true,
         ];
 
         // ODBC 18: certificado autoassinado em ambientes internos RM/TOTVS

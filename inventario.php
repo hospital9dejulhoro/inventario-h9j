@@ -88,7 +88,10 @@ if ($mascaraOk && $codloc !== '') {
 
 $nomeLocal = LocaisEstoque::nome($codloc);
 $locaisEstoqueJson = json_encode(LocaisEstoque::todos(), JSON_UNESCAPED_UNICODE);
-$inventariosAbertos = InventarioRM::listarAbertos();
+// Só a tela de seleção usa a lista (view: if (!$modoLeitura), e $modoLeitura === $rmOk).
+// Em modo leitura o resultado era descartado, mas custava 1 consulta + 1 por
+// inventário aberto a cada bipagem.
+$inventariosAbertos = $rmOk ? [] : InventarioRM::listarAbertos();
 
 if ($rmOk) {
     $mostrarTabela = true;

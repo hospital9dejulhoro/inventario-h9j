@@ -23,6 +23,13 @@ class Connection
     /** @var array|false */
     public $data;
 
+    /**
+     * Conexões reaproveitadas dentro da mesma requisição, por ambiente/banco.
+     *
+     * @var array<string, resource>
+     */
+    private static $conexoes = [];
+
     public function __construct($db = 'RM')
     {
         $this->abre($db);
@@ -36,6 +43,17 @@ class Connection
             die('Nenhum ambiente selecionado. Retorne à tela inicial e conecte-se.');
         }
 
+        // Uma conexão por ambiente/banco por requisição. Antes era uma por consulta:
+        // um único bipe chegava a abrir dezenas de conexões no SQL Server.
+        $chave = (string) EnvironmentManager::getCurrentKey()
+            . '|' . (string) ($current['host'] ?? '')
+            . '|' . (string) ($current['database'] ?? '');
+
+        if (isset(self::$conexoes[$chave])) {
+            $this->id = self::$conexoes[$chave];
+            return;
+        }
+
         $connectionInfo = EnvironmentManager::buildConnectionInfo($current);
 
         $this->id = sqlsrv_connect($current['host'], $connectionInfo);
@@ -43,11 +61,21 @@ class Connection
         if ($this->id === false) {
             die(print_r(sqlsrv_errors(), true));
         }
+
+        self::$conexoes[$chave] = $this->id;
     }
 
     public function fecha()
     {
         if ($this->id) {
+            // A conexão é compartilhada: tira do cache antes de fechar, senão o
+            // próximo new Connection() receberia um handle já fechado.
+            foreach (self::$conexoes as $chave => $handle) {
+                if ($handle === $this->id) {
+                    unset(self::$conexoes[$chave]);
+                }
+            }
+
             @sqlsrv_close($this->id);
         }
 
@@ -62,6 +90,15 @@ class Connection
      */
     public function Consulta($sql = '')
     {
+        // Libera o statement anterior deste objeto e zera a linha: com a conexão
+        // compartilhada, uma consulta que falhe não pode devolver a linha da anterior.
+        if ($this->res) {
+            @sqlsrv_free_stmt($this->res);
+        }
+
+        $this->res = false;
+        $this->linha = false;
+
         if ($sql == '') {
             $this->res = 0;
             $this->qtd = 0;
