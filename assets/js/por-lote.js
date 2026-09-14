@@ -268,7 +268,13 @@
     // Grupo contabil e "incluir zerados" mudam a consulta, entao recarregam.
     document.querySelectorAll('[data-autosubmit]').forEach(function (el) {
         el.addEventListener('change', function () {
-            el.form.submit();
+            // requestSubmit dispara o evento submit; form.submit() nao, e sem ele
+            // a troca de filtro navegava sem nenhum sinal de carregamento.
+            if (el.form.requestSubmit) {
+                el.form.requestSubmit();
+            } else {
+                el.form.submit();
+            }
         });
     });
 

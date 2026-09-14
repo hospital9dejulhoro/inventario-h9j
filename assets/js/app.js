@@ -119,12 +119,15 @@
         });
 
         window.addEventListener('pageshow', function () {
-            hideLoading();
             scheduleFocusBarcode();
         });
 
         scheduleFocusBarcode();
     }
+
+    // Vale para toda tela: voltar pelo historico restaura a pagina com o overlay
+    // ainda aceso, e sem isto ele fica preso ate um F5.
+    window.addEventListener('pageshow', hideLoading);
 
     if (qtyInput && inventoryForm) {
         qtyInput.dataset.lastQty = qtyInput.value || '1';

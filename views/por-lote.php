@@ -173,7 +173,7 @@ $moeda = function ($v) {
             <?php if ($avulso): ?>
             <details class="pl-vincular">
                 <summary class="btn btn-ghost sl-link">Vincular ao RM</summary>
-                <form action="<?= e(url('vincular-contagem.php')) ?>" method="post" class="pl-vincular-form js-no-loading"
+                <form action="<?= e(url('vincular-contagem.php')) ?>" method="post" class="pl-vincular-form"
                       onsubmit="return confirm('Mover toda a contagem de <?= e($codinventario) ?> para o código informado?');">
                     <input type="hidden" name="de" value="<?= e($codinventario) ?>">
                     <p>Informe o inventário que o RM criou para o local <?= e($codloc) ?>. A contagem inteira passa para ele.</p>
@@ -190,7 +190,7 @@ $moeda = function ($v) {
 
     <div class="pl-split">
         <section class="pl-pane pl-pane-lista panel" aria-labelledby="pl-lista-titulo">
-            <form action="por-lote.php" method="get" class="pl-filtros js-no-loading" id="pl-busca-form">
+            <form action="por-lote.php" method="get" class="pl-filtros" id="pl-busca-form">
                 <input type="hidden" name="CODINVENTARIO" value="<?= e($codinventario) ?>">
                 <input type="hidden" name="CODLOC" value="<?= e($codloc) ?>">
 
@@ -331,7 +331,7 @@ $moeda = function ($v) {
                 <kbd>Enter</kbd> para pegar o primeiro resultado.
             </p>
 
-            <form id="pl-form" hidden autocomplete="off">
+            <form id="pl-form" hidden autocomplete="off" data-ajax>
                 <dl class="pl-dados">
                     <dt>Produto</dt><dd id="pl-f-nome" class="pl-f-nome"></dd>
                     <dt>Grupo</dt><dd id="pl-f-grupo"></dd>
