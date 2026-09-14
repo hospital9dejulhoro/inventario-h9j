@@ -7,6 +7,11 @@ class InventarioRM
 {
     private const CODCOLIGADA = 1;
 
+    /** Teto de lotes carregados na tela; acima disso use a busca no servidor. */
+    public const LIMITE_LOTES = 4000;
+
+
+
     /**
      * Escapa aspas simples para uso em literais SQL (valores já normalizados).
      */
@@ -263,6 +268,132 @@ class InventarioRM
     }
 
     /**
+     * Escapa curingas de LIKE além das aspas (% _ [ são curingas no T-SQL).
+     */
+    private static function sqlLike(string $value): string
+    {
+        $value = self::sqlStr($value);
+
+        return str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $value);
+    }
+
+    /**
+     * Condição de CODLOC tolerante a zero à esquerda ('28' e '028' no mesmo banco).
+     */
+    private static function condicaoCodloc(string $alias, string $codloc): string
+    {
+        $loc = self::sqlStr(LocaisEstoque::normalizar($codloc));
+
+        if ($loc === '') {
+            return '';
+        }
+
+        return " AND (
+                LTRIM(RTRIM({$alias}.CODLOC)) = '{$loc}'
+                OR RIGHT(REPLICATE('0', 3) + LTRIM(RTRIM({$alias}.CODLOC)), 3) = '{$loc}'
+            )";
+    }
+
+    /**
+     * Lotes com registro no local, para os produtos do inventário.
+     *
+     * A origem é TLOTEPRDLOC (saldo de lote POR LOCAL), não TLOTEPRD direto:
+     * TLOTEPRD é o cadastro de lotes do produto e não tem local, então partir
+     * dele arrastaria todo o histórico de lotes de cada produto — em almoxarifado
+     * de farmácia isso são dezenas por item, quase todos já consumidos.
+     *
+     * Não filtra SALDOFISICO2 <> 0 de propósito: lote que zerou no sistema mas
+     * está na prateleira é exatamente a divergência que o inventário existe para
+     * achar. O saldo vai junto na listagem para a conferência ficar visível.
+     *
+     * $busca filtra no servidor por lote, nome ou código do produto, para quando
+     * a lista estourar o limite e o filtro do navegador não alcançar o resto.
+     *
+     * @return array<int, array{idprd: int, idlote: int, numlote: string, codigo: string, nome: string, und: string, codloc: string, validade: string, saldo: float}>
+     */
+    public static function listarLotesDoInventario(
+        string $codinventario,
+        string $codloc = '',
+        string $busca = '',
+        int $limite = self::LIMITE_LOTES
+    ): array {
+        $codinventario = trim($codinventario);
+        if ($codinventario === '') {
+            return [];
+        }
+
+        $limite = max(1, min(self::LIMITE_LOTES, $limite));
+        $c = new Connection('RM');
+        $inv = self::sqlStr($codinventario);
+        $col = self::CODCOLIGADA;
+        $locItens = self::condicaoCodloc('ITM', $codloc);
+        $locLotes = self::condicaoCodloc('LL', $codloc);
+
+        $whereBusca = '';
+        $busca = trim($busca);
+        if ($busca !== '') {
+            $like = self::sqlLike($busca);
+            $whereBusca = " AND (
+                L.NUMLOTE LIKE '%{$like}%'
+                OR T.NOMEFANTASIA LIKE '%{$like}%'
+                OR T.CODIGOPRD LIKE '%{$like}%'
+            )";
+        }
+
+        // DISTINCT no subselect: TITMINVENTARIO pode ter mais de uma linha para o
+        // mesmo produto, e isso duplicaria cada lote inflando o SUM do saldo.
+        $SQL = "SELECT TOP {$limite}
+                    I.IDPRD,
+                    LL.IDLOTE,
+                    MAX(RTRIM(L.NUMLOTE)) AS NUMLOTE,
+                    MAX(RTRIM(LL.CODLOC)) AS CODLOC,
+                    MAX(T.CODIGOPRD) AS CODIGO,
+                    MAX(T.NOMEFANTASIA) AS NOME,
+                    MAX(TPRODUTODEF.CODUNDCONTROLE) AS UND,
+                    MAX(L.DATAVALIDADE) AS VALIDADE,
+                    SUM(LL.SALDOFISICO2) AS SALDO
+                FROM (
+                    SELECT DISTINCT ITM.IDPRD
+                    FROM TITMINVENTARIO ITM
+                    WHERE ITM.CODCOLIGADA = {$col}
+                      AND ITM.CODINVENTARIO = '{$inv}'
+                      {$locItens}
+                ) I
+                INNER JOIN TLOTEPRDLOC LL
+                    ON LL.IDPRD = I.IDPRD
+                   AND LL.CODCOLIGADA = {$col}
+                   {$locLotes}
+                INNER JOIN TLOTEPRD L
+                    ON L.IDPRD = LL.IDPRD
+                   AND L.IDLOTE = LL.IDLOTE
+                   AND L.CODCOLIGADA = LL.CODCOLIGADA
+                LEFT JOIN TPRODUTO T ON T.IDPRD = I.IDPRD
+                LEFT JOIN TPRODUTODEF ON TPRODUTODEF.IDPRD = I.IDPRD
+                WHERE 1 = 1
+                  {$whereBusca}
+                GROUP BY I.IDPRD, LL.IDLOTE
+                ORDER BY MAX(T.NOMEFANTASIA), MAX(L.DATAVALIDADE), MAX(RTRIM(L.NUMLOTE))";
+        $c->Consulta($SQL);
+
+        $lotes = [];
+        while ($c->Resultado()) {
+            $lotes[] = [
+                'idprd'    => (int) ($c->linha['IDPRD'] ?? 0),
+                'idlote'   => (int) ($c->linha['IDLOTE'] ?? 0),
+                'numlote'  => encode_db_value((string) ($c->linha['NUMLOTE'] ?? '')),
+                'codigo'   => encode_db_value((string) ($c->linha['CODIGO'] ?? '')),
+                'nome'     => encode_db_value((string) ($c->linha['NOME'] ?? '')),
+                'und'      => encode_db_value((string) ($c->linha['UND'] ?? '')),
+                'codloc'   => encode_db_value((string) ($c->linha['CODLOC'] ?? '')),
+                'validade' => self::formatDate($c->linha['VALIDADE'] ?? null),
+                'saldo'    => (float) ($c->linha['SALDO'] ?? 0),
+            ];
+        }
+
+        return $lotes;
+    }
+
+    /**
      * Inventários em aberto no RM (TINVENTARIO.STATUS = 'A').
      *
      * @return array<int, array{
@@ -329,19 +460,29 @@ class InventarioRM
     }
 
     /**
+     * Só a data — validade de lote não tem hora útil.
+     *
      * @param mixed $value
      */
-    private static function formatDateTime($value): string
+    private static function formatDate($value): string
+    {
+        return self::formatDateTime($value, 'd/m/Y');
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private static function formatDateTime($value, string $formato = 'd/m/Y H:i'): string
     {
         if ($value instanceof DateTimeInterface) {
-            return $value->format('d/m/Y H:i');
+            return $value->format($formato);
         }
         if ($value instanceof DateTime) {
-            return $value->format('d/m/Y H:i');
+            return $value->format($formato);
         }
         if (is_object($value) && method_exists($value, 'format')) {
             try {
-                return (string) $value->format('d/m/Y H:i');
+                return (string) $value->format($formato);
             } catch (Throwable $e) {
                 // continua
             }
@@ -349,21 +490,19 @@ class InventarioRM
         if (is_string($value) && $value !== '') {
             $ts = strtotime($value);
             if ($ts !== false) {
-                return date('d/m/Y H:i', $ts);
+                return date($formato, $ts);
             }
             return $value;
         }
         return '';
     }
 
+    /**
+     * @deprecated Use ZMDCODBARRAS::idprdDoBarcode(), dona do layout do código.
+     */
     public static function idprdDoBarcode(string $codigobarras): int
     {
-        $digits = preg_replace('/\D/', '', $codigobarras);
-        if (strlen($digits) < 7) {
-            return 0;
-        }
-
-        return (int) substr($digits, 0, 7);
+        return ZMDCODBARRAS::idprdDoBarcode($codigobarras);
     }
 
     public static function itemPertenceAoInventario(string $codinventario, string $codloc, int $idprd): bool

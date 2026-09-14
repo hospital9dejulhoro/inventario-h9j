@@ -106,13 +106,82 @@ class ZMDCODBARRAS
      */
     public static function barcodeSemLote(int $idprd): string
     {
-        $idprd = max(0, $idprd);
+        return self::barcodeComLote($idprd, 0);
+    }
 
-        if ($idprd > 999999) {
+    /**
+     * Código sintético de 13 dígitos: IDPRD(1-6) + 0 + IDLOTE(8-12) + 0.
+     *
+     * As posições 7 e 13 do código impresso são dígitos que nenhuma consulta lê,
+     * por isso vão zeradas no código gerado. IDLOTE 0 significa "sem lote".
+     *
+     * Devolve '' quando IDPRD ou IDLOTE não cabem no layout, para o chamador
+     * recusar a gravação em vez de gravar algo lido como outro item.
+     */
+    public static function barcodeComLote(int $idprd, int $idlote = 0): string
+    {
+        $idprd = max(0, $idprd);
+        $idlote = max(0, $idlote);
+
+        if ($idprd > 999999 || $idlote > 99999) {
             return '';
         }
 
-        return str_pad((string) $idprd, 6, '0', STR_PAD_LEFT) . '0000000';
+        return str_pad((string) $idprd, 6, '0', STR_PAD_LEFT)
+            . '0'
+            . str_pad((string) $idlote, 5, '0', STR_PAD_LEFT)
+            . '0';
+    }
+
+    /** IDPRD gravado no código de barras (dígitos 1-6). */
+    public static function idprdDoBarcode(string $codigobarras): int
+    {
+        $digits = preg_replace('/\D/', '', $codigobarras);
+
+        return strlen($digits) >= 6 ? (int) substr($digits, 0, 6) : 0;
+    }
+
+    /** IDLOTE gravado no código de barras (dígitos 8-12). 0 = sem lote. */
+    public static function idloteDoBarcode(string $codigobarras): int
+    {
+        $digits = preg_replace('/\D/', '', $codigobarras);
+
+        return strlen($digits) >= 12 ? (int) substr($digits, 7, 5) : 0;
+    }
+
+    /**
+     * Quantidade já contada por produto + lote.
+     *
+     * @return array<string, float> chave "idprd:idlote" => quantidade
+     */
+    public static function totaisPorProdutoLote(string $codinventario): array
+    {
+        $codinventario = trim($codinventario);
+        if ($codinventario === '') {
+            return [];
+        }
+
+        $c = new Connection('RM');
+        $inv = self::sqlStr($codinventario);
+        $SQL = "SELECT CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 0, 7)) AS IDPRD,
+                       CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 8, 5)) AS IDLOTE,
+                       SUM(TRY_CAST(REPLACE(LTRIM(RTRIM(CAST(ZMD.QUANTIDADE AS VARCHAR(30)))), ',', '.') AS DECIMAL(18, 4))) AS QUANTIDADE
+                FROM ZMDCODBARRAS ZMD
+                WHERE ZMD.CODINVENTARIO = '{$inv}'
+                GROUP BY CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 0, 7)),
+                         CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 8, 5))";
+        $c->Consulta($SQL);
+
+        $mapa = [];
+        while ($c->Resultado()) {
+            $idprd = (int) ($c->linha['IDPRD'] ?? 0);
+            if ($idprd > 0) {
+                $idlote = (int) ($c->linha['IDLOTE'] ?? 0);
+                $mapa[$idprd . ':' . $idlote] = (float) ($c->linha['QUANTIDADE'] ?? 0);
+            }
+        }
+
+        return $mapa;
     }
 
     /**
@@ -362,14 +431,26 @@ class ZMDCODBARRAS
             return $vazio;
         }
 
+        // Compara por IDPRD + IDLOTE, não pela string do código: o mesmo
+        // produto/lote pode chegar bipado da etiqueta (dígitos 7 e 13 com os
+        // valores impressos) ou gerado pela tela de lotes (esses dígitos
+        // zerados). São códigos diferentes para o mesmo item, e comparar texto
+        // deixaria a releitura passar despercebida entre as duas telas.
+        $idprd = self::idprdDoBarcode($codigobarras);
+        $idlote = self::idloteDoBarcode($codigobarras);
+
+        if ($idprd <= 0) {
+            return $vazio;
+        }
+
         $c = new Connection('RM');
         $inv = self::sqlStr($codinventario);
-        $bc = self::sqlStr($codigobarras);
         $SQL = "SELECT COUNT(*) AS LEITURAS,
                        SUM(TRY_CAST(REPLACE(LTRIM(RTRIM(CAST(QUANTIDADE AS VARCHAR(30)))), ',', '.') AS DECIMAL(18, 4))) AS QUANTIDADE
                 FROM ZMDCODBARRAS
                 WHERE CODINVENTARIO = '{$inv}'
-                  AND CODIGOBARRAS = '{$bc}'";
+                  AND CONVERT(INT, SUBSTRING(CODIGOBARRAS, 0, 7)) = {$idprd}
+                  AND CONVERT(INT, SUBSTRING(CODIGOBARRAS, 8, 5)) = {$idlote}";
         $c->Consulta($SQL);
 
         if (!$c->Resultado()) {

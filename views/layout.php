@@ -2,6 +2,14 @@
 /** @var string $pageTitle */
 /** @var string $bodyClass */
 /** @var string $content */
+
+// Aba ativa da navbar. Calculado aqui porque as telas de contagem compartilham
+// a classe page-inventory: a condicao tem de excluir cada sub-tela pelo nome, e
+// esquecer uma acendia o item errado.
+$bodyClassAtual = (string) ($bodyClass ?? '');
+$navSemLote = str_contains($bodyClassAtual, 'page-sem-lote');
+$navPorLote = str_contains($bodyClassAtual, 'page-por-lote');
+$navLeitura = str_contains($bodyClassAtual, 'page-inventory') && !$navSemLote && !$navPorLote;
 ?>
 <!doctype html>
 <html lang="pt-BR">
@@ -34,8 +42,9 @@
                         <span class="nav-meta-user">(<?= e(SessionManager::getUsername()) ?>)</span>
                     <?php endif; ?>
                 </span>
-                <a href="inventario.php" class="btn-ghost<?= (($bodyClass ?? '') === 'page-inventory' || str_contains((string) ($bodyClass ?? ''), 'page-inventory')) && !str_contains((string) ($bodyClass ?? ''), 'page-sem-lote') ? ' is-nav-on' : '' ?>">Leitura</a>
-                <a href="sem-lote.php" class="btn-ghost<?= str_contains((string) ($bodyClass ?? ''), 'page-sem-lote') ? ' is-nav-on' : '' ?>">Sem lote</a>
+                <a href="inventario.php" class="btn-ghost<?= $navLeitura ? ' is-nav-on' : '' ?>">Leitura</a>
+                <a href="por-lote.php" class="btn-ghost<?= $navPorLote ? ' is-nav-on' : '' ?>">Por lote</a>
+                <a href="sem-lote.php" class="btn-ghost<?= $navSemLote ? ' is-nav-on' : '' ?>">Sem lote</a>
                 <a href="relatorio.php" class="btn-ghost">Relatório</a>
                 <a href="index.php?config=1" class="btn-ghost">Configuração</a>
                 <a href="desconectar.php" class="btn-ghost">Sair</a>
