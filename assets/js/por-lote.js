@@ -8,17 +8,20 @@
 
     var table = document.getElementById('pl-table');
     var busca = document.getElementById('pl-busca');
-    var buscaForm = document.getElementById('pl-busca-form');
     var ocultar = document.getElementById('pl-ocultar-contados');
     var statusEl = document.getElementById('pl-status');
     var countsEl = document.getElementById('pl-counts');
 
     var form = document.getElementById('pl-form');
     var vazioEl = document.getElementById('pl-form-vazio');
+    var bloqueioEl = document.getElementById('pl-bloqueio');
+    var grupoQtd = document.getElementById('pl-grupo-qtd');
     var fNome = document.getElementById('pl-f-nome');
+    var fGrupo = document.getElementById('pl-f-grupo');
     var fLote = document.getElementById('pl-f-lote');
     var fValidade = document.getElementById('pl-f-validade');
     var fSaldo = document.getElementById('pl-f-saldo');
+    var fValor = document.getElementById('pl-f-valor');
     var fJa = document.getElementById('pl-f-ja');
     var fQtd = document.getElementById('pl-f-qtd');
     var fGravar = document.getElementById('pl-f-gravar');
@@ -86,6 +89,10 @@
         return und ? ' ' + und : '';
     }
 
+    function dentroDoInventario(tr) {
+        return tr.getAttribute('data-dentro') === '1';
+    }
+
     function selecionar(tr) {
         if (!tr) {
             return;
@@ -102,19 +109,29 @@
         if (codigo) {
             fNome.textContent += ' · ' + codigo;
         }
+        fGrupo.textContent = tr.getAttribute('data-grupo') || '—';
         fLote.textContent = tr.getAttribute('data-lote') || '';
         fValidade.textContent = tr.getAttribute('data-validade') || '';
         fSaldo.textContent = (tr.getAttribute('data-saldo') || '0') + unidade(tr);
+        fValor.textContent = tr.getAttribute('data-valor') || '';
         fJa.textContent = (tr.getAttribute('data-ja') || '0') + unidade(tr);
 
         vazioEl.hidden = true;
         form.hidden = false;
         setStatus('');
 
-        fQtd.value = '';
-        fQtd.focus();
+        // Item com saldo no local mas fora do inventario: mostra os dados para
+        // conferencia, mas nao deixa gravar - o servidor recusaria de qualquer jeito.
+        var podeContar = dentroDoInventario(tr);
+        bloqueioEl.hidden = podeContar;
+        grupoQtd.hidden = !podeContar;
+        fGravar.disabled = !podeContar;
 
-        // Lista longa: garante que a linha escolhida fique visivel.
+        fQtd.value = '';
+        if (podeContar) {
+            fQtd.focus();
+        }
+
         if (tr.scrollIntoView) {
             tr.scrollIntoView({ block: 'nearest' });
         }
@@ -135,7 +152,7 @@
     }
 
     function gravar() {
-        if (saving || !selecionada) {
+        if (saving || !selecionada || !dentroDoInventario(selecionada)) {
             return;
         }
 
@@ -192,7 +209,6 @@
                 setTimeout(function () { tr.classList.remove('is-flash'); }, 700);
                 atualizarFiltro();
 
-                // Volta para a busca: o proximo passo e sempre procurar outro lote.
                 if (busca) {
                     busca.focus();
                     busca.select();
@@ -205,7 +221,7 @@
             })
             .then(function () {
                 saving = false;
-                fGravar.disabled = false;
+                fGravar.disabled = !dentroDoInventario(tr);
                 tr.classList.remove('is-saving');
             });
     }
@@ -241,13 +257,20 @@
                 e.preventDefault();
                 selecionar(lista[0]);
             }
-            // Sem nenhum resultado local, deixa o form seguir e buscar no RM.
+            // Sem resultado local, deixa o form seguir e buscar no RM.
         });
     }
 
     if (ocultar) {
         ocultar.addEventListener('change', atualizarFiltro);
     }
+
+    // Grupo contabil e "incluir zerados" mudam a consulta, entao recarregam.
+    document.querySelectorAll('[data-autosubmit]').forEach(function (el) {
+        el.addEventListener('change', function () {
+            el.form.submit();
+        });
+    });
 
     form.addEventListener('submit', function (e) {
         e.preventDefault();

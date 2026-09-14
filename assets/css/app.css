@@ -1660,6 +1660,74 @@ body.page-sem-lote .app-main {
 
 .pl-status { margin: 12px 0 0; min-height: 1.2em; }
 
+.pl-col-grupo { width: 130px; color: var(--text-muted); }
+.pl-col-valor { width: 96px; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-muted); }
+
+.pl-filtros {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.pl-filtro-linha {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 14px;
+}
+
+.pl-filtro-linha .sl-busca { flex: 1 1 260px; min-width: 0; }
+
+.pl-filtro-campo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 280px;
+    min-width: 0;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+
+.pl-filtro-campo > span { white-space: nowrap; }
+.pl-filtro-campo select { flex: 1 1 auto; min-width: 0; }
+
+.pl-valor-total { font-variant-numeric: tabular-nums; }
+
+/* Linha com saldo no local que ficou fora do inventario: consulta sim, contagem nao */
+.pl-row.is-fora td {
+    background: #fffbeb;
+    color: #92400e;
+}
+
+.pl-row.is-fora.is-selected td {
+    background: #fef3c7;
+    box-shadow: inset 3px 0 0 #d97706;
+}
+
+.pl-badge-fora {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: #fde68a;
+    color: #92400e;
+    font-size: 0.68rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.pl-bloqueio {
+    margin: 0 0 14px;
+    padding: 10px 12px;
+    border-left: 3px solid #d97706;
+    border-radius: 6px;
+    background: #fffbeb;
+    color: #92400e;
+    font-size: 0.82rem;
+    line-height: 1.45;
+}
+
 @media (max-width: 1000px) {
     .pl-split { grid-template-columns: minmax(0, 1fr); }
     .pl-pane-form { position: static; }

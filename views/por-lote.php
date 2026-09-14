@@ -2,35 +2,50 @@
 /** @var string $codloc */
 /** @var string $codinventario */
 /** @var string $busca */
+/** @var string $grupoContabil */
+/** @var bool $somenteComSaldo */
 /** @var bool $modoLista */
 /** @var bool $retomadoDaSessao */
 /** @var bool $listaTruncada */
-/** @var array $lotes */
+/** @var array $linhas */
+/** @var array<string, string> $grupos */
+/** @var array<int, bool> $noInventario */
 /** @var array<string, float> $totaisProdutoLote */
+/** @var int $foraDoInventario */
+/** @var float $valorTotal */
 /** @var array|null $envAtual */
 /** @var string $nomeLocal */
-/** @var string $statusInventarioRm */
 /** @var array $inventariosAbertos */
 $nomeLocal = $nomeLocal ?? '';
 $busca = (string) ($busca ?? '');
-$lotes = $lotes ?? [];
+$grupoContabil = (string) ($grupoContabil ?? '');
+$linhas = $linhas ?? [];
+$grupos = $grupos ?? [];
+$noInventario = $noInventario ?? [];
 $totaisProdutoLote = $totaisProdutoLote ?? [];
 $inventariosAbertos = $inventariosAbertos ?? [];
 $listaTruncada = !empty($listaTruncada);
+$somenteComSaldo = !empty($somenteComSaldo);
+$foraDoInventario = (int) ($foraDoInventario ?? 0);
+$valorTotal = (float) ($valorTotal ?? 0);
 
 $contados = 0;
-foreach ($lotes as $lote) {
-    if (($totaisProdutoLote[$lote['idprd'] . ':' . $lote['idlote']] ?? 0) > 0) {
+foreach ($linhas as $linha) {
+    if (($totaisProdutoLote[$linha['idprd'] . ':' . $linha['idlote']] ?? 0) > 0) {
         $contados++;
     }
 }
+
+$moeda = function ($v) {
+    return 'R$ ' . number_format((float) $v, 2, ',', '.');
+};
 ?>
 
 <div class="page-wrap-wide inv-page sl-page pl-page">
     <?php if (!$modoLista): ?>
     <header class="inv-page-header sl-header">
         <h1 class="page-title">Contagem por lote</h1>
-        <p class="page-subtitle">Escolha o inventário para listar os lotes do local.</p>
+        <p class="page-subtitle">Escolha o inventário para ver a posição de estoque do local.</p>
     </header>
 
     <section class="inv-section panel inv-open-list" aria-labelledby="secao-abertos">
@@ -105,7 +120,7 @@ foreach ($lotes as $lote) {
                     <span class="form-hint"><?= e($nomeLocal !== '' ? $nomeLocal : 'Preenchido pelo código') ?></span>
                 </div>
             </div>
-            <button type="submit" name="aplicar" value="1" class="btn btn-primary">Listar lotes</button>
+            <button type="submit" name="aplicar" value="1" class="btn btn-primary">Ver posição do local</button>
         </form>
     </section>
 
@@ -118,7 +133,8 @@ foreach ($lotes as $lote) {
             <?php if ($envAtual): ?>
                 <span><?= e($envAtual['label']) ?></span>
             <?php endif; ?>
-            <span id="pl-counts"><?= (int) $contados ?>/<?= count($lotes) ?> contados</span>
+            <span id="pl-counts"><?= (int) $contados ?>/<?= count($linhas) ?> contados</span>
+            <span class="pl-valor-total"><?= e($moeda($valorTotal)) ?> em estoque</span>
         </div>
         <div class="sl-toolbar-actions">
             <a class="btn btn-ghost sl-link" href="inventario.php?<?= e(http_build_query(['CODINVENTARIO' => $codinventario, 'aplicar' => '1'])) ?>">Leitura</a>
@@ -129,25 +145,57 @@ foreach ($lotes as $lote) {
 
     <div class="pl-split">
         <section class="pl-pane pl-pane-lista panel" aria-labelledby="pl-lista-titulo">
-            <div class="pl-pane-head">
-                <h2 id="pl-lista-titulo" class="pl-pane-title">Lotes no local <?= e($codloc) ?></h2>
-                <form action="por-lote.php" method="get" class="pl-busca-form js-no-loading" id="pl-busca-form">
-                    <input type="hidden" name="CODINVENTARIO" value="<?= e($codinventario) ?>">
-                    <input type="hidden" name="CODLOC" value="<?= e($codloc) ?>">
+            <form action="por-lote.php" method="get" class="pl-filtros js-no-loading" id="pl-busca-form">
+                <input type="hidden" name="CODINVENTARIO" value="<?= e($codinventario) ?>">
+                <input type="hidden" name="CODLOC" value="<?= e($codloc) ?>">
+
+                <h2 id="pl-lista-titulo" class="pl-pane-title">Posição do local <?= e($codloc) ?></h2>
+
+                <div class="pl-filtro-linha">
                     <input type="search" id="pl-busca" name="q" class="form-control sl-busca"
                            value="<?= e($busca) ?>" autocomplete="off"
                            placeholder="Lote, produto ou código — Enter pega o primeiro">
                     <button type="submit" class="btn btn-secondary pl-busca-btn" id="pl-busca-rm">Buscar no RM</button>
-                </form>
-                <label class="sl-check">
-                    <input type="checkbox" id="pl-ocultar-contados"> Ocultar já contados
-                </label>
-            </div>
+                </div>
+
+                <div class="pl-filtro-linha">
+                    <label class="pl-filtro-campo">
+                        <span>Grupo contábil</span>
+                        <select name="grupo" class="form-control" id="pl-grupo" data-autosubmit>
+                            <option value="">Todos os grupos</option>
+                            <?php foreach ($grupos as $cod => $descricao): ?>
+                                <option value="<?= e($cod) ?>" <?= $cod === $grupoContabil ? 'selected' : '' ?>>
+                                    <?= e($descricao !== '' ? $cod . ' — ' . $descricao : $cod) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                    <label class="sl-check">
+                        <input type="checkbox" name="todos" value="1" id="pl-todos" data-autosubmit
+                               <?= $somenteComSaldo ? '' : 'checked' ?>> Incluir lotes zerados
+                    </label>
+                    <label class="sl-check">
+                        <input type="checkbox" id="pl-ocultar-contados"> Ocultar já contados
+                    </label>
+                </div>
+            </form>
 
             <?php if ($listaTruncada): ?>
             <p class="sl-hint is-err">
-                A lista bateu o teto de <?= (int) InventarioRM::LIMITE_LOTES ?> lotes e foi cortada.
-                O filtro só alcança o que está na tela — use <strong>Buscar no RM</strong> para o inventário inteiro.
+                A lista bateu o teto de <?= (int) InventarioRM::LIMITE_LOTES ?> linhas e foi cortada.
+                Estreite por grupo contábil ou use <strong>Buscar no RM</strong>.
+            </p>
+            <?php endif; ?>
+
+            <?php if ($foraDoInventario > 0): ?>
+            <p class="sl-hint is-err">
+                <?php if ($foraDoInventario === 1): ?>
+                    <strong>1 linha</strong> tem saldo no local mas não entrou no inventário
+                    <?= e($codinventario) ?> — aparece marcada e não aceita contagem.
+                <?php else: ?>
+                    <strong><?= (int) $foraDoInventario ?> linhas</strong> têm saldo no local mas não entraram
+                    no inventário <?= e($codinventario) ?> — aparecem marcadas e não aceitam contagem.
+                <?php endif; ?>
             </p>
             <?php endif; ?>
 
@@ -156,54 +204,69 @@ foreach ($lotes as $lote) {
                     <thead>
                     <tr>
                         <th>Produto</th>
+                        <th class="pl-col-grupo">Grupo</th>
                         <th class="pl-col-lote">Lote</th>
                         <th class="pl-col-validade">Validade</th>
                         <th class="pl-col-saldo">Saldo</th>
+                        <th class="pl-col-valor">Valor</th>
                         <th class="sl-col-ja">Já</th>
                     </tr>
                     </thead>
                     <tbody>
-                    <?php if ($lotes === []): ?>
-                        <tr><td colspan="5" class="empty">
-                            <?= $busca !== '' ? 'Nenhum lote encontrado para essa busca.' : 'Nenhum lote com registro neste local.' ?>
+                    <?php if ($linhas === []): ?>
+                        <tr><td colspan="7" class="empty">
+                            <?= $busca !== '' || $grupoContabil !== ''
+                                ? 'Nenhuma linha para esses filtros.'
+                                : 'Nenhum lote com saldo neste local.' ?>
                         </td></tr>
                     <?php else: ?>
-                        <?php foreach ($lotes as $lote):
-                            $idprd = (int) $lote['idprd'];
-                            $idlote = (int) $lote['idlote'];
+                        <?php foreach ($linhas as $linha):
+                            $idprd = (int) $linha['idprd'];
+                            $idlote = (int) $linha['idlote'];
                             $ja = (float) ($totaisProdutoLote[$idprd . ':' . $idlote] ?? 0);
-                            $saldo = (float) ($lote['saldo'] ?? 0);
-                            $nomeProduto = $lote['nome'] !== '' ? $lote['nome'] : 'ID ' . $idprd;
-                            $numlote = $lote['numlote'] !== '' ? $lote['numlote'] : '—';
-                            $validade = $lote['validade'] !== '' ? $lote['validade'] : '—';
+                            $saldo = (float) $linha['saldo'];
+                            $dentro = !empty($noInventario[$idprd]);
+                            $nomeProduto = $linha['nome'] !== '' ? $linha['nome'] : 'ID ' . $idprd;
+                            $numlote = $linha['numlote'] !== '' ? $linha['numlote'] : '—';
+                            $validade = $linha['validade'] !== '' ? $linha['validade'] : '—';
+                            $grupoLabel = $linha['grupo_nome'] !== '' ? $linha['grupo_nome'] : $linha['grupo_cod'];
                             $termoBusca = mb_strtolower(
-                                ($lote['numlote'] ?? '') . ' ' . ($lote['codigo'] ?? '') . ' ' . ($lote['nome'] ?? '') . ' ' . $idprd,
+                                ($linha['numlote'] ?? '') . ' ' . ($linha['codigo'] ?? '') . ' '
+                                . ($linha['nome'] ?? '') . ' ' . $idprd . ' ' . ($linha['grupo_nome'] ?? ''),
                                 'UTF-8'
                             );
                             ?>
-                            <tr class="sl-row pl-row <?= $ja > 0 ? 'is-counted' : '' ?>"
+                            <tr class="sl-row pl-row <?= $ja > 0 ? 'is-counted' : '' ?> <?= $dentro ? '' : 'is-fora' ?>"
                                 tabindex="0" role="button"
                                 aria-label="Selecionar <?= e($nomeProduto) ?> lote <?= e($numlote) ?>"
                                 data-idprd="<?= $idprd ?>"
                                 data-idlote="<?= $idlote ?>"
                                 data-nome="<?= e($nomeProduto) ?>"
-                                data-codigo="<?= e($lote['codigo']) ?>"
+                                data-codigo="<?= e($linha['codigo']) ?>"
+                                data-grupo="<?= e($grupoLabel) ?>"
                                 data-lote="<?= e($numlote) ?>"
                                 data-validade="<?= e($validade) ?>"
-                                data-und="<?= e($lote['und']) ?>"
+                                data-und="<?= e($linha['und']) ?>"
                                 data-saldo="<?= e(formatar_quantidade($saldo)) ?>"
+                                data-valor="<?= e($moeda($linha['saldo_financeiro'])) ?>"
                                 data-ja="<?= e(formatar_quantidade($ja)) ?>"
+                                data-dentro="<?= $dentro ? '1' : '0' ?>"
                                 data-search="<?= e($termoBusca) ?>"
                                 data-counted="<?= $ja > 0 ? '1' : '0' ?>">
                                 <td class="sl-nome">
                                     <span class="sl-nome-main"><?= e($nomeProduto) ?></span>
-                                    <?php if (($lote['codigo'] ?? '') !== ''): ?>
-                                        <span class="sl-cod mono"><?= e($lote['codigo']) ?></span>
+                                    <?php if (($linha['codigo'] ?? '') !== ''): ?>
+                                        <span class="sl-cod mono"><?= e($linha['codigo']) ?></span>
+                                    <?php endif; ?>
+                                    <?php if (!$dentro): ?>
+                                        <span class="pl-badge-fora">fora do inventário</span>
                                     <?php endif; ?>
                                 </td>
+                                <td class="pl-col-grupo"><?= e($grupoLabel !== '' ? $grupoLabel : '—') ?></td>
                                 <td class="pl-col-lote mono"><?= e($numlote) ?></td>
                                 <td class="pl-col-validade"><?= e($validade) ?></td>
                                 <td class="pl-col-saldo"><?= e(formatar_quantidade($saldo)) ?></td>
+                                <td class="pl-col-valor"><?= e($moeda($linha['saldo_financeiro'])) ?></td>
                                 <td class="sl-col-ja pl-ja"><?= $ja > 0 ? e(formatar_quantidade($ja)) : '—' ?></td>
                             </tr>
                         <?php endforeach; ?>
@@ -217,20 +280,28 @@ foreach ($lotes as $lote) {
             <h2 id="pl-form-titulo" class="pl-pane-title">Incluir</h2>
 
             <p class="pl-form-vazio" id="pl-form-vazio">
-                Clique num lote da lista — ou digite no campo de busca e pressione
+                Clique numa linha da lista — ou digite na busca e pressione
                 <kbd>Enter</kbd> para pegar o primeiro resultado.
             </p>
 
             <form id="pl-form" hidden autocomplete="off">
                 <dl class="pl-dados">
                     <dt>Produto</dt><dd id="pl-f-nome" class="pl-f-nome"></dd>
+                    <dt>Grupo</dt><dd id="pl-f-grupo"></dd>
                     <dt>Lote</dt><dd id="pl-f-lote" class="mono"></dd>
                     <dt>Validade</dt><dd id="pl-f-validade"></dd>
                     <dt>Saldo</dt><dd id="pl-f-saldo"></dd>
+                    <dt>Valor</dt><dd id="pl-f-valor"></dd>
                     <dt>Já contado</dt><dd id="pl-f-ja"></dd>
                 </dl>
 
-                <div class="form-group">
+                <p class="pl-bloqueio" id="pl-bloqueio" hidden>
+                    Este produto tem saldo no local mas não faz parte do inventário
+                    <?= e($codinventario) ?> no RM, então a contagem não pode ser gravada.
+                    Gere o item no inventário pelo RM para poder contá-lo.
+                </p>
+
+                <div class="form-group" id="pl-grupo-qtd">
                     <label for="pl-f-qtd" class="form-label">Quantidade contada</label>
                     <input type="text" id="pl-f-qtd" class="form-control pl-f-qtd"
                            inputmode="decimal" autocomplete="off" placeholder="0">
