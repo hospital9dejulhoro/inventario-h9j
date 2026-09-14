@@ -205,7 +205,7 @@ $moeda = function ($v) {
                 <div class="pl-filtro-linha">
                     <input type="search" id="pl-busca" name="q" class="form-control sl-busca"
                            value="<?= e($busca) ?>" autocomplete="off"
-                           placeholder="Lote, produto ou código — Enter pega o primeiro">
+                           placeholder="Bipe a etiqueta, ou digite lote/produto/código">
                     <button type="submit" class="btn btn-secondary pl-busca-btn" id="pl-busca-rm">Buscar no RM</button>
                 </div>
 

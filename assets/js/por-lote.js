@@ -87,6 +87,47 @@
         atualizarContadores();
     }
 
+    // Mesmo layout do PHP: IDPRD nos digitos 1-6, IDLOTE nos 8-12.
+    function idsDaEtiqueta(valor) {
+        var d = String(valor || '').replace(/\D/g, '');
+        if (d.length !== 13) {
+            return null;
+        }
+        return { idprd: parseInt(d.slice(0, 6), 10), idlote: parseInt(d.slice(7, 12), 10) };
+    }
+
+    function linhaDaEtiqueta(ids) {
+        return rows().filter(function (tr) {
+            return parseInt(tr.getAttribute('data-idprd'), 10) === ids.idprd
+                && parseInt(tr.getAttribute('data-idlote'), 10) === ids.idlote;
+        })[0] || null;
+    }
+
+    // Leitor dispara caractere a caractere; ao completar os 13 digitos a linha
+    // e localizada e o campo limpo, pronto para a proxima etiqueta.
+    function tratarEtiqueta() {
+        var ids = idsDaEtiqueta(busca.value);
+        if (!ids) {
+            return false;
+        }
+
+        var tr = linhaDaEtiqueta(ids);
+        busca.value = '';
+        atualizarFiltro();
+
+        if (!tr) {
+            setStatus(
+                'Etiqueta nao esta nesta lista (produto ' + ids.idprd + ', lote ' + ids.idlote
+                + '). Se o lote estiver zerado, marque "Incluir lotes zerados".',
+                'is-err'
+            );
+            return true;
+        }
+
+        selecionar(tr);
+        return true;
+    }
+
     function modoAtual() {
         var marcado = radiosModo.filter(function (r) { return r.checked; })[0];
         return marcado ? marcado.value : 'somar';
@@ -300,12 +341,32 @@
     });
 
     if (busca) {
-        busca.addEventListener('input', atualizarFiltro);
+        busca.addEventListener('input', function () {
+            if (!tratarEtiqueta()) {
+                atualizarFiltro();
+            }
+        });
 
         busca.addEventListener('keydown', function (e) {
             if (e.key !== 'Enter') {
                 return;
             }
+            // Leitor termina com Enter; se ainda houver etiqueta no campo,
+            // resolve aqui em vez de recarregar a pagina.
+            if (idsDaEtiqueta(busca.value)) {
+                e.preventDefault();
+                tratarEtiqueta();
+                return;
+            }
+
+            // Campo vazio: nada a procurar. Sem isto, o Enter que o leitor manda
+            // depois da etiqueta cairia aqui e selecionaria a primeira linha,
+            // atropelando a que a etiqueta acabou de escolher.
+            if (busca.value.trim() === '') {
+                e.preventDefault();
+                return;
+            }
+
             var lista = visiveis();
             if (lista.length > 0) {
                 // Tem resultado na tela: Enter pega o primeiro em vez de recarregar.

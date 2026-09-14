@@ -342,12 +342,24 @@ class InventarioRM
         $whereBusca = '';
         $busca = trim($busca);
         if ($busca !== '') {
-            $like = self::sqlLike($busca);
-            $whereBusca = " AND (
-                LOT.NUMLOTE LIKE '%{$like}%'
-                OR PRD.NOMEFANTASIA LIKE '%{$like}%'
-                OR PRD.CODIGOPRD LIKE '%{$like}%'
-            )";
+            // 13 digitos e etiqueta: o codigo carrega IDPRD e IDLOTE, e nenhum
+            // dos dois aparece no nome, no codigo do produto ou no numero do
+            // lote - procurar como texto nunca acharia nada.
+            $digitos = preg_replace('/\D/', '', $busca);
+
+            if (strlen($digitos) === 13) {
+                $idprd = ZMDCODBARRAS::idprdDoBarcode($digitos);
+                $idlote = ZMDCODBARRAS::idloteDoBarcode($digitos);
+                $whereBusca = " AND PRD.IDPRD = {$idprd}
+                  AND LOTLOC.IDLOTE = {$idlote}";
+            } else {
+                $like = self::sqlLike($busca);
+                $whereBusca = " AND (
+                    LOT.NUMLOTE LIKE '%{$like}%'
+                    OR PRD.NOMEFANTASIA LIKE '%{$like}%'
+                    OR PRD.CODIGOPRD LIKE '%{$like}%'
+                )";
+            }
         }
 
         // GROUP BY protege contra duplicacao: TPRDLOC pode ter linha por filial,
