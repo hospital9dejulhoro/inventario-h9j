@@ -216,6 +216,66 @@ class ZMDCODBARRAS
         return $mapa;
     }
 
+    /**
+     * O que foi contado, por produto + lote, com nome e lote resolvidos.
+     *
+     * Irmã de totaisPorProdutoLote(), que fica de fora dos JOINs de propósito:
+     * aquela roda a cada gravação e só precisa do número, esta alimenta o
+     * relatório e precisa identificar o item.
+     *
+     * @return array<string, array{idprd:int, idlote:int, nome:string, und:string,
+     *     numlote:string, bipagens:int, quantidade:float}> chave "idprd:idlote"
+     */
+    public static function contagemPorProdutoLote(string $codinventario): array
+    {
+        $codinventario = trim($codinventario);
+        if ($codinventario === '') {
+            return [];
+        }
+
+        $c = new Connection('RM');
+        $inv = self::sqlStr($codinventario);
+        $SQL = "SELECT
+                    CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 0, 7)) AS IDPRD,
+                    CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 8, 5)) AS IDLOTE,
+                    MAX(T.NOMEFANTASIA) AS NOME,
+                    MAX(TPRODUTODEF.CODUNDCONTROLE) AS UND,
+                    MAX(RTRIM(L.NUMLOTE)) AS NUMLOTE,
+                    COUNT(*) AS BIPAGENS,
+                    SUM(TRY_CAST(REPLACE(LTRIM(RTRIM(CAST(ZMD.QUANTIDADE AS VARCHAR(30)))), ',', '.') AS DECIMAL(18, 4))) AS QUANTIDADE
+                FROM ZMDCODBARRAS ZMD
+                LEFT JOIN TPRODUTO T
+                    ON T.IDPRD = CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 0, 7))
+                LEFT JOIN TPRODUTODEF ON TPRODUTODEF.IDPRD = T.IDPRD
+                LEFT JOIN TLOTEPRD L
+                    ON L.IDPRD = T.IDPRD
+                   AND L.IDLOTE = CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 8, 5))
+                WHERE ZMD.CODINVENTARIO = '{$inv}'
+                GROUP BY CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 0, 7)),
+                         CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 8, 5))";
+        $c->Consulta($SQL);
+
+        $mapa = [];
+        while ($c->Resultado()) {
+            $idprd = (int) ($c->linha['IDPRD'] ?? 0);
+            if ($idprd <= 0) {
+                continue;
+            }
+            $idlote = (int) ($c->linha['IDLOTE'] ?? 0);
+            $mapa[$idprd . ':' . $idlote] = [
+                'idprd'      => $idprd,
+                'idlote'     => $idlote,
+                'nome'       => encode_db_value((string) ($c->linha['NOME'] ?? '')),
+                'und'        => encode_db_value((string) ($c->linha['UND'] ?? '')),
+                'numlote'    => encode_db_value((string) ($c->linha['NUMLOTE'] ?? '')),
+                'bipagens'   => (int) ($c->linha['BIPAGENS'] ?? 0),
+                'quantidade' => (float) ($c->linha['QUANTIDADE'] ?? 0),
+            ];
+        }
+
+        return $mapa;
+    }
+
     public function atualizar()
     {
         if (empty($this->id)) {

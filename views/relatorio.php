@@ -5,9 +5,16 @@
 /** @var string $rmStatus */
 /** @var array $relatorio */
 /** @var array $inventarios */
+/** @var bool $verConferencia */
+/** @var array $conferencia */
 /** @var array|null $envAtual */
 $totais = $relatorio['totais'] ?? ['bipagens' => 0, 'quantidade' => 0, 'produtos' => 0, 'lotes' => 0];
 $itens = $relatorio['itens'] ?? [];
+$verConferencia = !empty($verConferencia);
+$conf = $conferencia['itens'] ?? [];
+$confTotais = $conferencia['totais'] ?? [];
+$rotuloSituacao = ['contado' => 'Contado', 'nao_contado' => 'Não contado', 'sobra' => 'Sobra'];
+$fmtQ = function ($v) { return rtrim(rtrim(number_format((float) $v, 3, ',', '.'), '0'), ','); };
 ?>
 
 <div class="page-wrap-wide inv-page rpt-page">
@@ -46,6 +53,10 @@ $itens = $relatorio['itens'] ?? [];
                 <?php if ($codinventario !== ''): ?>
                     <a class="btn btn-primary" href="<?= e(url('relatorio.php?' . http_build_query(['CODINVENTARIO' => $codinventario, 'export' => 'pdf']))) ?>">Exportar PDF (A4)</a>
                     <a class="btn btn-secondary" href="<?= e(url('relatorio.php?' . http_build_query(['CODINVENTARIO' => $codinventario, 'export' => 'csv']))) ?>">Exportar CSV</a>
+                    <a class="btn btn-secondary<?= $verConferencia ? ' is-nav-on' : '' ?>" href="<?= e(url('relatorio.php?' . http_build_query(['CODINVENTARIO' => $codinventario, 'conferencia' => '1']))) ?>">Conferência do local</a>
+                    <?php if ($verConferencia): ?>
+                        <a class="btn btn-secondary" href="<?= e(url('relatorio.php?' . http_build_query(['CODINVENTARIO' => $codinventario, 'export' => 'conferencia']))) ?>">CSV da conferência</a>
+                    <?php endif; ?>
                     <button type="button" class="btn btn-ghost" onclick="window.print()">Imprimir</button>
                     <a class="btn btn-ghost" href="<?= e(url('inventario.php?' . http_build_query(['CODINVENTARIO' => $codinventario, 'aplicar' => '1']))) ?>">Ir para leitura</a>
                 <?php endif; ?>
@@ -160,5 +171,101 @@ $itens = $relatorio['itens'] ?? [];
                 </table>
             </div>
         </section>
+
+        <?php if ($verConferencia): ?>
+        <section class="inv-section panel panel-flush rpt-conf" aria-labelledby="secao-conferencia">
+            <div class="panel-header">
+                <div class="inv-section-head inv-section-head--compact">
+                    <span class="inv-step inv-step--muted">4</span>
+                    <div>
+                        <h2 id="secao-conferencia" class="section-title">Conferência do local <?= e($codloc) ?></h2>
+                        <p class="section-desc">
+                            Posição de estoque do local contra o que foi contado. Pendências primeiro.
+                            Lotes zerados no sistema não entram como pendência — se algum foi contado, aparece como sobra.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <?php if ($codloc === ''): ?>
+                <p class="empty">Informe um inventário no formato AA.LLL.NNN para saber o local.</p>
+            <?php else: ?>
+
+            <div class="rpt-kpis">
+                <div class="rpt-kpi">
+                    <span class="rpt-kpi-value"><?= (int) ($confTotais['esperados'] ?? 0) ?></span>
+                    <span class="rpt-kpi-label">Esperados no local</span>
+                </div>
+                <div class="rpt-kpi">
+                    <span class="rpt-kpi-value"><?= (int) ($confTotais['contados'] ?? 0) ?></span>
+                    <span class="rpt-kpi-label">Contados</span>
+                </div>
+                <div class="rpt-kpi">
+                    <span class="rpt-kpi-value rpt-kpi-alerta"><?= (int) ($confTotais['nao_contados'] ?? 0) ?></span>
+                    <span class="rpt-kpi-label">Não contados</span>
+                </div>
+                <div class="rpt-kpi">
+                    <span class="rpt-kpi-value"><?= (int) ($confTotais['sobras'] ?? 0) ?></span>
+                    <span class="rpt-kpi-label">Sobras</span>
+                </div>
+            </div>
+
+            <?php if (!empty($conferencia['truncado'])): ?>
+                <p class="sl-hint is-err">
+                    A posição do local bateu o teto de <?= (int) InventarioRM::LIMITE_LOTES ?> linhas e foi cortada —
+                    a lista de não contados pode estar incompleta.
+                </p>
+            <?php endif; ?>
+
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                    <tr>
+                        <th>Situação</th>
+                        <th>Produto</th>
+                        <th>Lote</th>
+                        <th>Validade</th>
+                        <th>Grupo</th>
+                        <th>Und</th>
+                        <th>Saldo</th>
+                        <th>Contado</th>
+                        <th>Diferença</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php if ($conf === []): ?>
+                        <tr><td colspan="9" class="empty">Nada a conferir: o local não tem saldo e nada foi contado.</td></tr>
+                    <?php else: ?>
+                        <?php foreach ($conf as $item):
+                            $dif = (float) $item['diferenca'];
+                            $classeDif = $dif < 0 ? 'rpt-dif-neg' : ($dif > 0 ? 'rpt-dif-pos' : '');
+                            ?>
+                            <tr>
+                                <td><span class="rpt-sit rpt-sit-<?= e($item['situacao']) ?>"><?= e($rotuloSituacao[$item['situacao']] ?? $item['situacao']) ?></span></td>
+                                <td>
+                                    <?= e($item['nome'] !== '' ? $item['nome'] : 'ID ' . $item['idprd']) ?>
+                                    <?php if (($item['codigo'] ?? '') !== ''): ?>
+                                        <span class="sl-cod mono"><?= e($item['codigo']) ?></span>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="mono"><?= e($item['numlote'] !== '' ? $item['numlote'] : '—') ?></td>
+                                <td><?= e($item['validade'] !== '' ? $item['validade'] : '—') ?></td>
+                                <td><?= e($item['grupo'] !== '' ? $item['grupo'] : '—') ?></td>
+                                <td><?= e($item['und']) ?></td>
+                                <td><?= e($fmtQ($item['saldo'])) ?></td>
+                                <td><?= $item['situacao'] === 'nao_contado' ? '—' : e($fmtQ($item['contado'])) ?></td>
+                                <td class="<?= $classeDif ?>">
+                                    <?= $item['situacao'] === 'nao_contado' ? '—' : ($dif > 0 ? '+' : '') . e($fmtQ($dif)) ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php endif; ?>
+        </section>
+        <?php endif; ?>
+
     <?php endif; ?>
 </div>

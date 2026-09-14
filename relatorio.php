@@ -38,6 +38,63 @@ if ($codinventario !== '') {
     }
 }
 
+// Conferencia sob demanda: ela dispara a consulta de posicao do local, cara
+// demais para rodar em toda abertura do relatorio normal.
+$verConferencia = isset($_GET['conferencia']) || $export === 'conferencia';
+$conferencia = [
+    'itens'  => [],
+    'totais' => [
+        'esperados' => 0, 'contados' => 0, 'nao_contados' => 0, 'sobras' => 0,
+        'saldo' => 0.0, 'contado' => 0.0, 'diferenca' => 0.0, 'valor_diferenca' => 0.0,
+    ],
+    'truncado' => false,
+];
+
+if ($verConferencia && $codinventario !== '' && $codloc !== '') {
+    $conferencia = InventarioRM::conferenciaDoLocal($codinventario, $codloc);
+}
+
+if ($export === 'conferencia' && $codinventario !== '') {
+    $filename = 'conferencia-' . preg_replace('/[^0-9A-Za-z._-]/', '-', $codinventario) . '.csv';
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    $out = fopen('php://output', 'w');
+    fwrite($out, "\xEF\xBB\xBF");
+
+    $rotulos = ['contado' => 'Contado', 'nao_contado' => 'NAO CONTADO', 'sobra' => 'SOBRA'];
+    $tc = $conferencia['totais'];
+
+    fputcsv($out, ['Inventário', $codinventario], ';');
+    fputcsv($out, ['Local', $codloc . ($nomeLocal !== '' ? ' - ' . $nomeLocal : '')], ';');
+    fputcsv($out, ['Esperados no local', $tc['esperados']], ';');
+    fputcsv($out, ['Contados', $tc['contados']], ';');
+    fputcsv($out, ['Nao contados', $tc['nao_contados']], ';');
+    fputcsv($out, ['Sobras (contado fora da posicao)', $tc['sobras']], ';');
+    fputcsv($out, ['Diferenca total', $tc['diferenca']], ';');
+    fputcsv($out, [], ';');
+    fputcsv($out, ['Situacao', 'Produto', 'ID', 'Lote', 'Validade', 'Grupo', 'Und',
+                   'Saldo sistema', 'Contado', 'Diferenca', 'Valor diferenca', 'Bipagens'], ';');
+
+    foreach ($conferencia['itens'] as $item) {
+        fputcsv($out, [
+            $rotulos[$item['situacao']] ?? $item['situacao'],
+            $item['nome'],
+            $item['idprd'],
+            $item['numlote'],
+            $item['validade'],
+            $item['grupo'],
+            $item['und'],
+            $item['saldo'],
+            $item['contado'],
+            $item['diferenca'],
+            round((float) $item['valor_diferenca'], 2),
+            $item['bipagens'],
+        ], ';');
+    }
+    fclose($out);
+    exit;
+}
+
 if ($export === 'csv' && $codinventario !== '') {
     $filename = 'contagem-' . preg_replace('/[^0-9A-Za-z._-]/', '-', $codinventario) . '.csv';
     header('Content-Type: text/csv; charset=UTF-8');

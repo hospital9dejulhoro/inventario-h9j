@@ -466,6 +466,129 @@ class InventarioRM
     }
 
     /**
+     * Conferência do local: o que era esperado, o que foi contado e o que faltou.
+     *
+     * Cruza a posição de estoque do local com a contagem gravada. São três
+     * situações, e a terceira é a que um relatório ingênuo esconderia:
+     *
+     *  - contado      : estava na posição e foi contado (diferença = contado - saldo)
+     *  - nao_contado  : estava na posição e ninguém contou
+     *  - sobra        : foi contado mas não estava na posição — lote zerado achado
+     *                   na prateleira, ou item bipado que não tem saldo no local
+     *
+     * A posição usa só saldo diferente de zero: lote zerado não é algo que se
+     * "deixou de contar", seria ruído na lista de pendências.
+     *
+     * @return array{itens: array<int, array<string, mixed>>, totais: array<string, float|int>, truncado: bool}
+     */
+    public static function conferenciaDoLocal(string $codinventario, string $codloc): array
+    {
+        $vazio = [
+            'itens'  => [],
+            'totais' => [
+                'esperados' => 0, 'contados' => 0, 'nao_contados' => 0, 'sobras' => 0,
+                'saldo' => 0.0, 'contado' => 0.0, 'diferenca' => 0.0, 'valor_diferenca' => 0.0,
+            ],
+            'truncado' => false,
+        ];
+
+        $codinventario = trim($codinventario);
+        $codloc = LocaisEstoque::normalizar($codloc);
+        if ($codinventario === '' || $codloc === '') {
+            return $vazio;
+        }
+
+        $posicao = self::listarPosicaoPorLote($codloc, '', '', true);
+        $contagem = ZMDCODBARRAS::contagemPorProdutoLote($codinventario);
+
+        $itens = [];
+        $t = $vazio['totais'];
+        $t['truncado'] = false;
+
+        foreach ($posicao as $linha) {
+            $chave = $linha['idprd'] . ':' . $linha['idlote'];
+            $temContagem = isset($contagem[$chave]);
+            $contado = $temContagem ? (float) $contagem[$chave]['quantidade'] : 0.0;
+            $saldo = (float) $linha['saldo'];
+            $diferenca = $contado - $saldo;
+            $custo = (float) $linha['custo_medio'];
+
+            $itens[] = [
+                'situacao'        => $temContagem ? 'contado' : 'nao_contado',
+                'idprd'           => $linha['idprd'],
+                'idlote'          => $linha['idlote'],
+                'nome'            => $linha['nome'],
+                'codigo'          => $linha['codigo'],
+                'und'             => $linha['und'],
+                'numlote'         => $linha['numlote'],
+                'validade'        => $linha['validade'],
+                'grupo'           => $linha['grupo_nome'] !== '' ? $linha['grupo_nome'] : $linha['grupo_cod'],
+                'saldo'           => $saldo,
+                'contado'         => $contado,
+                'diferenca'       => $temContagem ? $diferenca : 0.0,
+                'valor_diferenca' => $temContagem ? $diferenca * $custo : 0.0,
+                'bipagens'        => $temContagem ? (int) $contagem[$chave]['bipagens'] : 0,
+            ];
+
+            $t['esperados']++;
+            $t['saldo'] += $saldo;
+            if ($temContagem) {
+                $t['contados']++;
+                $t['contado'] += $contado;
+                $t['diferenca'] += $diferenca;
+                $t['valor_diferenca'] += $diferenca * $custo;
+                unset($contagem[$chave]);
+            } else {
+                $t['nao_contados']++;
+            }
+        }
+
+        // Sobrou contagem sem linha na posição: tudo isso é excedente.
+        foreach ($contagem as $chave => $linha) {
+            $contado = (float) $linha['quantidade'];
+            $itens[] = [
+                'situacao'        => 'sobra',
+                'idprd'           => $linha['idprd'],
+                'idlote'          => $linha['idlote'],
+                'nome'            => $linha['nome'],
+                'codigo'          => '',
+                'und'             => $linha['und'],
+                'numlote'         => $linha['numlote'],
+                'validade'        => '',
+                'grupo'           => '',
+                'saldo'           => 0.0,
+                'contado'         => $contado,
+                'diferenca'       => $contado,
+                'valor_diferenca' => 0.0,
+                'bipagens'        => (int) $linha['bipagens'],
+            ];
+
+            $t['sobras']++;
+            $t['contado'] += $contado;
+            $t['diferenca'] += $contado;
+        }
+
+        // Não contados primeiro: é a lista de pendências de quem está contando.
+        $ordem = ['nao_contado' => 0, 'sobra' => 1, 'contado' => 2];
+        usort($itens, function ($a, $b) use ($ordem) {
+            $pa = $ordem[$a['situacao']];
+            $pb = $ordem[$b['situacao']];
+            if ($pa !== $pb) {
+                return $pa <=> $pb;
+            }
+            return strcasecmp((string) $a['nome'], (string) $b['nome']);
+        });
+
+        unset($t['truncado']);
+
+        return [
+            'itens'    => $itens,
+            'totais'   => $t,
+            'truncado' => count($posicao) >= self::LIMITE_LOTES,
+        ];
+    }
+
+    /**
      * Grupos contábeis presentes no local — alimenta o filtro da tela.
      *
      * Consulta própria em vez de derivar das linhas já carregadas: com um grupo

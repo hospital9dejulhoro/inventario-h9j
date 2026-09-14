@@ -1738,3 +1738,24 @@ body.page-sem-lote .app-main {
     .pl-pane-head { flex-direction: column; align-items: stretch; }
     .pl-col-validade { display: none; }
 }
+
+/* ---- Conferencia do local no relatorio ---- */
+.rpt-sit {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.rpt-sit-contado { background: #dcfce7; color: #166534; }
+.rpt-sit-nao_contado { background: #fee2e2; color: #991b1b; }
+.rpt-sit-sobra { background: #dbeafe; color: #1e40af; }
+
+.rpt-kpi-alerta { color: #b91c1c; }
+
+.rpt-dif-neg { color: #b91c1c; font-weight: 600; }
+.rpt-dif-pos { color: #1d4ed8; font-weight: 600; }
+
+.rpt-conf .data-table td { font-variant-numeric: tabular-nums; }
