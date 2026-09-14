@@ -60,6 +60,7 @@ $foraDoInventario = 0;
 $valorTotal = 0.0;
 $envAtual = EnvironmentManager::getCurrent();
 $inventariosAbertos = $modoLista ? [] : InventarioRM::listarAbertos();
+$contagensAvulsas = $modoLista ? [] : ZMDCODBARRAS::listarAvulsos();
 
 if ($modoLista) {
     SessionManager::setLastInventario($codloc, $codinventario, '1');

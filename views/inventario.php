@@ -24,6 +24,8 @@ $totalBipagens = (int) ($totalBipagens ?? 0);
 $listaTruncada = !empty($listaTruncada);
 $statusInventarioRm = $statusInventarioRm ?? '';
 $inventariosAbertos = $inventariosAbertos ?? [];
+$contagensAvulsas = $contagensAvulsas ?? [];
+$avulso = !empty($avulso);
 ?>
 
 <script type="application/json" id="locais-estoque-data"><?= $locaisEstoqueJson ?></script>
@@ -92,6 +94,11 @@ $inventariosAbertos = $inventariosAbertos ?? [];
             </ul>
         <?php endif; ?>
     </section>
+
+    <?php
+    $destinoAvulsa = 'inventario.php';
+    require __DIR__ . '/_avulsas.php';
+    ?>
     <?php endif; ?>
 
     <?php if ($modoLeitura && $envAtual): ?>
@@ -99,7 +106,11 @@ $inventariosAbertos = $inventariosAbertos ?? [];
         <span><strong>Ambiente:</strong> <?= e($envAtual['label']) ?></span>
         <span><strong>Bipados agora:</strong> <span id="session-scan-count"><?= (int) $leiturasSessao ?></span></span>
         <span><strong>Bipados (total):</strong> <?= $totalBipagens ?></span>
+        <?php if ($avulso): ?>
+        <span class="pl-badge-avulsa" title="Código não existe em TINVENTARIO">Avulsa · fora do RM</span>
+        <?php else: ?>
         <span><strong>Itens no RM:</strong> <?= (int) $qtdItensRm ?></span>
+        <?php endif; ?>
         <?php if ($statusInventarioRm !== ''): ?>
         <span><strong>Status RM:</strong> <?= e($statusInventarioRm) ?></span>
         <?php endif; ?>
@@ -238,7 +249,7 @@ $inventariosAbertos = $inventariosAbertos ?? [];
                     <p class="section-desc">
                         <?php if ($mostrarTabela): ?>
                             Leituras do inventário <strong><?= e($codinventario) ?></strong>
-                            · <?= (int) $qtdItensRm ?> itens no RM
+                            <?php if (!$avulso): ?>· <?= (int) $qtdItensRm ?> itens no RM<?php endif; ?>
                             · <?= $totalBipagens ?> <?= $totalBipagens === 1 ? 'bipado' : 'bipados' ?>.
                             <?php if ($listaTruncada): ?>
                                 <strong>A tabela mostra só as <?= (int) ZMDCODBARRAS::LIMITE_LISTAGEM ?> leituras mais recentes</strong> — use o relatório para a contagem completa.

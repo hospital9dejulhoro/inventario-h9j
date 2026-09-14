@@ -10,6 +10,7 @@ $quantidade = isset($_GET['QUANTIDADE']) ? (string) $_GET['QUANTIDADE'] : '1';
 $codigobarras = isset($_GET['CODIGOBARRAS']) ? (string) $_GET['CODIGOBARRAS'] : '';
 $retomadoDaSessao = false;
 $modoLeitura = false;
+$avulso = false;
 $registros = [];
 $totalBipagens = 0;
 $listaTruncada = false;
@@ -75,16 +76,21 @@ $mascaraOk = is_array($parsedInv) && !empty($parsedInv['valid']);
 $rmOk = false;
 
 if ($mascaraOk && $codloc !== '') {
-    $rmCheck = InventarioRM::validarParaUso($codinventario, $codloc);
-    if ($rmCheck['valid']) {
-        $statusInventarioRm = $rmCheck['status'];
+    // Faixa 9xx e contagem avulsa: bipa sem o inventario existir no RM.
+    if (ZMDCODBARRAS::ehCodigoAvulso($codinventario)) {
+        $avulso = true;
         // Sessão sozinha só pré-preenche; leitura exige URL/Aplicar/bipagem
-        if ($deveValidarAcao || $veioDaUrl) {
-            $rmOk = true;
+        $rmOk = $deveValidarAcao || $veioDaUrl;
+    } else {
+        $rmCheck = InventarioRM::validarParaUso($codinventario, $codloc);
+
+        if ($rmCheck['valid']) {
+            $statusInventarioRm = $rmCheck['status'];
+            $rmOk = $deveValidarAcao || $veioDaUrl;
+        } elseif ($deveValidarAcao) {
+            flash_set('danger', $rmCheck['error']);
+            redirect_to('inventario.php?' . http_build_query($redirectParams()));
         }
-    } elseif ($deveValidarAcao) {
-        flash_set('danger', $rmCheck['error']);
-        redirect_to('inventario.php?' . http_build_query($redirectParams()));
     }
 }
 
@@ -94,6 +100,7 @@ $locaisEstoqueJson = json_encode(LocaisEstoque::todos(), JSON_UNESCAPED_UNICODE)
 // Em modo leitura o resultado era descartado, mas custava 1 consulta + 1 por
 // inventário aberto a cada bipagem.
 $inventariosAbertos = $rmOk ? [] : InventarioRM::listarAbertos();
+$contagensAvulsas = $rmOk ? [] : ZMDCODBARRAS::listarAvulsos();
 
 if ($rmOk) {
     $mostrarTabela = true;
@@ -114,7 +121,8 @@ if ($rmOk) {
         }
 
         $idprd = (int) ($validacao['idprd'] ?? InventarioRM::idprdDoBarcode($codigobarras));
-        if (!InventarioRM::itemPertenceAoInventario($codinventario, $codloc, $idprd)) {
+        // Avulsa nao tem itens gerados no RM contra os quais conferir.
+        if (!$avulso && !InventarioRM::itemPertenceAoInventario($codinventario, $codloc, $idprd)) {
             $produtoLabel = $validacao['nome'] !== '' ? $validacao['nome'] : ('ID ' . $idprd);
             flash_set(
                 'danger',
@@ -186,7 +194,7 @@ if ($rmOk) {
     $listaTruncada = $totalBipagens > count($registros);
     $qtdItensRm = InventarioRM::contarItensInventario($codinventario, $codloc);
     $leiturasSessao = SessionManager::getSessionScans();
-} elseif ($mascaraOk && $codinventario !== '' && !$deveValidarAcao && !$retomadoDaSessao) {
+} elseif ($mascaraOk && !$avulso && $codinventario !== '' && !$deveValidarAcao && !$retomadoDaSessao) {
     // Código na URL sem ação: avisa se não existir no RM, sem entrar em modo leitura
     $rmCheck = InventarioRM::validarParaUso($codinventario, $codloc);
     if (!$rmCheck['valid']) {

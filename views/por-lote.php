@@ -25,6 +25,7 @@ $grupos = $grupos ?? [];
 $noInventario = $noInventario ?? [];
 $totaisProdutoLote = $totaisProdutoLote ?? [];
 $inventariosAbertos = $inventariosAbertos ?? [];
+$contagensAvulsas = $contagensAvulsas ?? [];
 $listaTruncada = !empty($listaTruncada);
 $somenteComSaldo = !empty($somenteComSaldo);
 $avulso = !empty($avulso);
@@ -151,6 +152,11 @@ $moeda = function ($v) {
             <button type="submit" class="btn btn-secondary">Abrir contagem avulsa</button>
         </form>
     </section>
+
+    <?php
+    $destinoAvulsa = 'por-lote.php';
+    require __DIR__ . '/_avulsas.php';
+    ?>
 
     <?php else: ?>
 

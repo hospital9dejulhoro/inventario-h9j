@@ -395,6 +395,59 @@ class ZMDCODBARRAS
         return $r;
     }
 
+    /**
+     * Contagens avulsas em aberto: faixa 9xx que ainda nao existe em TINVENTARIO.
+     *
+     * A checagem contra TINVENTARIO vai junto na consulta de proposito. Sem ela,
+     * um inventario de verdade cadastrado na faixa 9xx apareceria aqui como
+     * avulso e seria oferecido para "vincular" a si mesmo.
+     *
+     * @return array<int, array{codinventario: string, codloc: string, local_nome: string, bipagens: int, quantidade: float}>
+     */
+    public static function listarAvulsos(int $limit = 40): array
+    {
+        $limit = max(1, min(200, $limit));
+        $inicio = self::NUMERO_AVULSO_INICIAL;
+
+        $c = new Connection('RM');
+        $SQL = "SELECT TOP {$limit}
+                    RTRIM(Z.CODINVENTARIO) AS CODINVENTARIO,
+                    RTRIM(MAX(Z.CODLOC)) AS CODLOC,
+                    COUNT(*) AS BIPAGENS,
+                    SUM(TRY_CAST(REPLACE(LTRIM(RTRIM(CAST(Z.QUANTIDADE AS VARCHAR(30)))), ',', '.') AS DECIMAL(18, 4))) AS QUANTIDADE
+                FROM ZMDCODBARRAS Z
+                WHERE TRY_CAST(RIGHT(RTRIM(Z.CODINVENTARIO), 3) AS INT) >= {$inicio}
+                  AND NOT EXISTS (
+                        SELECT 1 FROM TINVENTARIO T
+                        WHERE T.CODCOLIGADA = 1
+                          AND RTRIM(T.CODINVENTARIO) = RTRIM(Z.CODINVENTARIO)
+                  )
+                GROUP BY RTRIM(Z.CODINVENTARIO)
+                ORDER BY RTRIM(Z.CODINVENTARIO) DESC";
+        $c->Consulta($SQL);
+
+        $lista = [];
+        while ($c->Resultado()) {
+            $cod = encode_db_value((string) ($c->linha['CODINVENTARIO'] ?? ''));
+            $codloc = encode_db_value((string) ($c->linha['CODLOC'] ?? ''));
+            if ($codloc === '') {
+                $parsed = self::parseCodigoInventario($cod);
+                if (!empty($parsed['valid'])) {
+                    $codloc = (string) $parsed['codloc'];
+                }
+            }
+            $lista[] = [
+                'codinventario' => $cod,
+                'codloc'        => $codloc,
+                'local_nome'    => $codloc !== '' ? LocaisEstoque::nome($codloc) : '',
+                'bipagens'      => (int) ($c->linha['BIPAGENS'] ?? 0),
+                'quantidade'    => (float) ($c->linha['QUANTIDADE'] ?? 0),
+            ];
+        }
+
+        return $lista;
+    }
+
     public function atualizar()
     {
         if (empty($this->id)) {
