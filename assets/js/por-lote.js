@@ -25,6 +25,9 @@
     var fJa = document.getElementById('pl-f-ja');
     var fQtd = document.getElementById('pl-f-qtd');
     var fGravar = document.getElementById('pl-f-gravar');
+    var fQtdLabel = document.getElementById('pl-f-qtd-label');
+    var modoAviso = document.getElementById('pl-modo-aviso');
+    var radiosModo = [].slice.call(document.querySelectorAll('input[name="pl-modo"]'));
     var fCancelar = document.getElementById('pl-f-cancelar');
 
     if (!table || !form) {
@@ -84,6 +87,31 @@
         atualizarContadores();
     }
 
+    function modoAtual() {
+        var marcado = radiosModo.filter(function (r) { return r.checked; })[0];
+        return marcado ? marcado.value : 'somar';
+    }
+
+    function aplicarModo() {
+        var corrigindo = modoAtual() === 'corrigir';
+
+        fQtdLabel.textContent = corrigindo ? 'Total correto do lote' : 'Quantidade contada';
+        fGravar.textContent = corrigindo ? 'Corrigir total' : 'Gravar';
+        modoAviso.hidden = !corrigindo;
+        fQtd.classList.toggle('is-corrigindo', corrigindo);
+
+        // Corrigindo, parte do total atual: o operador ve o que vai substituir
+        // em vez de digitar no escuro.
+        if (corrigindo && selecionada) {
+            var ja = selecionada.getAttribute('data-ja') || '0';
+            fQtd.value = ja === '0' ? '' : ja;
+        } else {
+            fQtd.value = '';
+        }
+        fQtd.focus();
+        fQtd.select();
+    }
+
     function unidade(tr) {
         var und = tr.getAttribute('data-und') || '';
         return und ? ' ' + und : '';
@@ -127,9 +155,12 @@
         grupoQtd.hidden = !podeContar;
         fGravar.disabled = !podeContar;
 
-        fQtd.value = '';
-        if (podeContar) {
-            fQtd.focus();
+        // Cada item comeca somando; corrigir e escolha consciente.
+        radiosModo.forEach(function (r) { r.checked = (r.value === 'somar'); });
+        aplicarModo();
+
+        if (!podeContar) {
+            fQtd.blur();
         }
 
         if (tr.scrollIntoView) {
@@ -159,9 +190,17 @@
         var tr = selecionada;
         var raw = String(fQtd.value || '').trim().replace(',', '.');
 
-        if (raw === '' || isNaN(raw) || Number(raw) <= 0) {
-            setStatus('Informe uma quantidade maior que zero.', 'is-err');
+        var corrigindo = modoAtual() === 'corrigir';
+
+        if (raw === '' || isNaN(raw) || (corrigindo ? Number(raw) < 0 : Number(raw) <= 0)) {
+            setStatus(corrigindo
+                ? 'Informe o total correto (zero apaga a contagem deste lote).'
+                : 'Informe uma quantidade maior que zero.', 'is-err');
             fQtd.focus();
+            return;
+        }
+
+        if (corrigindo && !confirm('Substituir a contagem deste lote por ' + raw + '?')) {
             return;
         }
 
@@ -176,6 +215,7 @@
         body.append('quantidade', raw);
         body.append('CODINVENTARIO', cfg.inventario);
         body.append('CODLOC', cfg.codloc);
+        body.append('modo', modoAtual());
 
         fetch(cfg.saveUrl, { method: 'POST', body: body, credentials: 'same-origin' })
             .then(function (r) { return r.json(); })
@@ -185,19 +225,34 @@
                 }
 
                 var total = fmtQtd(data.total);
+                var zerado = Number(data.total) === 0;
+
                 tr.setAttribute('data-ja', total);
-                tr.setAttribute('data-counted', '1');
-                tr.classList.add('is-counted', 'is-flash');
+                tr.setAttribute('data-counted', zerado ? '0' : '1');
+                tr.classList.toggle('is-counted', !zerado);
+                tr.classList.add('is-flash');
 
                 var celulaJa = tr.querySelector('.pl-ja');
                 if (celulaJa) {
-                    celulaJa.textContent = total;
+                    celulaJa.textContent = zerado ? '—' : total;
                 }
-                fJa.textContent = total + unidade(tr);
-                fQtd.value = '';
+                fJa.textContent = (zerado ? '0' : total) + unidade(tr);
+
+                // Volta para somar: deixar em corrigir faria o proximo Enter
+                // substituir sem querer.
+                radiosModo.forEach(function (r) { r.checked = (r.value === 'somar'); });
+                aplicarModo();
 
                 // leituras > 1 inclui o que veio bipado da etiqueta neste inventario
-                if (data.leituras > 1) {
+                if (data.modo === 'corrigir') {
+                    setStatus(
+                        zerado
+                            ? 'Contagem deste lote apagada.'
+                            : 'Total corrigido para ' + total
+                              + (data.apagados > 1 ? ' (' + data.apagados + ' lancamentos substituidos)' : ''),
+                        'is-ok'
+                    );
+                } else if (data.leituras > 1) {
                     setStatus(
                         data.leituras + 'a leitura deste lote - total ' + total + '. Confira se nao e repeticao.',
                         'is-err'
@@ -264,6 +319,10 @@
     if (ocultar) {
         ocultar.addEventListener('change', atualizarFiltro);
     }
+
+    radiosModo.forEach(function (r) {
+        r.addEventListener('change', aplicarModo);
+    });
 
     // Grupo contabil e "incluir zerados" mudam a consulta, entao recarregam.
     document.querySelectorAll('[data-autosubmit]').forEach(function (el) {

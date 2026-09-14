@@ -355,9 +355,23 @@ $moeda = function ($v) {
                 </p>
 
                 <div class="form-group" id="pl-grupo-qtd">
-                    <label for="pl-f-qtd" class="form-label">Quantidade contada</label>
+                    <div class="pl-modo" role="radiogroup" aria-label="O que fazer com a quantidade">
+                        <label>
+                            <input type="radio" name="pl-modo" value="somar" checked>
+                            Somar ao contado
+                        </label>
+                        <label>
+                            <input type="radio" name="pl-modo" value="corrigir">
+                            Corrigir o total
+                        </label>
+                    </div>
+
+                    <label for="pl-f-qtd" class="form-label" id="pl-f-qtd-label">Quantidade contada</label>
                     <input type="text" id="pl-f-qtd" class="form-control pl-f-qtd"
                            inputmode="decimal" autocomplete="off" placeholder="0">
+                    <span class="form-hint pl-modo-aviso" id="pl-modo-aviso" hidden>
+                        Substitui tudo que já foi contado neste lote. Zero apaga a contagem.
+                    </span>
                 </div>
 
                 <div class="pl-form-acoes">

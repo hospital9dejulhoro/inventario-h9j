@@ -26,6 +26,9 @@ $idlote = (int) ($_POST['idlote'] ?? 0);
 $quantidadeRaw = str_replace([' ', ','], ['', '.'], trim((string) ($_POST['quantidade'] ?? '')));
 $codinventario = trim((string) ($_POST['CODINVENTARIO'] ?? ''));
 $codloc = trim((string) ($_POST['CODLOC'] ?? ''));
+// somar: acrescenta uma leitura. corrigir: troca o total acumulado pelo valor
+// informado (zero apaga a contagem do lote).
+$modo = ($_POST['modo'] ?? 'somar') === 'corrigir' ? 'corrigir' : 'somar';
 
 if ($idprd <= 0) {
     pl_falha('Produto inválido.');
@@ -35,11 +38,20 @@ if ($idlote <= 0) {
     pl_falha('Lote inválido. Use a tela "Sem lote" para produtos sem controle de lote.');
 }
 
-if ($quantidadeRaw === '' || !is_numeric($quantidadeRaw) || (float) $quantidadeRaw <= 0) {
-    pl_falha('Informe uma quantidade maior que zero.');
+if ($quantidadeRaw === '' || !is_numeric($quantidadeRaw)) {
+    pl_falha('Informe uma quantidade válida.');
 }
 
-$quantidade = (string) (0 + (float) $quantidadeRaw);
+$quantidadeNum = (float) $quantidadeRaw;
+
+// Zero so faz sentido corrigindo, e ai quer dizer "apaga a contagem deste lote".
+if ($modo === 'corrigir' ? $quantidadeNum < 0 : $quantidadeNum <= 0) {
+    pl_falha($modo === 'corrigir'
+        ? 'Quantidade não pode ser negativa. Use zero para apagar a contagem deste lote.'
+        : 'Informe uma quantidade maior que zero.');
+}
+
+$quantidade = (string) (0 + $quantidadeNum);
 
 $parsed = ZMDCODBARRAS::parseCodigoInventario($codinventario);
 if (empty($parsed['valid'])) {
@@ -68,20 +80,38 @@ if ($codigobarras === '') {
     pl_falha('Produto ' . $idprd . ' / lote ' . $idlote . ' não cabe no código de 13 dígitos.');
 }
 
-$zmd = new ZMDCODBARRAS();
-$zmd->setCodigobarras($codigobarras);
-$zmd->setCodinventario($codinventario);
-$zmd->setQuantidade($quantidade);
-$zmd->setCodloc($codloc);
+$apagados = 0;
 
-if (!$zmd->save()) {
-    pl_falha('Não foi possível gravar. Tente novamente.');
+if ($modo === 'corrigir') {
+    $correcao = ZMDCODBARRAS::corrigirTotalProdutoLote(
+        $codinventario,
+        $idprd,
+        $idlote,
+        $quantidadeNum,
+        $codloc
+    );
+
+    if (!$correcao['ok']) {
+        pl_falha($correcao['error']);
+    }
+
+    $apagados = (int) $correcao['apagados'];
+} else {
+    $zmd = new ZMDCODBARRAS();
+    $zmd->setCodigobarras($codigobarras);
+    $zmd->setCodinventario($codinventario);
+    $zmd->setQuantidade($quantidade);
+    $zmd->setCodloc($codloc);
+
+    if (!$zmd->save()) {
+        pl_falha('Não foi possível gravar. Tente novamente.');
+    }
+
+    SessionManager::incrementSessionScans();
 }
 
-SessionManager::incrementSessionScans();
-
 $totais = ZMDCODBARRAS::totaisPorProdutoLote($codinventario);
-$total = $totais[$idprd . ':' . $idlote] ?? (float) $quantidade;
+$total = $totais[$idprd . ':' . $idlote] ?? ($modo === 'corrigir' ? $quantidadeNum : (float) $quantidade);
 
 // resumoDoCodigo compara por produto+lote, então enxerga também o que veio
 // bipado da etiqueta nesta mesma contagem.
@@ -89,10 +119,13 @@ $resumo = ZMDCODBARRAS::resumoDoCodigo($codinventario, $codigobarras);
 
 echo json_encode([
     'ok'         => true,
-    'message'    => 'Registrado',
+    'modo'       => $modo,
+    'message'    => $modo === 'corrigir' ? 'Total corrigido' : 'Registrado',
     'idprd'      => $idprd,
     'idlote'     => $idlote,
     'quantidade' => (float) $quantidade,
     'total'      => $total,
-    'leituras'   => (int) $resumo['leituras'],
+    'apagados'   => $apagados,
+    // Corrigindo sobra uma linha so; nao faz sentido alertar releitura.
+    'leituras'   => $modo === 'corrigir' ? 1 : (int) $resumo['leituras'],
 ]);

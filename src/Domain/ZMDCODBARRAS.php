@@ -448,6 +448,94 @@ class ZMDCODBARRAS
         return $lista;
     }
 
+    /**
+     * Substitui a contagem acumulada de um produto + lote pelo valor informado.
+     *
+     * A ordem e deliberada: grava a linha nova PRIMEIRO e so entao apaga as
+     * antigas. Apagar antes deixaria a contagem no zero durante um instante, e
+     * se a gravacao falhasse a contagem estaria perdida sem ninguem perceber.
+     * Do jeito que esta, uma falha no meio deixa contagem a mais - visivel na
+     * tela e corrigivel de novo - em vez de contagem a menos.
+     *
+     * Quantidade zero significa apagar a contagem daquele lote.
+     *
+     * @return array{ok: bool, apagados: int, error: string}
+     */
+    public static function corrigirTotalProdutoLote(
+        string $codinventario,
+        int $idprd,
+        int $idlote,
+        float $quantidade,
+        string $codloc
+    ): array {
+        $r = ['ok' => false, 'apagados' => 0, 'error' => ''];
+        $codinventario = trim($codinventario);
+
+        if ($codinventario === '' || $idprd <= 0) {
+            $r['error'] = 'Produto ou inventário inválido.';
+            return $r;
+        }
+
+        if ($quantidade < 0) {
+            $r['error'] = 'Quantidade não pode ser negativa.';
+            return $r;
+        }
+
+        $inv = self::sqlStr($codinventario);
+        $filtroItem = "CODINVENTARIO = '{$inv}'
+                  AND CONVERT(INT, SUBSTRING(CODIGOBARRAS, 0, 7)) = {$idprd}
+                  AND CONVERT(INT, SUBSTRING(CODIGOBARRAS, 8, 5)) = {$idlote}";
+
+        // Marca ate onde apagar depois, para nao levar junto a linha nova.
+        $c = new Connection('RM');
+        $c->Consulta("SELECT MAX(ID) AS ULTIMO, COUNT(*) AS TOTAL FROM ZMDCODBARRAS WHERE {$filtroItem}");
+
+        $ultimoAntes = 0;
+        $existentes = 0;
+        if ($c->Resultado()) {
+            $ultimoAntes = (int) ($c->linha['ULTIMO'] ?? 0);
+            $existentes = (int) ($c->linha['TOTAL'] ?? 0);
+        }
+
+        if ($existentes === 0 && $quantidade <= 0) {
+            $r['error'] = 'Não há contagem gravada para este lote.';
+            return $r;
+        }
+
+        if ($quantidade > 0) {
+            $codigobarras = self::barcodeComLote($idprd, $idlote);
+            if ($codigobarras === '') {
+                $r['error'] = 'Produto ou lote não cabe no código de 13 dígitos.';
+                return $r;
+            }
+
+            $zmd = new self();
+            $zmd->setCodigobarras($codigobarras);
+            $zmd->setCodinventario($codinventario);
+            $zmd->setQuantidade((string) (0 + $quantidade));
+            $zmd->setCodloc($codloc);
+
+            if (!$zmd->save()) {
+                $r['error'] = 'Não foi possível gravar a contagem corrigida.';
+                return $r;
+            }
+        }
+
+        if ($ultimoAntes > 0) {
+            $d = new Connection('RM');
+            if (!$d->manipula("DELETE FROM ZMDCODBARRAS WHERE ID <= {$ultimoAntes} AND {$filtroItem}")) {
+                $r['error'] = 'A contagem nova foi gravada, mas as anteriores não puderam ser apagadas. '
+                    . 'O total está somado — corrija novamente.';
+                return $r;
+            }
+            $r['apagados'] = $existentes;
+        }
+
+        $r['ok'] = true;
+
+        return $r;
+    }
+
     public function atualizar()
     {
         if (empty($this->id)) {
