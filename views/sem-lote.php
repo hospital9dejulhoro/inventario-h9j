@@ -124,6 +124,7 @@ foreach ($itens as $it) {
                 <input type="checkbox" id="sl-ocultar-contados"> Ocultar já contados
             </label>
             <a class="btn btn-ghost sl-link" href="inventario.php?<?= e(http_build_query(['CODINVENTARIO' => $codinventario, 'aplicar' => '1'])) ?>">Leitura (lote)</a>
+            <a class="btn btn-ghost sl-link" href="por-lote.php?<?= e(http_build_query(['CODINVENTARIO' => $codinventario, 'aplicar' => '1'])) ?>">Por lote</a>
             <a class="btn btn-ghost sl-link" href="sem-lote.php">Trocar inventário</a>
         </div>
     </div>
