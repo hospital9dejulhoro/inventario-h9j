@@ -86,6 +86,13 @@ $moeda = function ($v) {
                         'todos'  => $somenteComSaldo ? null : '1',
                         'export' => 'csv',
                     ], function ($v) { return $v !== null && $v !== ''; })))) ?>">Exportar CSV</a>
+                    <a class="btn btn-primary" href="<?= e(url('posicao.php?' . http_build_query(array_filter([
+                        'CODLOC' => $codloc,
+                        'grupo'  => $grupoContabil,
+                        'q'      => $busca,
+                        'todos'  => $somenteComSaldo ? null : '1',
+                        'export' => 'pdf',
+                    ], function ($v) { return $v !== null && $v !== ''; })))) ?>">Imprimir PDF (A4)</a>
                     <button type="button" class="btn btn-ghost" onclick="window.print()">Imprimir</button>
                 <?php endif; ?>
             </div>

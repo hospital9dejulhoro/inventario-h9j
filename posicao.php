@@ -37,6 +37,26 @@ if ($localValido) {
     $totais['lotes'] = $totais['linhas'];
 }
 
+if ($export === 'pdf' && $localValido) {
+    $grupoLabel = '';
+    if ($grupoContabil !== '') {
+        $grupoLabel = isset($grupos[$grupoContabil]) && $grupos[$grupoContabil] !== ''
+            ? $grupoContabil . ' - ' . $grupos[$grupoContabil]
+            : $grupoContabil;
+    }
+
+    PosicaoEstoquePdf::gerar([
+        'codloc'      => $codloc,
+        'local_label' => $codloc . ($nomeLocal !== '' ? ' - ' . $nomeLocal : ''),
+        'grupo_label' => $grupoLabel,
+        'ambiente'    => (string) ($envAtual['label'] ?? ''),
+        'operador'    => SessionManager::getDisplayName() ?: SessionManager::getUsername(),
+        'totais'      => $totais,
+        'itens'       => $linhas,
+    ]);
+    exit;
+}
+
 if ($export === 'csv' && $localValido) {
     $filename = 'posicao-' . $codloc . '-' . date('Ymd-Hi') . '.csv';
     header('Content-Type: text/csv; charset=UTF-8');

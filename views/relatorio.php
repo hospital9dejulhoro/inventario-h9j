@@ -15,6 +15,7 @@ $conf = $conferencia['itens'] ?? [];
 $confTotais = $conferencia['totais'] ?? [];
 $rotuloSituacao = ['contado' => 'Contado', 'nao_contado' => 'Não contado', 'sobra' => 'Sobra'];
 $fmtQ = function ($v) { return rtrim(rtrim(number_format((float) $v, 3, ',', '.'), '0'), ','); };
+$fmtMoeda = function ($v) { return 'R$ ' . number_format((float) $v, 2, ',', '.'); };
 ?>
 
 <div class="page-wrap-wide inv-page rpt-page">
@@ -53,10 +54,12 @@ $fmtQ = function ($v) { return rtrim(rtrim(number_format((float) $v, 3, ',', '.'
                 <?php if ($codinventario !== ''): ?>
                     <a class="btn btn-primary" href="<?= e(url('relatorio.php?' . http_build_query(['CODINVENTARIO' => $codinventario, 'export' => 'pdf']))) ?>">Exportar PDF (A4)</a>
                     <a class="btn btn-secondary" href="<?= e(url('relatorio.php?' . http_build_query(['CODINVENTARIO' => $codinventario, 'export' => 'csv']))) ?>">Exportar CSV</a>
+                    <span class="rpt-actions-sep" aria-hidden="true"></span>
                     <a class="btn btn-secondary<?= $verConferencia ? ' is-nav-on' : '' ?>" href="<?= e(url('relatorio.php?' . http_build_query(['CODINVENTARIO' => $codinventario, 'conferencia' => '1']))) ?>">Conferência do local</a>
                     <?php if ($verConferencia): ?>
                         <a class="btn btn-secondary" href="<?= e(url('relatorio.php?' . http_build_query(['CODINVENTARIO' => $codinventario, 'export' => 'conferencia']))) ?>">CSV da conferência</a>
                     <?php endif; ?>
+                    <span class="rpt-actions-sep" aria-hidden="true"></span>
                     <button type="button" class="btn btn-ghost" onclick="window.print()">Imprimir</button>
                     <a class="btn btn-ghost" href="<?= e(url('inventario.php?' . http_build_query(['CODINVENTARIO' => $codinventario, 'aplicar' => '1']))) ?>">Ir para leitura</a>
                 <?php endif; ?>
@@ -208,6 +211,13 @@ $fmtQ = function ($v) { return rtrim(rtrim(number_format((float) $v, 3, ',', '.'
                     <span class="rpt-kpi-value"><?= (int) ($confTotais['sobras'] ?? 0) ?></span>
                     <span class="rpt-kpi-label">Sobras</span>
                 </div>
+                <?php $valorDif = (float) ($confTotais['valor_diferenca'] ?? 0); ?>
+                <div class="rpt-kpi">
+                    <span class="rpt-kpi-value <?= $valorDif < 0 ? 'rpt-dif-neg' : ($valorDif > 0 ? 'rpt-dif-pos' : '') ?>">
+                        <?= e($fmtMoeda($valorDif)) ?>
+                    </span>
+                    <span class="rpt-kpi-label">Valor da diferença</span>
+                </div>
             </div>
 
             <?php if (!empty($conferencia['truncado'])): ?>
@@ -227,14 +237,15 @@ $fmtQ = function ($v) { return rtrim(rtrim(number_format((float) $v, 3, ',', '.'
                         <th>Validade</th>
                         <th>Grupo</th>
                         <th>Und</th>
-                        <th>Saldo</th>
-                        <th>Contado</th>
-                        <th>Diferença</th>
+                        <th class="num">Saldo</th>
+                        <th class="num">Contado</th>
+                        <th class="num">Diferença</th>
+                        <th class="num">Valor dif.</th>
                     </tr>
                     </thead>
                     <tbody>
                     <?php if ($conf === []): ?>
-                        <tr><td colspan="9" class="empty">Nada a conferir: o local não tem saldo e nada foi contado.</td></tr>
+                        <tr><td colspan="10" class="empty">Nada a conferir: o local não tem saldo e nada foi contado.</td></tr>
                     <?php else: ?>
                         <?php foreach ($conf as $item):
                             $dif = (float) $item['diferenca'];
@@ -252,10 +263,14 @@ $fmtQ = function ($v) { return rtrim(rtrim(number_format((float) $v, 3, ',', '.'
                                 <td><?= e($item['validade'] !== '' ? $item['validade'] : '—') ?></td>
                                 <td><?= e($item['grupo'] !== '' ? $item['grupo'] : '—') ?></td>
                                 <td><?= e($item['und']) ?></td>
-                                <td><?= e($fmtQ($item['saldo'])) ?></td>
-                                <td><?= $item['situacao'] === 'nao_contado' ? '—' : e($fmtQ($item['contado'])) ?></td>
-                                <td class="<?= $classeDif ?>">
+                                <td class="num"><?= e($fmtQ($item['saldo'])) ?></td>
+                                <td class="num"><?= $item['situacao'] === 'nao_contado' ? '—' : e($fmtQ($item['contado'])) ?></td>
+                                <td class="num <?= $classeDif ?>">
                                     <?= $item['situacao'] === 'nao_contado' ? '—' : ($dif > 0 ? '+' : '') . e($fmtQ($dif)) ?>
+                                </td>
+                                <td class="num <?= $classeDif ?>">
+                                    <?php $vd = (float) $item['valor_diferenca']; ?>
+                                    <?= $item['situacao'] === 'contado' && $vd != 0.0 ? e($fmtMoeda($vd)) : '—' ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>

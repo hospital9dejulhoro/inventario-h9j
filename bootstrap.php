@@ -34,6 +34,7 @@ require APP_ROOT . DS . 'src' . DS . 'Domain' . DS . 'RmAuth.php';
 require APP_ROOT . DS . 'src' . DS . 'Domain' . DS . 'ZMDCODBARRAS.php';
 require APP_ROOT . DS . 'src' . DS . 'Domain' . DS . 'ContextoInventario.php';
 require APP_ROOT . DS . 'src' . DS . 'Domain' . DS . 'RelatorioContagemPdf.php';
+require APP_ROOT . DS . 'src' . DS . 'Domain' . DS . 'PosicaoEstoquePdf.php';
 
 EnvironmentManager::boot(APP_ROOT . DS . 'config' . DS . 'environments.php');
 

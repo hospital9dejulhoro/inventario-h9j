@@ -1763,9 +1763,57 @@ body.page-sem-lote .app-main {
 /* ---- Relatorio de posicao de estoque ---- */
 .pos-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-.pos-total td {
+/* Especificidade acima da zebra de .data-table, senao o total perde o fundo */
+.data-table tbody tr.pos-total td {
     border-top: 2px solid var(--border);
-    background: #f8fafc;
+    background: #eef2f7;
+    font-weight: 600;
 }
 
 .pos-page .pl-filtro-linha { margin-bottom: 10px; }
+
+/* ---- Acabamento das tabelas e resumos de relatorio ---- */
+
+/* Cabecalho gruda no topo da janela: tabela de relatorio tem centenas de linhas
+   e rolar sem cabecalho obriga a voltar pra lembrar qual coluna e qual. */
+.data-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #fff;
+    box-shadow: inset 0 -1px 0 var(--border);
+}
+
+.data-table tbody tr:nth-child(even) td { background: #fcfcfd; }
+.data-table tbody tr:hover td { background: #eff6ff; }
+
+.data-table td.num,
+.data-table th.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* Quantidade de cartoes varia por relatorio (3, 4 ou 5); grid fixo deixava
+   sobra feia na ultima linha. */
+.rpt-kpis {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.rpt-kpi-value {
+    display: block;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+
+.rpt-actions-sep {
+    width: 1px;
+    align-self: stretch;
+    margin: 0 0.25rem;
+    background: var(--border);
+}
+
+@media (max-width: 720px) {
+    .rpt-actions-sep { display: none; }
+    .data-table thead th { position: static; }
+}
