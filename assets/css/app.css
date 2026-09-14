@@ -1759,3 +1759,13 @@ body.page-sem-lote .app-main {
 .rpt-dif-pos { color: #1d4ed8; font-weight: 600; }
 
 .rpt-conf .data-table td { font-variant-numeric: tabular-nums; }
+
+/* ---- Relatorio de posicao de estoque ---- */
+.pos-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.pos-total td {
+    border-top: 2px solid var(--border);
+    background: #f8fafc;
+}
+
+.pos-page .pl-filtro-linha { margin-bottom: 10px; }

@@ -10,6 +10,7 @@ $bodyClassAtual = (string) ($bodyClass ?? '');
 $navSemLote = str_contains($bodyClassAtual, 'page-sem-lote');
 $navPorLote = str_contains($bodyClassAtual, 'page-por-lote');
 $navLeitura = str_contains($bodyClassAtual, 'page-inventory') && !$navSemLote && !$navPorLote;
+$navPosicao = str_contains($bodyClassAtual, 'page-posicao');
 ?>
 <!doctype html>
 <html lang="pt-BR">
@@ -46,6 +47,7 @@ $navLeitura = str_contains($bodyClassAtual, 'page-inventory') && !$navSemLote &&
                 <a href="por-lote.php" class="btn-ghost<?= $navPorLote ? ' is-nav-on' : '' ?>">Por lote</a>
                 <a href="sem-lote.php" class="btn-ghost<?= $navSemLote ? ' is-nav-on' : '' ?>">Sem lote</a>
                 <a href="relatorio.php" class="btn-ghost">Relatório</a>
+                <a href="posicao.php" class="btn-ghost<?= $navPosicao ? ' is-nav-on' : '' ?>">Posição</a>
                 <a href="index.php?config=1" class="btn-ghost">Configuração</a>
                 <a href="desconectar.php" class="btn-ghost">Sair</a>
             </div>
