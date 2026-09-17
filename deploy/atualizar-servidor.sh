@@ -60,9 +60,37 @@ def extract_senha(src: str, key: str, default: str = "rm") -> str:
     m = re.search(pattern, src, flags=re.S)
     return m.group(1) if m else default
 
+
+def extract_int(src: str, key: str, campo: str, default: int) -> int:
+    # Preserva os ajustes numericos feitos no servidor (timeouts).
+    pattern = rf"'{key}'\s*=>\s*\[[^\]]*?'{campo}'\s*=>\s*(\d+)"
+    m = re.search(pattern, src, flags=re.S)
+    return int(m.group(1)) if m else default
+
+
+def extract_fallbacks(src: str, key: str) -> str:
+    # api_fallbacks vazio e o padrao seguro: um RM Host de outro ambiente
+    # validando a senha significa que a tela diz um ambiente e quem confere a
+    # credencial e outro. Se alguem configurou um, nao apagamos no deploy.
+    pattern = rf"'{key}'\s*=>\s*\[[^\]]*?'api_fallbacks'\s*=>\s*\[([^\]]*)\]"
+    m = re.search(pattern, src, flags=re.S)
+    return m.group(1).strip() if m else ""
+
 senha_prod = extract_senha(text, "producao")
 senha_hml = extract_senha(text, "homologacao", senha_prod)
 senha_tst = extract_senha(text, "testes", senha_prod)
+
+# Sem isto, cada deploy reescrevia environments.php sem as chaves novas e
+# jogava fora qualquer ajuste de timeout feito para um local grande.
+qt_prod = extract_int(text, "producao", "query_timeout", 120)
+qt_hml = extract_int(text, "homologacao", "query_timeout", 120)
+qt_tst = extract_int(text, "testes", "query_timeout", 120)
+lt_prod = extract_int(text, "producao", "login_timeout", 10)
+lt_hml = extract_int(text, "homologacao", "login_timeout", 10)
+lt_tst = extract_int(text, "testes", "login_timeout", 10)
+fb_prod = extract_fallbacks(text, "producao")
+fb_hml = extract_fallbacks(text, "homologacao")
+fb_tst = extract_fallbacks(text, "testes")
 
 content = f"""<?php
 
@@ -80,6 +108,9 @@ return [
         'badge_class'              => 'bg-danger',
         'trust_server_certificate' => true,
         'api_url'                  => 'https://172.20.0.20:8051',
+        'api_fallbacks'            => [{fb_prod}],
+        'query_timeout'            => {qt_prod},
+        'login_timeout'            => {lt_prod},
     ],
     'homologacao' => [
         'label'                    => 'Homologação',
@@ -90,6 +121,9 @@ return [
         'badge_class'              => 'bg-warning text-dark',
         'trust_server_certificate' => true,
         'api_url'                  => 'https://172.20.0.20:8051',
+        'api_fallbacks'            => [{fb_hml}],
+        'query_timeout'            => {qt_hml},
+        'login_timeout'            => {lt_hml},
     ],
     'testes' => [
         'label'                    => 'Testes',
@@ -100,6 +134,9 @@ return [
         'badge_class'              => 'bg-info text-dark',
         'trust_server_certificate' => true,
         'api_url'                  => 'https://172.20.0.20:8051',
+        'api_fallbacks'            => [{fb_tst}],
+        'query_timeout'            => {qt_tst},
+        'login_timeout'            => {lt_tst},
     ],
 ];
 """
