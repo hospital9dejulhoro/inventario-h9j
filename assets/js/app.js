@@ -78,6 +78,15 @@
         }
     }
 
+    // As telas de lote e sem lote gravam por fetch, sem recarregar a página, e
+    // por isso nunca passavam pelo flash que dispara o bipe. Quem conta está
+    // olhando a prateleira, não a tela: sem o retorno sonoro, só descobre que a
+    // gravação falhou quando volta os olhos para o monitor.
+    window.InventarioFeedback = {
+        sucesso: function () { playSuccessBeep(); vibrateSuccess(); },
+        alerta: function () { playWarningBeep(); }
+    };
+
     const barcodeInput = document.getElementById('CODIGOBARRAS');
     const qtyInput = document.getElementById('QUANTIDADE');
     const inventoryForm = document.getElementById('inventory-form');

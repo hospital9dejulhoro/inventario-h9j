@@ -69,6 +69,15 @@
         }
     }
 
+    // O app.js é carregado depois deste arquivo, então a busca é feita na hora
+    // do uso — quando ele já está na página.
+    function avisar(tipo) {
+        var f = window.InventarioFeedback;
+        if (f && f[tipo]) {
+            f[tipo]();
+        }
+    }
+
     function setStatus(msg, tipo) {
         if (!statusEl) {
             return;
@@ -172,8 +181,10 @@
                 voltarParaSomar();
 
                 if (data.aviso) {
+                    avisar('alerta');
                     setStatus(data.aviso, 'is-err');
                 } else if (data.modo === 'corrigir') {
+                    avisar('sucesso');
                     setStatus(
                         zerado
                             ? 'Contagem deste item apagada.'
@@ -182,6 +193,7 @@
                         'is-ok'
                     );
                 } else {
+                    avisar('sucesso');
                     setStatus('Registrado · total ' + total, 'is-ok');
                 }
 
@@ -190,6 +202,7 @@
                 focusProximo(tr);
             })
             .catch(function (err) {
+                avisar('alerta');
                 setStatus(err.message || 'Erro ao gravar.', 'is-err');
                 if (input) {
                     input.focus();

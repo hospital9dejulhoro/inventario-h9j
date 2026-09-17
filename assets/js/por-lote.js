@@ -52,6 +52,15 @@
         });
     }
 
+    // O app.js e carregado depois deste arquivo, entao a busca e feita na hora
+    // do uso - quando ele ja esta na pagina.
+    function avisar(tipo) {
+        var f = window.InventarioFeedback;
+        if (f && f[tipo]) {
+            f[tipo]();
+        }
+    }
+
     function setStatus(msg, tipo) {
         if (!statusEl) {
             return;
@@ -288,8 +297,10 @@
                 // O servidor avisa quando outro operador mexeu no mesmo lote
                 // entre o numero que esta tela mostrou e o clique em Corrigir.
                 if (data.aviso) {
+                    avisar('alerta');
                     setStatus(data.aviso, 'is-err');
                 } else if (data.modo === 'corrigir') {
+                    avisar('sucesso');
                     setStatus(
                         zerado
                             ? 'Contagem deste lote apagada.'
@@ -301,12 +312,14 @@
                     // Pode ser repeticao sua ou contagem de um colega no mesmo
                     // inventario - com varias pessoas contando, as duas coisas
                     // acontecem e a mensagem nao pode acusar so a primeira.
+                    avisar('alerta');
                     setStatus(
                         data.leituras + 'a leitura deste lote - total ' + total
                         + '. Se voce nao contou antes, foi outro operador.',
                         'is-err'
                     );
                 } else {
+                    avisar('sucesso');
                     setStatus('Gravado - total ' + total, 'is-ok');
                 }
 
@@ -319,6 +332,7 @@
                 }
             })
             .catch(function (err) {
+                avisar('alerta');
                 setStatus(err.message || 'Erro ao gravar.', 'is-err');
                 fQtd.focus();
                 fQtd.select();
