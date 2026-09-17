@@ -496,11 +496,19 @@ class ZMDCODBARRAS
     /**
      * Substitui a contagem acumulada de um produto + lote pelo valor informado.
      *
-     * A ordem e deliberada: grava a linha nova PRIMEIRO e so entao apaga as
-     * antigas. Apagar antes deixaria a contagem no zero durante um instante, e
-     * se a gravacao falhasse a contagem estaria perdida sem ninguem perceber.
-     * Do jeito que esta, uma falha no meio deixa contagem a mais - visivel na
-     * tela e corrigivel de novo - em vez de contagem a menos.
+     * Apaga e grava dentro de UMA transação. A versão anterior fazia
+     * SELECT MAX(ID) -> INSERT -> DELETE ID <= max fora de transação, e dois
+     * operadores corrigindo o mesmo lote ao mesmo tempo somavam em vez de
+     * substituir: os dois liam o mesmo MAX(ID), os dois inseriam, e o DELETE
+     * do segundo não alcançava a linha do primeiro. Um lote de 7 "corrigido"
+     * para 5 e para 8 ao mesmo tempo terminava com 13, e os dois operadores
+     * liam "Total corrigido".
+     *
+     * Com a transação, o DELETE segura as linhas até o commit: quem chega
+     * depois espera, enxerga a linha do primeiro e a substitui. O último a
+     * gravar vence, que é o que "corrigir" quer dizer. E como a operação é
+     * atômica, apagar antes de inserir deixou de ter risco — não existe mais
+     * instante em que a contagem fica zerada para os outros.
      *
      * Quantidade zero significa apagar a contagem daquele lote.
      *
@@ -535,22 +543,7 @@ class ZMDCODBARRAS
                   AND CONVERT(INT, SUBSTRING(CODIGOBARRAS, 8, 5)) = ?";
         $filtroParams = [$codinventario, $idprd, $idlote];
 
-        // Marca ate onde apagar depois, para nao levar junto a linha nova.
-        $c = new Connection('RM');
-        $c->Consulta("SELECT MAX(ID) AS ULTIMO, COUNT(*) AS TOTAL FROM ZMDCODBARRAS WHERE {$filtroItem}", $filtroParams);
-
-        $ultimoAntes = 0;
-        $existentes = 0;
-        if ($c->Resultado()) {
-            $ultimoAntes = (int) ($c->linha['ULTIMO'] ?? 0);
-            $existentes = (int) ($c->linha['TOTAL'] ?? 0);
-        }
-
-        if ($existentes === 0 && $quantidade <= 0) {
-            $r['error'] = 'Não há contagem gravada para este lote.';
-            return $r;
-        }
-
+        $codigobarras = '';
         if ($quantidade > 0) {
             $codigobarras = self::barcodeComLote($idprd, $idlote);
             if ($codigobarras === '') {
@@ -558,32 +551,54 @@ class ZMDCODBARRAS
                 return $r;
             }
 
-            $zmd = new self();
-            $zmd->setCodigobarras($codigobarras);
-            $zmd->setCodinventario($codinventario);
-            $zmd->setQuantidade(quantidade_para_banco($quantidade));
-            $zmd->setCodloc($codloc);
-
-            if (!$zmd->save()) {
-                $r['error'] = 'Não foi possível gravar a contagem corrigida.';
+            if (!LocaisEstoque::existe($codloc)) {
+                $r['error'] = 'Local de estoque inválido.';
                 return $r;
             }
         }
 
-        if ($ultimoAntes > 0) {
-            $d = new Connection('RM');
-            if (!$d->manipula(
-                "DELETE FROM ZMDCODBARRAS WHERE ID <= ? AND {$filtroItem}",
-                array_merge([$ultimoAntes], $filtroParams)
-            )) {
-                $r['error'] = 'A contagem nova foi gravada, mas as anteriores não puderam ser apagadas. '
-                    . 'O total está somado — corrija novamente.';
+        $c = new Connection('RM');
+        $c->iniciarTransacao();
+
+        try {
+            $apagados = $c->manipulaContando("DELETE FROM ZMDCODBARRAS WHERE {$filtroItem}", $filtroParams);
+
+            if ($apagados < 0) {
+                throw new DatabaseException('Falha ao limpar a contagem anterior.', $c->erro);
+            }
+
+            if ($apagados === 0 && $quantidade <= 0) {
+                $c->desfazerTransacao();
+                $r['error'] = 'Não há contagem gravada para este lote.';
                 return $r;
             }
-            $r['apagados'] = $existentes;
+
+            if ($quantidade > 0) {
+                $ok = $c->manipula(
+                    'INSERT INTO ZMDCODBARRAS (CODIGOBARRAS, CODINVENTARIO, QUANTIDADE, CODLOC) VALUES (?, ?, ?, ?)',
+                    [
+                        $codigobarras,
+                        $codinventario,
+                        quantidade_para_banco($quantidade),
+                        LocaisEstoque::normalizar($codloc),
+                    ]
+                );
+
+                if (!$ok) {
+                    throw new DatabaseException('Falha ao gravar a contagem corrigida.', $c->erro);
+                }
+            }
+
+            $c->confirmarTransacao();
+        } catch (Throwable $e) {
+            $c->desfazerTransacao();
+            log_erro('corrigirTotalProdutoLote', $e->getMessage());
+            $r['error'] = 'Não foi possível corrigir o total. Nada foi alterado — tente de novo.';
+            return $r;
         }
 
         $r['ok'] = true;
+        $r['apagados'] = $apagados;
 
         return $r;
     }

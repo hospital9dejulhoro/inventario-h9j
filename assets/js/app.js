@@ -169,6 +169,12 @@
             if (form.hasAttribute('data-ajax') || form.classList.contains('js-no-loading')) {
                 return;
             }
+            // Formulário com confirmação acende o overlay por conta própria,
+            // depois de confirmado. Aqui ele ficaria aceso mesmo se o usuário
+            // desistisse — e sem navegação não há pageshow para apagá-lo.
+            if (form.hasAttribute('data-confirmar-codigo')) {
+                return;
+            }
             if (form.id === 'inventory-form') {
                 const barcode = document.getElementById('CODIGOBARRAS');
                 const hasBarcode = barcode && barcode.value.trim() !== '';
@@ -184,6 +190,41 @@
                     return;
                 }
             }
+            showLoading();
+        });
+    });
+
+    // Exclusão de inventário inteiro: exige digitar o código.
+    //
+    // Numa contagem com várias pessoas, este botão apaga o trabalho de todas
+    // de uma vez e não há como desfazer. Digitar o código obriga a olhar qual
+    // inventário está prestes a sumir — um OK de um clique não obriga.
+    document.querySelectorAll('[data-confirmar-codigo]').forEach(function (form) {
+        form.addEventListener('submit', function (event) {
+            var codigo = form.getAttribute('data-confirmar-codigo') || '';
+            var total = form.getAttribute('data-confirmar-total') || '0';
+            var itens = total === '1' ? '1 item gravado' : total + ' itens gravados';
+
+            var resposta = window.prompt(
+                'Apagar o inventário ' + codigo + ' e ' + itens + '?\n\n'
+                + 'Isso remove a contagem de TODOS os operadores deste inventário '
+                + 'e não pode ser desfeito.\n\n'
+                + 'Para confirmar, digite o código do inventário:'
+            );
+
+            if (resposta === null) {
+                event.preventDefault();
+                return;
+            }
+
+            // Aceita com ou sem os pontos da máscara.
+            var limpa = function (v) { return String(v || '').replace(/\D/g, ''); };
+            if (limpa(resposta) !== limpa(codigo)) {
+                event.preventDefault();
+                window.alert('O código digitado não confere. Nada foi apagado.');
+                return;
+            }
+
             showLoading();
         });
     });

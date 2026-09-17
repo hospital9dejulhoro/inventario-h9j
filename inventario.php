@@ -112,10 +112,14 @@ if ($modoLeitura) {
                 $und = trim((string) $validacao['und']);
                 $acumulado = formatar_quantidade($resumo['quantidade']) . ($und !== '' ? ' ' . $und : '');
 
+                // Pode ser repetição sua ou a contagem de um colega no mesmo
+                // inventário. Com várias pessoas contando, as duas coisas
+                // acontecem, e a mensagem não pode acusar só a primeira.
                 flash_set(
                     'warning',
                     $resumo['leituras'] . 'ª leitura de ' . $item . ' — acumulado ' . $acumulado
-                    . '. Se foi bipagem repetida, use Excluir na lista abaixo.'
+                    . '. Se você não bipou antes, foi outro operador; se foi repetição sua,'
+                    . ' use Excluir na lista abaixo.'
                 );
             } else {
                 flash_set('success', $msg);

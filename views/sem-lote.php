@@ -137,6 +137,8 @@ $colunas = $temSaldo ? 7 : 6;
                 <span><?= e($envAtual['label']) ?></span>
             <?php endif; ?>
             <span id="sl-counts"><?= (int) $contados ?>/<?= (int) $qtdItensRm ?> contados</span>
+            <button type="button" class="btn-ghost sl-atualizar" id="sl-atualizar"
+                    title="Recarrega o que os outros operadores ja contaram">Atualizar totais</button>
             <?php if ($avulso): ?>
                 <span class="pl-badge-avulsa" title="Código não existe em TINVENTARIO">Avulsa · fora do RM</span>
             <?php endif; ?>
@@ -235,6 +237,7 @@ $colunas = $temSaldo ? 7 : 6;
     <script>
     window.SL_CFG = {
         saveUrl: <?= json_encode(url('sem-lote-salvar.php'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+        totaisUrl: <?= json_encode(url('contagem-totais.php'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
         inventario: <?= json_encode($codinventario, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
         codloc: <?= json_encode($codloc, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
         token: <?= json_encode(csrf_token(), JSON_HEX_TAG) ?>

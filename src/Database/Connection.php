@@ -158,6 +158,42 @@ class Connection
         return is_int($linhas) && $linhas >= 0 ? $linhas : 0;
     }
 
+    /**
+     * Transação sobre a conexão desta requisição.
+     *
+     * A conexão é compartilhada por requisição, então tudo que rodar entre
+     * iniciar e confirmar entra na mesma transação — inclusive um `new
+     * Connection('RM')` criado no meio. É de propósito, mas exige que o trecho
+     * transacionado não chame nada que grave por fora do assunto.
+     */
+    public function iniciarTransacao(): void
+    {
+        if (!sqlsrv_begin_transaction($this->id)) {
+            throw new DatabaseException(
+                'Não foi possível iniciar a gravação no banco.',
+                'begin_transaction: ' . DatabaseException::formatarErros(sqlsrv_errors())
+            );
+        }
+    }
+
+    public function confirmarTransacao(): void
+    {
+        if (!sqlsrv_commit($this->id)) {
+            throw new DatabaseException(
+                'Não foi possível concluir a gravação no banco.',
+                'commit: ' . DatabaseException::formatarErros(sqlsrv_errors())
+            );
+        }
+    }
+
+    /** Desfaz sem levantar: já estamos tratando um erro quando isto é chamado. */
+    public function desfazerTransacao(): void
+    {
+        if (!@sqlsrv_rollback($this->id)) {
+            log_erro('Connection::desfazerTransacao', DatabaseException::formatarErros(sqlsrv_errors()));
+        }
+    }
+
     public function Resultado()
     {
         if ($this->res) {

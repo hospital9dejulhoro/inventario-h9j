@@ -145,6 +145,82 @@
             });
     }
 
+    // ---- Totais de outros operadores -------------------------------------
+    //
+    // Mesmo motivo da tela de lotes: a coluna "Ja" congela quando a tela abre.
+    // Sem polling — atualiza no botao e quando a aba volta ao foco.
+    var atualizando = false;
+    var ultimaAtualizacao = 0;
+
+    function aplicarTotais(totais) {
+        rows().forEach(function (tr) {
+            var chave = tr.getAttribute('data-idprd');
+            var valor = Object.prototype.hasOwnProperty.call(totais, chave) ? Number(totais[chave]) : 0;
+            var temContagem = valor > 0;
+
+            tr.setAttribute('data-counted', temContagem ? '1' : '0');
+            tr.classList.toggle('is-counted', temContagem);
+
+            var celula = tr.querySelector('.sl-ja');
+            if (celula) {
+                celula.textContent = temContagem ? fmtQtd(valor) : '—';
+            }
+        });
+        atualizarFiltro();
+    }
+
+    function atualizarTotais(silencioso) {
+        if (atualizando || !cfg.totaisUrl) {
+            return;
+        }
+        if (silencioso && Date.now() - ultimaAtualizacao < 10000) {
+            return;
+        }
+
+        atualizando = true;
+        if (!silencioso) {
+            setStatus('Atualizando o que os outros já contaram…');
+        }
+
+        var url = cfg.totaisUrl
+            + (cfg.totaisUrl.indexOf('?') === -1 ? '?' : '&')
+            + 'CODINVENTARIO=' + encodeURIComponent(cfg.inventario)
+            + '&modo=produto';
+
+        fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || !data.ok) {
+                    throw new Error((data && data.message) || 'Falha ao atualizar');
+                }
+                ultimaAtualizacao = Date.now();
+                aplicarTotais(data.totais || {});
+                if (!silencioso) {
+                    setStatus('Totais atualizados às ' + data.atualizado + '.', 'is-ok');
+                }
+            })
+            .catch(function (err) {
+                if (!silencioso) {
+                    setStatus(err.message || 'Não foi possível atualizar os totais.', 'is-err');
+                }
+            })
+            .then(function () {
+                atualizando = false;
+            });
+    }
+
+    var btnAtualizar = document.getElementById('sl-atualizar');
+    if (btnAtualizar) {
+        btnAtualizar.addEventListener('click', function () { atualizarTotais(false); });
+    }
+
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) {
+            atualizarTotais(true);
+        }
+    });
+    window.addEventListener('focus', function () { atualizarTotais(true); });
+
     table.addEventListener('click', function (e) {
         var btn = e.target.closest('.sl-btn');
         if (btn) {

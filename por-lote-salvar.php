@@ -120,6 +120,18 @@ $total = $totais[$idprd . ':' . $idlote] ?? $quantidadeNum;
 // bipado da etiqueta nesta mesma contagem.
 $resumo = ZMDCODBARRAS::resumoDoCodigo($codinventario, $codigobarras);
 
+// Corrigir substitui o total, então o que ficou gravado tem de ser exatamente
+// o que foi pedido. Se não for, alguém contou este mesmo lote entre o momento
+// em que esta tela mostrou o número e o clique em Corrigir — a transação
+// manteve o banco íntegro, mas a decisão foi tomada sobre um número velho.
+$aviso = '';
+if ($modo === 'corrigir' && abs($total - $quantidadeNum) > 0.0001) {
+    $aviso = 'Outro operador mexeu neste lote agora há pouco. O total gravado é '
+        . formatar_quantidade($total) . ', não ' . formatar_quantidade($quantidadeNum)
+        . '. Confira antes de corrigir de novo.';
+    log_erro('correcao concorrente', "inv={$codinventario} idprd={$idprd} idlote={$idlote} pedido={$quantidadeNum} final={$total}");
+}
+
 echo json_encode([
     'ok'         => true,
     'modo'       => $modo,
@@ -129,6 +141,7 @@ echo json_encode([
     'quantidade' => $quantidadeNum,
     'total'      => $total,
     'apagados'   => $apagados,
+    'aviso'      => $aviso,
     // Corrigindo sobra uma linha so; nao faz sentido alertar releitura.
     'leituras'   => $modo === 'corrigir' ? 1 : (int) $resumo['leituras'],
 ]);

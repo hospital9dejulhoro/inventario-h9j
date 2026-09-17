@@ -64,19 +64,39 @@ phpenmod -v "${PHP_VERSION}" -s fpm sqlsrv pdo_sqlsrv 2>/dev/null || true
 # grande morria no meio, sem mensagem. Os tetos ficam alinhados com o nginx
 # (fastcgi_read_timeout) e com o query_timeout do environments.php.
 echo "==> Ajustando tempo e memoria do PHP para as telas de contagem..."
+# 256M da 9x de folga sobre o pico medido da tela mais pesada (28 MB com a
+# lista de lotes no teto de 4000 linhas). Serve de teto para o caso anormal,
+# nao de reserva por processo.
 cat > "/etc/php/${PHP_VERSION}/fpm/conf.d/99-inventario.ini" <<'PHPINI'
 max_execution_time = 300
 max_input_time = 120
-memory_limit = 512M
+memory_limit = 256M
 PHPINI
 
 FPM_POOL="/etc/php/${PHP_VERSION}/fpm/pool.d/www.conf"
 if [ -f "$FPM_POOL" ]; then
-  if grep -q '^;*request_terminate_timeout' "$FPM_POOL"; then
-    sed -i 's|^;*request_terminate_timeout.*|request_terminate_timeout = 300|' "$FPM_POOL"
-  else
-    echo "request_terminate_timeout = 300" >> "$FPM_POOL"
-  fi
+  # pm.max_children e quantas requisicoes o PHP atende AO MESMO TEMPO. O padrao
+  # do Ubuntu e 5: com 10 pessoas contando, cinco ficam na fila esperando, e numa
+  # tela pesada essa espera vira timeout. Dimensionado pelo pico medido (28 MB)
+  # com folga de 3x por processo.
+  #
+  # Regra para redimensionar: max_children ~= (RAM livre - 500 MB) / 90 MB.
+  echo "==> Ajustando pm.max_children (padrao 5 nao atende 10 operadores)..."
+  # Apaga todas as ocorrencias da chave e grava uma so. O append condicional
+  # anterior duplicava a linha a cada execucao: o FPM usa a ultima, entao
+  # funcionava, mas o arquivo ia acumulando lixo a cada deploy.
+  set_fpm() {
+    sed -i -E "/^;*[[:space:]]*$1[[:space:]]*=/d" "$FPM_POOL"
+    echo "$1 = $2" >> "$FPM_POOL"
+  }
+
+  set_fpm pm dynamic
+  set_fpm pm.max_children 16
+  set_fpm pm.start_servers 4
+  set_fpm pm.min_spare_servers 2
+  set_fpm pm.max_spare_servers 8
+  set_fpm pm.max_requests 500
+  set_fpm request_terminate_timeout 300
 fi
 
 echo "==> Configurando site Inventario na porta ${INVENTARIO_PORT}..."

@@ -1877,3 +1877,19 @@ body.page-sem-lote .app-main {
     border-color: #d97706;
     background: #fffbeb;
 }
+
+/* Botao "Atualizar totais" das telas de contagem.
+   Reusa o visual de .btn-ghost, que nasceu para <a>: um <button> nao herda a
+   fonte da pagina nem ganha o cursor de mao sozinho. */
+.pl-atualizar,
+.sl-atualizar {
+    font-family: inherit;
+    cursor: pointer;
+    line-height: 1.2;
+}
+
+.pl-atualizar:disabled,
+.sl-atualizar:disabled {
+    opacity: 0.5;
+    cursor: wait;
+}

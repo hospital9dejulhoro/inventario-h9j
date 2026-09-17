@@ -285,8 +285,11 @@
                 radiosModo.forEach(function (r) { r.checked = (r.value === 'somar'); });
                 aplicarModo();
 
-                // leituras > 1 inclui o que veio bipado da etiqueta neste inventario
-                if (data.modo === 'corrigir') {
+                // O servidor avisa quando outro operador mexeu no mesmo lote
+                // entre o numero que esta tela mostrou e o clique em Corrigir.
+                if (data.aviso) {
+                    setStatus(data.aviso, 'is-err');
+                } else if (data.modo === 'corrigir') {
                     setStatus(
                         zerado
                             ? 'Contagem deste lote apagada.'
@@ -295,8 +298,12 @@
                         'is-ok'
                     );
                 } else if (data.leituras > 1) {
+                    // Pode ser repeticao sua ou contagem de um colega no mesmo
+                    // inventario - com varias pessoas contando, as duas coisas
+                    // acontecem e a mensagem nao pode acusar so a primeira.
                     setStatus(
-                        data.leituras + 'a leitura deste lote - total ' + total + '. Confira se nao e repeticao.',
+                        data.leituras + 'a leitura deste lote - total ' + total
+                        + '. Se voce nao contou antes, foi outro operador.',
                         'is-err'
                     );
                 } else {
@@ -322,6 +329,94 @@
                 tr.classList.remove('is-saving');
             });
     }
+
+    // ---- Totais de outros operadores -------------------------------------
+    //
+    // A coluna "Ja" congela no instante em que a tela abre. Com varias pessoas
+    // contando o mesmo inventario, ela envelhece em segundos. Nao fica em
+    // polling de proposito: recarrega quando a aba volta ao foco (o operador
+    // andou pela prateleira e voltou) e no botao, que e quando o numero
+    // importa. Polling de 10 telas ocuparia os processos do PHP-FPM a toa.
+    var atualizando = false;
+    var ultimaAtualizacao = 0;
+
+    function aplicarTotais(totais) {
+        rows().forEach(function (tr) {
+            var chave = tr.getAttribute('data-idprd') + ':' + tr.getAttribute('data-idlote');
+            var valor = Object.prototype.hasOwnProperty.call(totais, chave) ? Number(totais[chave]) : 0;
+            var temContagem = valor > 0;
+
+            tr.setAttribute('data-ja', temContagem ? fmtQtd(valor) : '0');
+            tr.setAttribute('data-counted', temContagem ? '1' : '0');
+            tr.classList.toggle('is-counted', temContagem);
+
+            var celula = tr.querySelector('.pl-ja');
+            if (celula) {
+                celula.textContent = temContagem ? fmtQtd(valor) : '—';
+            }
+        });
+
+        if (selecionada) {
+            fJa.textContent = (selecionada.getAttribute('data-ja') || '0') + unidade(selecionada);
+        }
+
+        // atualizarFiltro recalcula o "N/M contados" a partir de data-counted,
+        // que acabou de ser reescrito acima.
+        atualizarFiltro();
+    }
+
+    function atualizarTotais(silencioso) {
+        if (atualizando || !cfg.totaisUrl) {
+            return;
+        }
+        // Voltar o foco varias vezes seguidas nao precisa de uma consulta cada.
+        if (silencioso && Date.now() - ultimaAtualizacao < 10000) {
+            return;
+        }
+
+        atualizando = true;
+        if (!silencioso) {
+            setStatus('Atualizando o que os outros ja contaram...');
+        }
+
+        var url = cfg.totaisUrl
+            + (cfg.totaisUrl.indexOf('?') === -1 ? '?' : '&')
+            + 'CODINVENTARIO=' + encodeURIComponent(cfg.inventario)
+            + '&modo=lote';
+
+        fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || !data.ok) {
+                    throw new Error((data && data.message) || 'Falha ao atualizar');
+                }
+                ultimaAtualizacao = Date.now();
+                aplicarTotais(data.totais || {});
+                if (!silencioso) {
+                    setStatus('Totais atualizados as ' + data.atualizado + '.', 'is-ok');
+                }
+            })
+            .catch(function (err) {
+                if (!silencioso) {
+                    setStatus(err.message || 'Nao foi possivel atualizar os totais.', 'is-err');
+                }
+            })
+            .then(function () {
+                atualizando = false;
+            });
+    }
+
+    var btnAtualizar = document.getElementById('pl-atualizar');
+    if (btnAtualizar) {
+        btnAtualizar.addEventListener('click', function () { atualizarTotais(false); });
+    }
+
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) {
+            atualizarTotais(true);
+        }
+    });
+    window.addEventListener('focus', function () { atualizarTotais(true); });
 
     table.addEventListener('click', function (e) {
         var tr = e.target.closest('tr.pl-row');

@@ -260,8 +260,12 @@ $avulso = !empty($avulso);
                     </p>
                 </div>
                 <?php if ($mostrarTabela && $codinventario !== ''): ?>
+                <?php /* Confirmacao por digitacao: numa contagem com varias
+                         pessoas, este botao apaga o trabalho de todas, e um OK
+                         de um clique so e leve demais para isso. */ ?>
                 <form action="inventario-item.php" method="post" class="inv-delete-inventario-form"
-                      onsubmit="return confirm('Excluir o inventário <?= e($codinventario) ?> e todos os <?= $totalBipagens ?> itens gravados?\n\nEsta ação não pode ser desfeita.');">
+                      data-confirmar-codigo="<?= e($codinventario) ?>"
+                      data-confirmar-total="<?= (int) $totalBipagens ?>">
                     <?= csrf_field() ?>
                     <input type="hidden" name="acao" value="excluir_inventario">
                     <input type="hidden" name="CODINVENTARIO" value="<?= e($codinventario) ?>">
