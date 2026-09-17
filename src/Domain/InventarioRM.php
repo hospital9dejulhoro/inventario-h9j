@@ -350,11 +350,21 @@ class InventarioRM
         $limite = max(1, min(self::LIMITE_LOTES, $limite));
         $params = self::paramsCodloc($codloc);
 
-        $whereSaldo = '';
-        if ($somenteComSaldo) {
-            $whereSaldo = ' AND PRDLOC.SALDOFISICO2 <> 0
-                  AND LOTLOC.SALDOFISICO2 <> 0';
-        }
+        // "Só com saldo" pergunta sobre O LOTE, e só o lote responde.
+        //
+        // Aqui também havia PRDLOC.SALDOFISICO2 <> 0, que é o saldo do PRODUTO
+        // no local. Com ele, um produto cujo total no local fecha em zero
+        // sumia inteiro da lista — inclusive os lotes dele que TINHAM saldo.
+        // Dois efeitos, os dois ruins:
+        //
+        //  - a folha de contagem perdia item que está fisicamente na
+        //    prateleira, e ninguém conta o que não aparece;
+        //  - marcar "incluir lotes zerados" trazia de volta lotes COM saldo,
+        //    então o total de itens subia, o que não é o que a caixa promete.
+        //
+        // O saldo do produto continua valendo onde a pergunta é sobre o
+        // produto (a folha "sem lote"), não sobre o lote.
+        $whereSaldo = $somenteComSaldo ? ' AND LOTLOC.SALDOFISICO2 <> 0' : '';
 
         $whereGrupo = '';
         $grupoContabil = trim($grupoContabil);
@@ -688,9 +698,9 @@ class InventarioRM
             return [];
         }
 
-        $whereSaldo = $somenteComSaldo
-            ? ' AND PRDLOC.SALDOFISICO2 <> 0 AND LOTLOC.SALDOFISICO2 <> 0'
-            : '';
+        // Mesmo critério da lista de lotes. Se divergisse, o seletor ofereceria
+        // um grupo que a lista não mostra, ou esconderia um que ela mostra.
+        $whereSaldo = $somenteComSaldo ? ' AND LOTLOC.SALDOFISICO2 <> 0' : '';
 
         $SQL = "SELECT DISTINCT
                     LTRIM(RTRIM(PRDDEF.CODTB2FAT)) AS GRUPOCOD,
