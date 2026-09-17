@@ -215,7 +215,7 @@ class InventarioRM
      * É a folha "sem lote" da contagem avulsa. Espelha a fonte que a tela de
      * lotes usa (TPRDLOC), só que do lado de quem não tem TLOTEPRD.
      *
-     * @return array<int, array{idprd: int, codigo: string, nome: string, und: string, codloc: string, saldo: float}>
+     * @return array<int, array{idprd: int, codigo: string, nome: string, und: string, codloc: string, saldo: float, custo_medio: float}>
      */
     public static function listarItensSemLoteDoLocal(string $codloc, bool $somenteComSaldo = false): array
     {
@@ -227,13 +227,16 @@ class InventarioRM
         $limite = self::LIMITE_ITENS;
         $whereSaldo = $somenteComSaldo ? ' AND PRDLOC.SALDOFISICO2 <> 0' : '';
 
+        // O custo entra porque a conferência calcula o valor da diferença com
+        // ele. A folha de contagem em si não mostra valor.
         $SQL = "SELECT TOP {$limite}
                     PRD.IDPRD,
                     MAX(RTRIM(PRDLOC.CODLOC)) AS CODLOC,
                     MAX(PRD.CODIGOPRD) AS CODIGO,
                     MAX(PRD.NOMEFANTASIA) AS NOME,
                     MAX(PRDDEF.CODUNDCONTROLE) AS UND,
-                    MAX(PRDLOC.SALDOFISICO2) AS SALDO
+                    MAX(PRDLOC.SALDOFISICO2) AS SALDO,
+                    MAX(CUST.CUSTOMEDIO) AS CUSTOMEDIO
                 FROM TPRODUTO PRD
                 INNER JOIN TPRODUTODEF PRDDEF
                     ON PRD.IDPRD = PRDDEF.IDPRD
@@ -241,6 +244,10 @@ class InventarioRM
                 INNER JOIN TPRDLOC PRDLOC
                     ON PRD.IDPRD = PRDLOC.IDPRD
                    AND PRD.CODCOLPRD = PRDLOC.CODCOLIGADA
+                LEFT JOIN TPRDCUSTOFILIAL CUST
+                    ON PRDLOC.IDPRD = CUST.IDPRD
+                   AND PRDLOC.CODFILIAL = CUST.CODFILIAL
+                   AND CUST.CODCOLIGADA = PRDLOC.CODCOLIGADA
                 WHERE PRD.INATIVO = 0
                   AND " . self::condicaoCodloc('PRDLOC') . "
                   {$whereSaldo}
@@ -264,12 +271,13 @@ class InventarioRM
         $itens = [];
         while ($c->Resultado()) {
             $itens[] = [
-                'idprd'  => (int) ($c->linha['IDPRD'] ?? 0),
-                'codigo' => encode_db_value((string) ($c->linha['CODIGO'] ?? '')),
-                'nome'   => encode_db_value((string) ($c->linha['NOME'] ?? '')),
-                'und'    => encode_db_value((string) ($c->linha['UND'] ?? '')),
-                'codloc' => encode_db_value((string) ($c->linha['CODLOC'] ?? '')),
-                'saldo'  => (float) ($c->linha['SALDO'] ?? 0),
+                'idprd'       => (int) ($c->linha['IDPRD'] ?? 0),
+                'codigo'      => encode_db_value((string) ($c->linha['CODIGO'] ?? '')),
+                'nome'        => encode_db_value((string) ($c->linha['NOME'] ?? '')),
+                'und'         => encode_db_value((string) ($c->linha['UND'] ?? '')),
+                'codloc'      => encode_db_value((string) ($c->linha['CODLOC'] ?? '')),
+                'saldo'       => (float) ($c->linha['SALDO'] ?? 0),
+                'custo_medio' => (float) ($c->linha['CUSTOMEDIO'] ?? 0),
             ];
         }
 
@@ -531,11 +539,58 @@ class InventarioRM
             return ['itens' => [], 'totais' => $totaisZerados, 'truncado' => false];
         }
 
+        // Duas fontes, porque a posição do local tem duas naturezas e a
+        // conferência precisa das duas.
+        //
+        // listarPosicaoPorLote faz INNER JOIN em TLOTEPRDLOC: por definição só
+        // enxerga produto COM lote. Sozinha, ela fazia todo item contado pela
+        // tela "Sem lote" cair no balde de sobra — o produto existia no local,
+        // tinha saldo, foi contado certo, e o relatório o acusava de excedente.
+        // Quanto mais o local tem de item sem lote, mais o relatório mentia.
         $posicao = self::listarPosicaoPorLote($codloc, '', '', true);
+
+        foreach (self::listarItensSemLoteDoLocal($codloc, true) as $item) {
+            $posicao[] = [
+                'idprd'            => $item['idprd'],
+                'idlote'           => 0,
+                'numlote'          => '',
+                'codigo'           => $item['codigo'],
+                'nome'             => $item['nome'],
+                'und'              => $item['und'],
+                'codloc'           => $item['codloc'],
+                'local_nome'       => '',
+                'grupo_cod'        => '',
+                'grupo_nome'       => '',
+                'validade'         => '',
+                'saldo'            => $item['saldo'],
+                'custo_medio'      => $item['custo_medio'],
+                'saldo_financeiro' => $item['saldo'] * $item['custo_medio'],
+            ];
+        }
+
+        $truncado = count($posicao) >= (self::LIMITE_LOTES + self::LIMITE_ITENS);
         $contagem = ZMDCODBARRAS::contagemPorProdutoLote($codinventario);
 
+        return self::reconciliar($posicao, $contagem, $truncado);
+    }
+
+    /**
+     * Cruza posição com contagem. Separado do acesso ao banco de propósito:
+     * é aqui que mora a regra de "contado / não contado / sobra", e ela é a
+     * parte que precisa de teste.
+     *
+     * @param array<int, array<string, mixed>> $posicao
+     * @param array<string, array<string, mixed>> $contagem chave "idprd:idlote"
+     * @return array{itens: array<int, array<string, mixed>>, totais: array<string, float|int>, truncado: bool}
+     */
+    public static function reconciliar(array $posicao, array $contagem, bool $truncado = false): array
+    {
+        $t = [
+            'esperados' => 0, 'contados' => 0, 'nao_contados' => 0, 'sobras' => 0,
+            'saldo' => 0.0, 'contado' => 0.0, 'diferenca' => 0.0, 'valor_diferenca' => 0.0,
+        ];
+
         $itens = [];
-        $t = $totaisZerados;
 
         foreach ($posicao as $linha) {
             $chave = $linha['idprd'] . ':' . $linha['idlote'];
@@ -614,7 +669,7 @@ class InventarioRM
         return [
             'itens'    => $itens,
             'totais'   => $t,
-            'truncado' => count($posicao) >= self::LIMITE_LOTES,
+            'truncado' => $truncado,
         ];
     }
 

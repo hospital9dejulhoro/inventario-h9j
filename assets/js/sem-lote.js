@@ -80,6 +80,32 @@
         }
     }
 
+    var radiosModo = [].slice.call(document.querySelectorAll('input[name="sl-modo"]'));
+
+    function modoAtual() {
+        var marcado = radiosModo.filter(function (r) { return r.checked; })[0];
+        return marcado ? marcado.value : 'somar';
+    }
+
+    function voltarParaSomar() {
+        radiosModo.forEach(function (r) { r.checked = (r.value === 'somar'); });
+        aplicarModo();
+    }
+
+    function aplicarModo() {
+        var corrigindo = modoAtual() === 'corrigir';
+        document.body.classList.toggle('sl-corrigindo', corrigindo);
+        rows().forEach(function (tr) {
+            var input = tr.querySelector('.sl-qtd');
+            if (input) {
+                input.placeholder = corrigindo ? 'total' : '';
+            }
+        });
+    }
+
+    radiosModo.forEach(function (r) { r.addEventListener('change', aplicarModo); });
+    aplicarModo();
+
     function registrar(tr) {
         if (saving || !tr) {
             return;
@@ -87,12 +113,23 @@
         var input = tr.querySelector('.sl-qtd');
         var btn = tr.querySelector('.sl-btn');
         var raw = input ? String(input.value || '').trim().replace(',', '.') : '';
-        if (raw === '' || isNaN(raw) || Number(raw) <= 0) {
-            setStatus('Informe uma quantidade maior que zero.', 'is-err');
+        var corrigindo = modoAtual() === 'corrigir';
+
+        if (raw === '' || isNaN(raw) || (corrigindo ? Number(raw) < 0 : Number(raw) <= 0)) {
+            setStatus(corrigindo
+                ? 'Informe o total correto (zero apaga a contagem deste item).'
+                : 'Informe uma quantidade maior que zero.', 'is-err');
             if (input) {
                 input.focus();
             }
             return;
+        }
+
+        if (corrigindo) {
+            var nome = (tr.querySelector('.sl-nome-main') || {}).textContent || 'este item';
+            if (!confirm('Substituir a contagem de ' + nome.trim() + ' por ' + raw + '?')) {
+                return;
+            }
         }
 
         saving = true;
@@ -107,6 +144,7 @@
         body.append('quantidade', raw);
         body.append('CODINVENTARIO', cfg.inventario);
         body.append('CODLOC', cfg.codloc);
+        body.append('modo', modoAtual());
         body.append('_token', cfg.token || '');
 
         fetch(cfg.saveUrl, { method: 'POST', body: body, credentials: 'same-origin' })
@@ -115,16 +153,38 @@
                 if (!data || !data.ok) {
                     throw new Error((data && data.message) || 'Falha ao gravar');
                 }
+                var total = fmtQtd(data.total);
+                var zerado = Number(data.total) === 0;
+
                 var ja = tr.querySelector('.sl-ja');
                 if (ja) {
-                    ja.textContent = fmtQtd(data.total);
+                    ja.textContent = zerado ? '—' : total;
                 }
-                tr.classList.add('is-counted', 'is-flash');
-                tr.setAttribute('data-counted', '1');
+                tr.classList.toggle('is-counted', !zerado);
+                tr.classList.add('is-flash');
+                tr.setAttribute('data-counted', zerado ? '0' : '1');
                 if (input) {
                     input.value = '';
                 }
-                setStatus('Registrado · total ' + fmtQtd(data.total), 'is-ok');
+
+                // Volta para somar: deixar em corrigir faria o próximo Enter
+                // substituir sem querer.
+                voltarParaSomar();
+
+                if (data.aviso) {
+                    setStatus(data.aviso, 'is-err');
+                } else if (data.modo === 'corrigir') {
+                    setStatus(
+                        zerado
+                            ? 'Contagem deste item apagada.'
+                            : 'Total corrigido para ' + total
+                              + (data.apagados > 1 ? ' (' + data.apagados + ' lançamentos substituídos)' : ''),
+                        'is-ok'
+                    );
+                } else {
+                    setStatus('Registrado · total ' + total, 'is-ok');
+                }
+
                 setTimeout(function () { tr.classList.remove('is-flash'); }, 700);
                 atualizarFiltro();
                 focusProximo(tr);
@@ -240,16 +300,110 @@
         registrar(input.closest('tr'));
     });
 
+    // ---- Bipe de etiqueta ------------------------------------------------
+    //
+    // Produto sem lote tem IDLOTE 0 no layout do codigo, entao a etiqueta dele
+    // e IDPRD nos digitos 1-6 e zeros no resto. O leitor digita os 13 numeros
+    // no campo de busca; ao completar, a linha e localizada e o cursor cai
+    // direto na quantidade. Mesma interacao da tela de lotes.
+    function idprdDaEtiqueta(valor) {
+        var d = String(valor || '').replace(/\D/g, '');
+        if (d.length !== 13) {
+            return null;
+        }
+        return { idprd: parseInt(d.slice(0, 6), 10), idlote: parseInt(d.slice(7, 12), 10) };
+    }
+
+    function tratarEtiqueta() {
+        var ids = idprdDaEtiqueta(busca.value);
+        if (!ids) {
+            return false;
+        }
+
+        busca.value = '';
+        atualizarFiltro();
+
+        var alvo = rows().filter(function (tr) {
+            return parseInt(tr.getAttribute('data-idprd'), 10) === ids.idprd;
+        })[0];
+
+        if (!alvo) {
+            setStatus(
+                ids.idlote > 0
+                    ? 'Essa etiqueta tem lote (produto ' + ids.idprd + ', lote ' + ids.idlote
+                      + '). Conte pela tela "Por lote".'
+                    : 'Produto ' + ids.idprd + ' não está nesta lista.',
+                'is-err'
+            );
+            return true;
+        }
+
+        // Um item escondido pelo "ocultar ja contados" precisa reaparecer,
+        // senao o bipe seleciona uma linha invisivel.
+        alvo.style.display = '';
+        if (alvo.scrollIntoView) {
+            alvo.scrollIntoView({ block: 'center' });
+        }
+        alvo.classList.add('is-flash');
+        setTimeout(function () { alvo.classList.remove('is-flash'); }, 700);
+
+        var input = alvo.querySelector('.sl-qtd');
+        if (input) {
+            input.focus();
+            input.select();
+        }
+
+        var nome = (alvo.querySelector('.sl-nome-main') || {}).textContent || '';
+        setStatus(nome.trim() + ' — digite a quantidade e Enter.', 'is-ok');
+        return true;
+    }
+
     if (busca) {
-        busca.addEventListener('input', atualizarFiltro);
+        busca.addEventListener('input', function () {
+            if (!tratarEtiqueta()) {
+                atualizarFiltro();
+            }
+        });
+
+        // O leitor manda Enter depois dos digitos; sem isto ele submeteria
+        // algo ou apenas piscaria o campo.
+        busca.addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter') {
+                return;
+            }
+            e.preventDefault();
+
+            if (idprdDaEtiqueta(busca.value)) {
+                tratarEtiqueta();
+                return;
+            }
+
+            // Sem etiqueta: Enter pega a primeira linha visivel da busca.
+            var visiveis = rows().filter(function (tr) { return tr.style.display !== 'none'; });
+            if (busca.value.trim() !== '' && visiveis.length > 0) {
+                var input = visiveis[0].querySelector('.sl-qtd');
+                if (input) {
+                    input.focus();
+                    input.select();
+                }
+            }
+        });
     }
     if (ocultar) {
         ocultar.addEventListener('change', atualizarFiltro);
     }
 
     atualizarFiltro();
-    var first = table.querySelector('tbody tr.sl-row .sl-qtd');
-    if (first) {
-        first.focus();
+
+    // Foco na busca, e nao na primeira quantidade: e o campo que recebe o bipe
+    // da etiqueta, e depois da primeira gravacao o focusProximo ja leva o
+    // cursor de linha em linha para quem prefere descer a lista digitando.
+    if (busca) {
+        busca.focus();
+    } else {
+        var first = table.querySelector('tbody tr.sl-row .sl-qtd');
+        if (first) {
+            first.focus();
+        }
     }
 })();

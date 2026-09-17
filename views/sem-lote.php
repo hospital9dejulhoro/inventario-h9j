@@ -144,7 +144,14 @@ $colunas = $temSaldo ? 7 : 6;
             <?php endif; ?>
         </div>
         <div class="sl-toolbar-actions">
-            <input type="search" id="sl-busca" class="form-control sl-busca" placeholder="Filtrar produto..." autocomplete="off">
+            <input type="search" id="sl-busca" class="form-control sl-busca"
+                   placeholder="Bipe a etiqueta, ou digite o produto…" autocomplete="off">
+            <?php /* Mesmos dois modos da tela de lotes, com a mesma redação.
+                     Volta sozinho para "Somar" depois de cada gravação. */ ?>
+            <div class="sl-modo" role="radiogroup" aria-label="O que fazer com a quantidade">
+                <label><input type="radio" name="sl-modo" value="somar" checked> Somar</label>
+                <label><input type="radio" name="sl-modo" value="corrigir"> Corrigir o total</label>
+            </div>
             <label class="sl-check">
                 <input type="checkbox" id="sl-ocultar-contados"> Ocultar já contados
             </label>

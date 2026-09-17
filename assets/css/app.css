@@ -1736,7 +1736,18 @@ body.page-sem-lote .app-main {
 
 @media (max-width: 720px) {
     .pl-pane-head { flex-direction: column; align-items: stretch; }
-    .pl-col-validade { display: none; }
+
+    /* No coletor cabem quatro colunas, e quem conta precisa destas: produto,
+       lote, saldo do sistema e quanto ja foi contado. Grupo contabil e uma
+       dimensao de filtro, nao de leitura linha a linha, e ja esta no seletor
+       acima. Valor sai pelo mesmo motivo que o PDF de contagem nao o traz:
+       numa folha de conferencia, ver o dinheiro tenta quem conta a "bater"
+       com o esperado em vez de contar o que esta na prateleira. */
+    .pl-col-validade,
+    .pl-col-grupo,
+    .pl-col-valor {
+        display: none;
+    }
 }
 
 /* ---- Conferencia do local no relatorio ---- */
@@ -1892,4 +1903,129 @@ body.page-sem-lote .app-main {
 .sl-atualizar:disabled {
     opacity: 0.5;
     cursor: wait;
+}
+
+/* Modo somar/corrigir na tela "Sem lote".
+   Mesma redacao e mesmo comportamento da tela de lotes: o operador aprende a
+   interacao uma vez e ela vale nas duas. Aqui o grupo fica na barra de cima,
+   porque a quantidade e digitada em cada linha, e nao num painel lateral. */
+.sl-modo {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.sl-modo label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+}
+
+/* Corrigir substitui o total: a tela inteira muda de tom para que ninguem
+   pressione Enter achando que esta somando. */
+body.sl-corrigindo .sl-modo {
+    color: #92400e;
+    font-weight: 600;
+}
+
+body.sl-corrigindo .sl-qtd {
+    border-color: #f59e0b;
+    background: #fffbeb;
+}
+
+body.sl-corrigindo .sl-qtd::placeholder {
+    color: #b45309;
+    opacity: 0.8;
+}
+
+/* ===========================================================================
+   Coletor e celular (<= 720px)
+   ===========================================================================
+   A contagem acontece de pe, na frente da prateleira, com um aparelho na mao.
+   Nessa largura a navbar nao cabia em uma linha e empurrava a PAGINA para
+   scroll horizontal: "Relatorio", "Posicao" e "Sair" ficavam fora do alcance e
+   a tabela saia do lugar junto. A tabela ja tem rolagem propria; a pagina nao
+   pode ter. */
+@media (max-width: 720px) {
+    /* A tabela rola dentro do proprio quadro. Fora dela, nada rola de lado. */
+    body {
+        overflow-x: hidden;
+    }
+
+    .app-navbar .container-fluid {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .app-navbar .container-fluid > .d-flex {
+        flex-wrap: wrap;
+        gap: 0.35rem !important;
+        width: 100%;
+    }
+
+    .app-navbar .nav-meta {
+        width: 100%;
+        order: -1;
+    }
+
+    .app-navbar .btn-ghost {
+        padding: 0.3rem 0.55rem;
+        font-size: 0.78rem;
+    }
+
+    /* Linha mais baixa = mais produtos por tela. O nome era o vilao: com o
+       codigo em linha propria, cada item ocupava cinco linhas de texto. */
+    .sl-table td,
+    .sl-table th {
+        padding: 0.4rem 0.45rem;
+    }
+
+    .sl-nome-main {
+        font-size: 0.82rem;
+        line-height: 1.25;
+    }
+
+    .sl-cod {
+        display: inline;
+        margin-left: 0.4rem;
+        font-size: 0.7rem;
+    }
+
+    /* O "#" so numera a tela e nao ajuda a contar; a unidade cabe ao lado do
+       saldo na cabeca de quem conta. Sair com os dois libera a largura que
+       faltava para o botao OK aparecer sem rolar a tabela. */
+    .sl-col-n,
+    .sl-col-und {
+        display: none;
+    }
+
+    .sl-qtd {
+        width: 64px;
+    }
+
+    .sl-col-saldo,
+    .sl-col-ja {
+        font-size: 0.8rem;
+    }
+}
+
+/* Nome e codigo na mesma linha: com o nome em bloco, o codigo caia sozinho na
+   linha de baixo e cada produto custava uma linha de texto a mais. */
+@media (max-width: 720px) {
+    .sl-nome-main {
+        display: inline;
+        font-size: 0.78rem;
+        line-height: 1.2;
+    }
+
+    /* A celula e flex-column no desktop, o que poe cada span em uma linha.
+       No coletor ela volta a ser bloco para o codigo caber ao lado do nome. */
+    .sl-nome {
+        display: block;
+        line-height: 1.2;
+    }
 }
