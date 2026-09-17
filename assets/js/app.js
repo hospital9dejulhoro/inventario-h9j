@@ -212,13 +212,15 @@
         form.addEventListener('submit', function (event) {
             var codigo = form.getAttribute('data-confirmar-codigo') || '';
             var total = form.getAttribute('data-confirmar-total') || '0';
+            // Inclui o artigo: "o inventário" / "a contagem avulsa".
+            var rotulo = form.getAttribute('data-confirmar-rotulo') || 'o inventário';
             var itens = total === '1' ? '1 item gravado' : total + ' itens gravados';
 
             var resposta = window.prompt(
-                'Apagar o inventário ' + codigo + ' e ' + itens + '?\n\n'
-                + 'Isso remove a contagem de TODOS os operadores deste inventário '
+                'Apagar ' + rotulo + ' ' + codigo + ' e ' + itens + '?\n\n'
+                + 'Isso remove a contagem de TODOS os operadores '
                 + 'e não pode ser desfeito.\n\n'
-                + 'Para confirmar, digite o código do inventário:'
+                + 'Para confirmar, digite o código:'
             );
 
             if (resposta === null) {

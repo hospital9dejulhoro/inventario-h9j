@@ -31,6 +31,7 @@ $somenteComSaldo = !empty($somenteComSaldo);
 $avulso = !empty($avulso);
 $foraDoInventario = (int) ($foraDoInventario ?? 0);
 $valorTotal = (float) ($valorTotal ?? 0);
+$bipagensAvulsa = (int) ($bipagensAvulsa ?? 0);
 
 $contados = 0;
 foreach ($linhas as $linha) {
@@ -194,6 +195,20 @@ $moeda = function ($v) {
                     <button type="submit" class="btn btn-primary">Mover contagem</button>
                 </form>
             </details>
+            <?php /* O outro destino de uma avulsa: o lixo. Aberta no local
+                     errado, ou substituída pelo inventário de verdade sem ter
+                     sido vinculada, ela ficaria para sempre na lista. */ ?>
+            <form action="<?= e(url('inventario-item.php')) ?>" method="post" class="pl-descartar-form"
+                  data-confirmar-codigo="<?= e($codinventario) ?>"
+                  data-confirmar-total="<?= $bipagensAvulsa ?>"
+                  data-confirmar-rotulo="a contagem avulsa">
+                <?= csrf_field() ?>
+                <input type="hidden" name="acao" value="excluir_avulsa">
+                <input type="hidden" name="CODINVENTARIO" value="<?= e($codinventario) ?>">
+                <input type="hidden" name="voltar" value="por-lote.php">
+                <button type="submit" class="btn btn-ghost sl-link"
+                        title="Apagar esta contagem avulsa">Descartar avulsa</button>
+            </form>
             <?php endif; ?>
             <a class="btn btn-ghost sl-link" href="por-lote.php">Trocar inventário</a>
         </div>

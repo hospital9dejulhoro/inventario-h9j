@@ -34,6 +34,56 @@ if ($acao === 'excluir') {
     redirect_to($redirectUrl);
 }
 
+/**
+ * Descarta uma contagem avulsa inteira.
+ *
+ * Separado de excluir_inventario porque recusa qualquer código que NÃO seja da
+ * faixa avulsa. O botão aparece na lista de avulsas, ao lado de contagens que
+ * são rascunho por natureza; sem essa trava, um POST forjado dali apagaria um
+ * inventário de verdade do RM.
+ */
+if ($acao === 'excluir_avulsa') {
+    // Volta para a tela de onde veio. Whitelist porque destino de redirect
+    // vindo de POST é entrada do usuário como qualquer outra.
+    $telas = ['inventario.php', 'por-lote.php', 'sem-lote.php'];
+    $voltar = (string) ($_POST['voltar'] ?? 'por-lote.php');
+    if (!in_array($voltar, $telas, true)) {
+        $voltar = 'por-lote.php';
+    }
+
+    if ($codinventario === '') {
+        flash_set('danger', 'Código da contagem avulsa não informado.');
+        redirect_to($voltar);
+    }
+
+    if (!ZMDCODBARRAS::ehCodigoAvulso($codinventario)) {
+        flash_set(
+            'danger',
+            "{$codinventario} não é uma contagem avulsa. Inventário cadastrado no RM "
+            . 'só pode ser excluído pela tela de Leitura.'
+        );
+        redirect_to($voltar);
+    }
+
+    $total = ZMDCODBARRAS::contarPorInventario($codinventario);
+
+    if (ZMDCODBARRAS::excluirPorInventario($codinventario)) {
+        SessionManager::removeRecentInventario($codinventario);
+        $last = SessionManager::getLastInventario();
+        if ($last !== null && ($last['codinventario'] ?? '') === $codinventario) {
+            SessionManager::clearLastInventario();
+            SessionManager::resetSessionScans();
+        }
+        flash_set('success', $total > 0
+            ? "Contagem avulsa {$codinventario} descartada ({$total} itens removidos)."
+            : "Contagem avulsa {$codinventario} descartada (não havia itens contados).");
+    } else {
+        flash_set('danger', 'Não foi possível descartar a contagem avulsa.');
+    }
+
+    redirect_to($voltar);
+}
+
 if ($acao === 'excluir_inventario') {
     if ($codinventario === '') {
         flash_set('danger', 'Código do inventário não informado.');

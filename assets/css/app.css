@@ -2029,3 +2029,47 @@ body.sl-corrigindo .sl-qtd::placeholder {
         line-height: 1.2;
     }
 }
+
+/* Linha de contagem avulsa: o link de continuar ocupa a linha, e o descarte
+   fica ao lado. Fora do <a> de proposito — botao dentro de link e clique
+   ambiguo, e aqui um dos dois apaga a contagem de todo mundo. */
+.inv-open-row {
+    display: flex;
+    align-items: stretch;
+    gap: 0.5rem;
+}
+
+.inv-open-row .inv-open-item {
+    flex: 1;
+    min-width: 0;
+}
+
+.inv-open-descartar {
+    display: flex;
+    align-items: center;
+}
+
+.inv-open-descartar .btn-link-danger {
+    white-space: nowrap;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+}
+
+.inv-open-descartar .btn-link-danger:hover {
+    border-color: #fca5a5;
+    background: #fef2f2;
+}
+
+@media (max-width: 480px) {
+    /* Numa tela estreita, o descarte vai para baixo em vez de espremer o
+       link de continuar, que e a acao comum. */
+    .inv-open-row {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .inv-open-descartar {
+        justify-content: flex-end;
+    }
+}

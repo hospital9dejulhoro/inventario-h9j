@@ -28,7 +28,7 @@ if ($contagensAvulsas === []) {
     </div>
     <ul class="inv-open-items">
         <?php foreach ($contagensAvulsas as $avulsa): ?>
-            <li>
+            <li class="inv-open-row">
                 <a class="inv-open-item"
                    href="<?= e(url($destinoAvulsa . '?' . http_build_query([
                        'CODINVENTARIO' => $avulsa['codinventario'],
@@ -52,6 +52,23 @@ if ($contagensAvulsas === []) {
                     </span>
                     <span class="inv-open-action">Continuar</span>
                 </a>
+                <?php /* Avulsa é rascunho: aberta no local errado ou por
+                         engano, precisa poder ser jogada fora daqui mesmo, sem
+                         ter de entrar nela pela tela de Leitura. A confirmação
+                         por digitação é a mesma da exclusão de inventário — o
+                         que se apaga é a contagem de todo mundo. */ ?>
+                <form action="<?= e(url('inventario-item.php')) ?>" method="post"
+                      class="inv-open-descartar"
+                      data-confirmar-codigo="<?= e($avulsa['codinventario']) ?>"
+                      data-confirmar-total="<?= (int) $avulsa['bipagens'] ?>"
+                      data-confirmar-rotulo="a contagem avulsa">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="acao" value="excluir_avulsa">
+                    <input type="hidden" name="CODINVENTARIO" value="<?= e($avulsa['codinventario']) ?>">
+                    <input type="hidden" name="voltar" value="<?= e($destinoAvulsa) ?>">
+                    <button type="submit" class="btn-link btn-link-danger"
+                            title="Descartar a contagem avulsa <?= e($avulsa['codinventario']) ?>">Descartar</button>
+                </form>
             </li>
         <?php endforeach; ?>
     </ul>

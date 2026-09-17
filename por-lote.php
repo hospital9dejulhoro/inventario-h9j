@@ -73,6 +73,10 @@ if ($modoLista) {
         redirect_to('por-lote.php?' . http_build_query($ctx->params($paramsFiltro)));
     }
 
+    // Só na avulsa, e só porque a confirmação de descarte precisa dizer quantos
+    // lançamentos vão embora — não quantas linhas da tela estão marcadas.
+    $bipagensAvulsa = $avulso ? ZMDCODBARRAS::contarPorInventario($codinventario) : 0;
+
     $linhas = InventarioRM::listarPosicaoPorLote($codloc, $busca, $grupoContabil, $somenteComSaldo);
     $grupos = InventarioRM::gruposContabeisDoLocal($codloc, $somenteComSaldo);
     // Avulsa nao tem itens gerados no RM para comparar: tudo que tem posicao no
