@@ -13,6 +13,13 @@
     var countsEl = document.getElementById('sl-counts');
     var saving = false;
 
+    // Sem tabela não há nada a ligar. A tela de seleção não carrega este
+    // script, mas uma mudança de view que carregue quebraria a página inteira
+    // no primeiro addEventListener — a tela de lotes já tem essa guarda.
+    if (!table) {
+        return;
+    }
+
     function fmtQtd(n) {
         var s = Number(n).toFixed(3).replace('.', ',');
         return s.replace(/,?0+$/, '').replace(/,$/, '') || '0';
@@ -100,6 +107,7 @@
         body.append('quantidade', raw);
         body.append('CODINVENTARIO', cfg.inventario);
         body.append('CODLOC', cfg.codloc);
+        body.append('_token', cfg.token || '');
 
         fetch(cfg.saveUrl, { method: 'POST', body: body, credentials: 'same-origin' })
             .then(function (r) { return r.json(); })

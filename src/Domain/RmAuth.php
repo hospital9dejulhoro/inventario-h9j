@@ -205,9 +205,9 @@ class RmAuth
         $fail = ['tried' => false, 'success' => false, 'rejected' => false, 'message' => ''];
 
         $primary = self::apiBasesConfigured($env);
-        $fallbacks = self::apiBasesFallback($primary);
+        $fallbacks = self::apiBasesFallback($env, $primary);
         if ($primary === [] && $fallbacks === []) {
-            $fail['message'] = 'Sem api_url';
+            $fail['message'] = 'Sem api_url configurada para este ambiente';
             return $fail;
         }
 
@@ -473,12 +473,6 @@ class RmAuth
         ];
     }
 
-    /** @deprecated use httpPost */
-    private static function httpPostJson(string $url, string $payload, int $timeout = 10): array
-    {
-        return self::httpPost($url, $payload, 'application/json', $timeout);
-    }
-
     /**
      * @return string[]
      */
@@ -498,24 +492,22 @@ class RmAuth
     }
 
     /**
+     * Hosts alternativos do RM Host, declarados no ambiente (`api_fallbacks`).
+     *
+     * Antes era uma lista fixa de IPs aqui dentro. Com ela, um Host de outro
+     * ambiente podia validar a senha de quem escolheu Produção — a tela dizia
+     * um ambiente e quem conferia a credencial era outro. Agora quem quiser
+     * alternativa declara explicitamente, por ambiente, no environments.php.
+     *
      * @param string[] $already
      * @return string[]
      */
-    private static function apiBasesFallback(array $already = []): array
+    private static function apiBasesFallback(array $env, array $already = []): array
     {
-        // Ordem: Host que está respondendo hoje (.20), depois demais
-        $bases = [
-            'https://172.20.0.20:8051',
-            'https://172.20.0.21:8051',
-            'https://172.20.0.30:8051',
-            'http://172.20.0.20:8051',
-            'http://172.20.0.21:8051',
-            'http://172.20.0.30:8051',
-        ];
         $out = [];
-        foreach ($bases as $b) {
-            if (!in_array($b, $already, true)) {
-                $out[] = $b;
+        foreach (EnvironmentManager::apiFallbacks($env) as $base) {
+            if (!in_array($base, $already, true)) {
+                $out[] = $base;
             }
         }
         return $out;
@@ -526,9 +518,11 @@ class RmAuth
      */
     private static function apiBases(array $env): array
     {
+        $configured = self::apiBasesConfigured($env);
+
         return array_values(array_unique(array_merge(
-            self::apiBasesConfigured($env),
-            self::apiBasesFallback(self::apiBasesConfigured($env))
+            $configured,
+            self::apiBasesFallback($env, $configured)
         )));
     }
 
@@ -608,9 +602,18 @@ class RmAuth
         return 'desconhecido(' . $len . ' chars)';
     }
 
+    /**
+     * Confere a senha contra o que a GUSUARIO guarda.
+     *
+     * Só bcrypt e os formatos legados do RM. A versão anterior terminava com
+     * um hash_equals($stored, $plain): se a coluna guardasse a senha em texto
+     * puro, o login passava — e o app aceitava tratar texto puro como
+     * credencial válida. Um banco nesse estado é um problema a resolver no RM,
+     * não algo a acomodar aqui.
+     */
     public static function verifyPassword(string $plain, string $stored): bool
     {
-        if ($stored === null || $stored === '') {
+        if ($stored === '') {
             return false;
         }
 
@@ -635,7 +638,7 @@ class RmAuth
             }
         }
 
-        return hash_equals($storedTrim, $plain);
+        return false;
     }
 
     private static function verifyBcrypt(string $plain, string $hash): bool

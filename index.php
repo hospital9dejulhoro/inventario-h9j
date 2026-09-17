@@ -24,9 +24,15 @@ $showNavbar = $isConnected;
 $lastInventario = SessionManager::getLastInventario();
 $recentInventarios = SessionManager::getRecentInventarios();
 
-if ($isConnected) {
+if ($isConnected && $recentInventarios !== []) {
+    // Uma consulta para a lista toda. Uma por linha fazia a tela inicial abrir
+    // cinco idas ao SQL Server só para escrever "N itens".
+    $totais = ZMDCODBARRAS::contarPorInventarios(
+        array_column($recentInventarios, 'codinventario')
+    );
+
     foreach ($recentInventarios as $i => $item) {
-        $recentInventarios[$i]['total'] = ZMDCODBARRAS::contarPorInventario($item['codinventario'] ?? '');
+        $recentInventarios[$i]['total'] = $totais[trim((string) ($item['codinventario'] ?? ''))] ?? 0;
     }
 }
 

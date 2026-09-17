@@ -75,6 +75,27 @@ class SessionManager
         $_SESSION[self::KEY_RECENT_INVENTARIOS] = array_values($filtered);
     }
 
+    /**
+     * A contagem passou de um código para outro (avulsa vinculada ao RM).
+     *
+     * Sem isto, o "último inventário" continuava apontando para o código
+     * avulso recém-esvaziado: na visita seguinte sem parâmetros, a tela
+     * retomava uma contagem que não existe mais.
+     */
+    public static function trocarCodigoInventario(string $de, string $para, string $codloc): void
+    {
+        self::removeRecentInventario($de);
+
+        $last = self::getLastInventario();
+        $quantidade = (string) ($last['quantidade'] ?? '1');
+
+        if ($last !== null && ($last['codinventario'] ?? '') === $de) {
+            self::clearLastInventario();
+        }
+
+        self::setLastInventario($codloc, $para, $quantidade);
+    }
+
     public static function incrementSessionScans(): void
     {
         $_SESSION[self::KEY_SESSION_SCANS] = self::getSessionScans() + 1;
@@ -131,6 +152,24 @@ class SessionManager
         $_SESSION[self::KEY_CONNECTED] = $connected;
     }
 
+    /**
+     * Troca o identificador da sessão no momento em que ela vira autenticada.
+     *
+     * Sem isso, um identificador que alguém tenha conseguido plantar antes do
+     * login (link com PHPSESSID, máquina compartilhada do posto) continua
+     * valendo depois — e passa a valer autenticado. O token CSRF é rotacionado
+     * junto pelo mesmo motivo.
+     */
+    public static function renovarIdentificador(): void
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            return;
+        }
+
+        session_regenerate_id(true);
+        unset($_SESSION['csrf_token']);
+    }
+
     public static function isConnected(): bool
     {
         return !empty($_SESSION[self::KEY_CONNECTED]) && self::getEnvironment() !== null;
@@ -174,7 +213,11 @@ class SessionManager
             $_SESSION[self::KEY_CONNECTED],
             $_SESSION[self::KEY_USERNAME],
             $_SESSION[self::KEY_DISPLAY_NAME],
-            $_SESSION[self::KEY_LAST_TEST]
+            $_SESSION[self::KEY_LAST_TEST],
+            // O contador "bipados agora" é da sessão de trabalho, não do
+            // inventário: mantê-lo somava a contagem do próximo operador.
+            $_SESSION[self::KEY_SESSION_SCANS],
+            $_SESSION['csrf_token']
         );
 
         EnvironmentManager::setCurrent(null);

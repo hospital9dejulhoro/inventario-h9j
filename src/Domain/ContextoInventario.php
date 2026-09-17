@@ -3,10 +3,12 @@
 /**
  * Resolve o inventário e o local ativos a partir da URL ou da sessão.
  *
- * É a mesma sequência que inventario.php e sem-lote.php repetem hoje: normaliza
- * a máscara AA.LLL.NNN, sincroniza o CODLOC, valida o local e confirma no RM.
- * Extraído para que a tela de lotes não nascesse como uma terceira cópia — as
- * outras duas podem adotar isto depois, num commit só de limpeza.
+ * Normaliza a máscara AA.LLL.NNN, sincroniza o CODLOC, valida o local e
+ * confirma no RM — ou reconhece a faixa 9xx como contagem avulsa.
+ *
+ * As três telas de contagem (leitura, por lote e sem lote) passam por aqui.
+ * Enquanto eram três cópias, a tela "sem lote" ficou sem o ramo de contagem
+ * avulsa e recusava códigos que as outras duas aceitavam.
  */
 class ContextoInventario
 {
@@ -34,14 +36,17 @@ class ContextoInventario
     /**
      * @param string $script Página que recebe os redirects de validação.
      * @param array<string, string> $paramsExtra Parâmetros preservados nos redirects.
+     * @param bool $forcarValidacao Trata a requisição como ação do usuário mesmo
+     *     sem `aplicar` na URL — é o caso do bipe, que chega com o código de
+     *     barras e precisa reclamar em voz alta se o inventário não servir.
      */
-    public static function resolver(string $script, array $paramsExtra = []): self
+    public static function resolver(string $script, array $paramsExtra = [], bool $forcarValidacao = false): self
     {
         $ctx = new self();
         $ctx->codloc = isset($_GET['CODLOC']) ? (string) $_GET['CODLOC'] : '';
         $ctx->codinventario = isset($_GET['CODINVENTARIO']) ? (string) $_GET['CODINVENTARIO'] : '';
 
-        $deveValidar = isset($_GET['aplicar']);
+        $deveValidar = isset($_GET['aplicar']) || $forcarValidacao;
         $veioDaUrl = isset($_GET['CODINVENTARIO']) && trim((string) $_GET['CODINVENTARIO']) !== '';
 
         if ($ctx->codinventario === '' && SessionManager::hasLastInventario()) {
@@ -101,6 +106,11 @@ class ContextoInventario
                 } elseif ($deveValidar) {
                     flash_set('danger', $rm['error']);
                     $ctx->redirecionar($script, $paramsExtra);
+                } elseif ($veioDaUrl) {
+                    // Código veio num link mas não serve: avisa sem entrar na
+                    // tela de contagem. Calado, o usuário fica olhando uma tela
+                    // de seleção sem entender por que o código dele sumiu.
+                    flash_set('warning', $rm['error']);
                 }
             }
         }

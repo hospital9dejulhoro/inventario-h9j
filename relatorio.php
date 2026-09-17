@@ -4,6 +4,10 @@ require __DIR__ . '/bootstrap.php';
 
 SessionManager::requireConnection();
 
+// A conferência cruza a posição inteira do local com a contagem; nas
+// exportações isso ainda vira CSV ou PDF. É o caminho mais demorado do app.
+app_operacao_demorada();
+
 $codinventario = trim((string) ($_GET['CODINVENTARIO'] ?? ''));
 $export = strtolower(trim((string) ($_GET['export'] ?? '')));
 
@@ -124,6 +128,7 @@ if ($export === 'csv' && $codinventario !== '') {
 }
 
 if ($export === 'pdf' && $codinventario !== '') {
+    carregar_pdf('RelatorioContagemPdf');
     $envAtual = EnvironmentManager::getCurrent();
     $localLabel = $codloc;
     if ($nomeLocal !== '') {

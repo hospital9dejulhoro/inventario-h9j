@@ -181,6 +181,7 @@ $moeda = function ($v) {
                 <summary class="btn btn-ghost sl-link">Vincular ao RM</summary>
                 <form action="<?= e(url('vincular-contagem.php')) ?>" method="post" class="pl-vincular-form"
                       onsubmit="return confirm('Mover toda a contagem de <?= e($codinventario) ?> para o código informado?');">
+                    <?= csrf_field() ?>
                     <input type="hidden" name="de" value="<?= e($codinventario) ?>">
                     <p>Informe o inventário que o RM criou para o local <?= e($codloc) ?>. A contagem inteira passa para ele.</p>
                     <input type="text" name="para" class="form-control mono" required
@@ -386,9 +387,10 @@ $moeda = function ($v) {
 
     <script>
     window.PL_CFG = {
-        saveUrl: <?= json_encode(url('por-lote-salvar.php'), JSON_UNESCAPED_UNICODE) ?>,
-        inventario: <?= json_encode($codinventario, JSON_UNESCAPED_UNICODE) ?>,
-        codloc: <?= json_encode($codloc, JSON_UNESCAPED_UNICODE) ?>
+        saveUrl: <?= json_encode(url('por-lote-salvar.php'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+        inventario: <?= json_encode($codinventario, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+        codloc: <?= json_encode($codloc, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+        token: <?= json_encode(csrf_token(), JSON_HEX_TAG) ?>
     };
     </script>
     <script src="<?= e(url('assets/js/por-lote.js')) ?>"></script>

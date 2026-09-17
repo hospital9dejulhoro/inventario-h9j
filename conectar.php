@@ -6,6 +6,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect_to('index.php');
 }
 
+csrf_exigir('index.php');
+
 $ambiente = $_POST['ambiente'] ?? '';
 $usuario = trim($_POST['usuario'] ?? '');
 $senha = (string) ($_POST['senha'] ?? '');
@@ -45,6 +47,10 @@ if (!$auth['success']) {
     flash_set('danger', $auth['message']);
     redirect_to('index.php');
 }
+
+// A sessão acabou de virar autenticada: identificador novo, para que um
+// PHPSESSID plantado antes do login não continue valendo depois dele.
+SessionManager::renovarIdentificador();
 
 SessionManager::setUsername($auth['codusuario']);
 SessionManager::setDisplayName($auth['nome']);

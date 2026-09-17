@@ -27,11 +27,7 @@ class RelatorioContagemPdf extends RelatorioPdfBase
         $pdf->localLabel = (string) ($dados['local_label'] ?? '');
         $pdf->ambiente = (string) ($dados['ambiente'] ?? '');
         $pdf->operador = (string) ($dados['operador'] ?? '');
-        $logo = APP_ROOT . DS . 'assets' . DS . 'img' . DS . 'logo.png';
-        if (!is_file($logo)) {
-            $logo = APP_ROOT . DS . 'logo.png';
-        }
-        $pdf->logoPath = is_file($logo) ? $logo : '';
+        $pdf->logoPath = self::acharLogo();
 
         $pdf->AliasNbPages();
         $pdf->AddPage();

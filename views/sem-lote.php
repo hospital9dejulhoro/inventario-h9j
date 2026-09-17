@@ -2,7 +2,10 @@
 /** @var string $codloc */
 /** @var string $codinventario */
 /** @var bool $modoLista */
+/** @var bool $avulso */
 /** @var bool $retomadoDaSessao */
+/** @var bool $somenteComSaldo */
+/** @var bool $listaTruncada */
 /** @var array $itens */
 /** @var array<int, float> $totaisProduto */
 /** @var int $qtdItensRm */
@@ -16,19 +19,30 @@ $qtdItensRm = (int) ($qtdItensRm ?? 0);
 $itens = $itens ?? [];
 $totaisProduto = $totaisProduto ?? [];
 $inventariosAbertos = $inventariosAbertos ?? [];
+$contagensAvulsas = $contagensAvulsas ?? [];
+$avulso = !empty($avulso);
+$somenteComSaldo = !empty($somenteComSaldo);
+$listaTruncada = !empty($listaTruncada);
+
 $contados = 0;
+$temSaldo = false;
 foreach ($itens as $it) {
     if (($totaisProduto[(int) ($it['idprd'] ?? 0)] ?? 0) > 0) {
         $contados++;
     }
+    if ((float) ($it['saldo'] ?? 0) != 0.0) {
+        $temSaldo = true;
+    }
 }
+
+$colunas = $temSaldo ? 7 : 6;
 ?>
 
 <div class="page-wrap-wide inv-page sl-page">
     <header class="inv-page-header sl-header">
         <h1 class="page-title">Itens sem lote</h1>
         <p class="page-subtitle">
-            Produtos do inventário RM sem cadastro de lote. Digite a quantidade e Enter para gravar.
+            Produtos sem cadastro de lote. Digite a quantidade e Enter para gravar.
         </p>
     </header>
 
@@ -85,6 +99,7 @@ foreach ($itens as $it) {
                         Último inventário carregado. Confirme e aplique.
                     <?php else: ?>
                         Informe AA.LLL.NNN. O local é preenchido automaticamente.
+                        Contagens avulsas (faixa 9xx) também valem aqui.
                     <?php endif; ?>
                 </p>
             </div>
@@ -108,6 +123,11 @@ foreach ($itens as $it) {
             <button type="submit" name="aplicar" value="1" class="btn btn-primary">Listar itens sem lote</button>
         </form>
     </section>
+
+    <?php
+    $destinoAvulsa = 'sem-lote.php';
+    require __DIR__ . '/_avulsas.php';
+    ?>
     <?php else: ?>
     <div class="sl-toolbar" id="sl-toolbar">
         <div class="sl-toolbar-meta">
@@ -117,12 +137,25 @@ foreach ($itens as $it) {
                 <span><?= e($envAtual['label']) ?></span>
             <?php endif; ?>
             <span id="sl-counts"><?= (int) $contados ?>/<?= (int) $qtdItensRm ?> contados</span>
+            <?php if ($avulso): ?>
+                <span class="pl-badge-avulsa" title="Código não existe em TINVENTARIO">Avulsa · fora do RM</span>
+            <?php endif; ?>
         </div>
         <div class="sl-toolbar-actions">
             <input type="search" id="sl-busca" class="form-control sl-busca" placeholder="Filtrar produto..." autocomplete="off">
             <label class="sl-check">
                 <input type="checkbox" id="sl-ocultar-contados"> Ocultar já contados
             </label>
+            <?php if ($avulso): ?>
+            <form action="sem-lote.php" method="get" class="sl-inline-form">
+                <input type="hidden" name="CODINVENTARIO" value="<?= e($codinventario) ?>">
+                <input type="hidden" name="CODLOC" value="<?= e($codloc) ?>">
+                <label class="sl-check">
+                    <input type="checkbox" name="todos" value="1" data-autosubmit
+                           <?= $somenteComSaldo ? '' : 'checked' ?>> Incluir zerados
+                </label>
+            </form>
+            <?php endif; ?>
             <a class="btn btn-ghost sl-link" href="inventario.php?<?= e(http_build_query(['CODINVENTARIO' => $codinventario, 'aplicar' => '1'])) ?>">Leitura (lote)</a>
             <a class="btn btn-ghost sl-link" href="por-lote.php?<?= e(http_build_query(['CODINVENTARIO' => $codinventario, 'aplicar' => '1'])) ?>">Por lote</a>
             <a class="btn btn-ghost sl-link" href="sem-lote.php">Trocar inventário</a>
@@ -131,6 +164,13 @@ foreach ($itens as $it) {
 
     <p class="sl-hint" id="sl-status">Digite a quantidade e pressione Enter. <?= (int) $qtdItensRm ?> itens sem lote.</p>
 
+    <?php if ($listaTruncada): ?>
+    <p class="sl-hint is-err">
+        A lista bateu o teto de <?= (int) InventarioRM::LIMITE_ITENS ?> produtos e foi cortada.
+        Use o filtro para achar o item, ou conte por leitura de código de barras.
+    </p>
+    <?php endif; ?>
+
     <div class="sl-table-wrap">
         <table class="sl-table" id="sl-table">
             <thead>
@@ -138,6 +178,7 @@ foreach ($itens as $it) {
                 <th class="sl-col-n">#</th>
                 <th>Produto</th>
                 <th class="sl-col-und">Und</th>
+                <?php if ($temSaldo): ?><th class="sl-col-saldo">Saldo</th><?php endif; ?>
                 <th class="sl-col-ja">Já</th>
                 <th class="sl-col-qtd">Qtd</th>
                 <th class="sl-col-ok"></th>
@@ -145,17 +186,26 @@ foreach ($itens as $it) {
             </thead>
             <tbody>
             <?php if ($itens === []): ?>
-                <tr><td colspan="6" class="empty">Nenhum item sem lote neste inventário.</td></tr>
+                <tr><td colspan="<?= $colunas ?>" class="empty">
+                    <?php if ($avulso && $somenteComSaldo): ?>
+                        Nenhum produto sem lote com saldo neste local. Marque <strong>Incluir zerados</strong> para ver todos.
+                    <?php else: ?>
+                        Nenhum item sem lote neste inventário.
+                    <?php endif; ?>
+                </td></tr>
             <?php else: ?>
                 <?php foreach ($itens as $i => $item):
                     $idprd = (int) $item['idprd'];
                     $ja = (float) ($totaisProduto[$idprd] ?? 0);
-                    $jaFmt = rtrim(rtrim(number_format($ja, 3, ',', '.'), '0'), ',');
-                    $busca = mb_strtolower(($item['codigo'] ?? '') . ' ' . ($item['nome'] ?? '') . ' ' . $idprd, 'UTF-8');
+                    $saldo = (float) ($item['saldo'] ?? 0);
+                    $termoBusca = mb_strtolower(
+                        ($item['codigo'] ?? '') . ' ' . ($item['nome'] ?? '') . ' ' . $idprd,
+                        'UTF-8'
+                    );
                     ?>
                     <tr class="sl-row <?= $ja > 0 ? 'is-counted' : '' ?>"
                         data-idprd="<?= $idprd ?>"
-                        data-search="<?= e($busca) ?>"
+                        data-search="<?= e($termoBusca) ?>"
                         data-counted="<?= $ja > 0 ? '1' : '0' ?>">
                         <td class="sl-col-n"><?= $i + 1 ?></td>
                         <td class="sl-nome">
@@ -165,7 +215,10 @@ foreach ($itens as $it) {
                             <?php endif; ?>
                         </td>
                         <td class="sl-col-und"><?= e($item['und']) ?></td>
-                        <td class="sl-col-ja sl-ja"><?= $ja > 0 ? e($jaFmt) : '—' ?></td>
+                        <?php if ($temSaldo): ?>
+                            <td class="sl-col-saldo"><?= $saldo != 0.0 ? e(formatar_quantidade($saldo)) : '—' ?></td>
+                        <?php endif; ?>
+                        <td class="sl-col-ja sl-ja"><?= $ja > 0 ? e(formatar_quantidade($ja)) : '—' ?></td>
                         <td class="sl-col-qtd">
                             <input type="text" class="sl-qtd" inputmode="decimal" autocomplete="off"
                                    aria-label="Quantidade <?= e($item['nome']) ?>">
@@ -181,9 +234,10 @@ foreach ($itens as $it) {
     </div>
     <script>
     window.SL_CFG = {
-        saveUrl: <?= json_encode(url('sem-lote-salvar.php'), JSON_UNESCAPED_UNICODE) ?>,
-        inventario: <?= json_encode($codinventario, JSON_UNESCAPED_UNICODE) ?>,
-        codloc: <?= json_encode($codloc, JSON_UNESCAPED_UNICODE) ?>
+        saveUrl: <?= json_encode(url('sem-lote-salvar.php'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+        inventario: <?= json_encode($codinventario, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+        codloc: <?= json_encode($codloc, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+        token: <?= json_encode(csrf_token(), JSON_HEX_TAG) ?>
     };
     </script>
     <script src="<?= e(url('assets/js/sem-lote.js')) ?>"></script>

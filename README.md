@@ -62,48 +62,62 @@ URL: `http://172.20.0.43:9080/`
 
 ---
 
-## Nova arquitetura
+## Arquitetura
 
 ```
 inventario/
-├── index.php                 # Tela inicial — seleção de ambiente
-├── conectar.php              # Processa teste/conexão
-├── desconectar.php           # Encerra sessão
-├── inventario.php            # Tela operacional de inventário
-├── bootstrap.php             # Inicialização da aplicação
+├── index.php                 # Login e seleção de ambiente
+├── conectar.php              # Autentica no RM e abre a sessão
+├── desconectar.php           # Encerra a sessão
+├── inventario.php            # Leitura por bipe (13 dígitos)
+├── inventario-item.php       # Editar / excluir registro e inventário (POST)
+├── por-lote.php              # Contagem por lote, a partir da posição do local
+├── por-lote-salvar.php       # Grava a contagem por lote (JSON)
+├── sem-lote.php              # Folha dos produtos sem cadastro de lote
+├── sem-lote-salvar.php       # Grava a contagem sem lote (JSON)
+├── vincular-contagem.php     # Move uma contagem avulsa para o código do RM
+├── relatorio.php             # Relatório de contagem + conferência (tela/CSV/PDF)
+├── posicao.php               # Posição de estoque do local (tela/CSV/PDF)
+├── bootstrap.php             # Sessão, configuração, autoload manual, erros
 ├── config/
-│   └── environments.php      # Parâmetros por ambiente (host, banco, credenciais)
+│   ├── app.php               # base_path e debug
+│   └── environments.php      # Conexão por ambiente (fora do Git)
 ├── src/
-│   ├── Config/
-│   │   └── EnvironmentManager.php   # Gerenciamento de ambientes
-│   ├── Database/
-│   │   └── Connection.php           # Conexão SQL Server (sqlsrv)
+│   ├── Config/EnvironmentManager.php   # Ambientes, timeouts, teste de conexão
+│   ├── Database/Connection.php         # SQL Server (sqlsrv) com parâmetros
+│   ├── Database/DatabaseException.php  # Erro de banco: mensagem x detalhe
+│   ├── Support/AppException.php        # Erro com mensagem exibível
 │   ├── Domain/
-│   │   └── ZMDCODBARRAS.php         # Regras de negócio do inventário
-│   ├── Http/
-│   │   └── SessionManager.php       # Sessão (ambiente, usuário, status)
-│   └── Helpers/
-│       └── functions.php            # Funções utilitárias
-├── views/
-│   ├── layout.php            # Layout base
-│   ├── home.php              # Tela de seleção de ambiente
-│   └── inventario.php        # Formulário e tabela de registros
-└── assets/
-    ├── css/app.css
-    └── js/app.js
+│   │   ├── ZMDCODBARRAS.php            # Contagem: gravação, totais, avulsas
+│   │   ├── InventarioRM.php            # TINVENTARIO / TITMINVENTARIO / posição
+│   │   ├── ContextoInventario.php      # Resolve inventário+local das 3 telas
+│   │   ├── LocaisEstoque.php           # Locais válidos
+│   │   ├── RmAuth.php                  # Autenticação (API REST, SOAP, GUSUARIO)
+│   │   ├── RelatorioPdfBase.php        # Chrome comum dos PDFs A4
+│   │   ├── RelatorioContagemPdf.php
+│   │   └── PosicaoEstoquePdf.php
+│   ├── Http/SessionManager.php         # Estado da sessão
+│   ├── Helpers/functions.php           # e(), CSRF, quantidades, log, erros
+│   └── Pdf/                            # FPDF
+├── views/                              # layout, home, inventario, por-lote,
+│                                       # sem-lote, relatorio, posicao, _avulsas
+└── assets/                             # css/app.css, js/{app,por-lote,sem-lote}.js
 ```
 
 ## Separação de responsabilidades
 
 | Camada | Responsabilidade |
 |--------|------------------|
-| `config/environments.php` | Dados de conexão por ambiente |
-| `EnvironmentManager` | Leitura, seleção e teste de ambientes |
-| `SessionManager` | Estado da sessão (ambiente ativo, usuário, conexão) |
-| `Connection` | Acesso ao SQL Server usando o ambiente da sessão |
-| `ZMDCODBARRAS` | Regras de negócio (INSERT e SELECT com JOINs) |
+| `config/environments.php` | Dados de conexão e timeouts por ambiente |
+| `EnvironmentManager` | Ambientes, opções do driver, teste de conexão |
+| `SessionManager` | Estado da sessão (ambiente, usuário, inventário atual) |
+| `Connection` | Acesso ao SQL Server, sempre com parâmetros |
+| `ContextoInventario` | Máscara AA.LLL.NNN, local, validação no RM, avulsa |
+| `ZMDCODBARRAS` | Contagem gravada: inserir, corrigir, totalizar |
+| `InventarioRM` | O que o RM diz: inventário, itens, posição de estoque |
+| `RmAuth` | Autenticação do usuário no RM |
 | `views/` | Apresentação HTML |
-| `index.php` / `inventario.php` | Controllers leves (orquestração) |
+| Arquivos da raiz | Controllers leves (orquestração) |
 
 ## Ambientes configurados
 
@@ -115,78 +129,88 @@ inventario/
 
 ### Adicionar um novo ambiente
 
-Edite apenas `config/environments.php`:
-
-```php
-'outro' => [
-    'label'       => 'Outro ambiente',
-    'host'        => '172.20.0.20',
-    'database'    => 'CorporeRM',
-    'usuario'     => 'rm',
-    'senha'       => 'rm',
-    'badge_class' => 'bg-info',
-],
-```
-
-Nenhuma alteração de código é necessária — o seletor na tela inicial lista automaticamente todos os ambientes.
+Edite apenas `config/environments.php` — nenhuma alteração de código é
+necessária. Veja `config/environments.example.php` para a lista completa de
+chaves, incluindo as opcionais `query_timeout`, `login_timeout` e
+`api_fallbacks`.
 
 ## Fluxo do usuário
 
-1. Acessar `/inventario/`
-2. Selecionar **Produção**, **Homologação** ou **Testes**
-3. Informar o nome do usuário (pré-preenchido com o usuário do SO, quando disponível)
-4. Clicar em **Testar Conexão** ou **Conectar**
-5. Na tela de inventário, informar CODLOC, inventário, quantidade e código de barras
-6. Os registros são gravados e listados conforme a lógica original
+1. Acessar a aplicação e escolher **Produção**, **Homologação** ou **Testes**
+2. Entrar com usuário e senha do RM (validados pela API do RM Host)
+3. Escolher um inventário em aberto, digitar o código `AA.LLL.NNN`, ou abrir
+   uma **contagem avulsa** quando o inventário ainda não existe no RM
+4. Contar por um dos três caminhos:
+   - **Leitura** — bipar a etiqueta de 13 dígitos
+   - **Por lote** — escolher a linha na posição do local e digitar a quantidade
+   - **Sem lote** — folha dos produtos que não têm cadastro de lote
+5. Conferir em **Relatório** (totais, conferência do local) e exportar CSV/PDF
+6. Quando o RM criar o inventário de verdade, **Vincular ao RM** move a
+   contagem avulsa para o código definitivo
 
-## Regras de negócio preservadas
+## Contagem avulsa
 
-- INSERT em `ZMDCODBARRAS` com os mesmos campos: `CODIGOBARRAS`, `CODINVENTARIO`, `QUANTIDADE`, `CODLOC`
-- SELECT com JOINs em `TPRODUTO`, `TPRODUTODEF` e `TLOTEPRD`
-- `SUBSTRING` para extrair produto e lote do código de barras
-- `TOP 1000` na listagem (comportamento da versão de produção `h9/`)
-- Formulário via **GET** (compatível com leitores de código de barras)
-- Validação HTML: CODLOC com 3 dígitos, código de barras com 13 dígitos
+Um código avulso é um `AA.LLL.NNN` bem formado com `NNN` a partir de 900 que
+simplesmente não existe em `TINVENTARIO`. Manter o mesmo formato tem três
+motivos: cabe na coluna `CODINVENTARIO` como qualquer outro, todas as telas e
+relatórios já sabem ler, e quando o inventário de verdade for criado no RM
+basta mover a contagem.
 
-## Compatibilidade com versões anteriores
+As três telas de contagem aceitam avulsas. Como não há itens gerados no RM
+contra os quais conferir, a lista de produtos vem da posição de estoque do
+local — inclusive na tela **Sem lote**, que para uma avulsa lista os produtos
+sem `TLOTEPRD` com posição no local (com a opção de incluir os zerados).
 
-As pastas `h9/` e `teste/` foram mantidas com redirecionamento automático:
+## Regras de negócio
 
-- `h9/` → ambiente **produção**
-- `teste/` → ambiente **homologacao**
+- Layout do código de barras: `IDPRD` nos dígitos 1-6, `IDLOTE` nos 8-12.
+  `SUBSTRING(CODIGOBARRAS, 0, 7)` no SQL Server devolve 6 caracteres, não 7.
+- Gravação recusada quando o código não tem 13 dígitos numéricos ou a
+  quantidade não é um número: qualquer uma das duas coisas quebraria os totais
+  do inventário inteiro, não só a linha.
+- Item só é contado se pertencer ao inventário naquele local (`TITMINVENTARIO`),
+  exceto em contagem avulsa.
+- Releitura do mesmo produto/lote grava, mas avisa — contar duas caixas do
+  mesmo lote é legítimo; bipar duas vezes por engano é o erro mais comum.
+- Formulário de leitura via **GET** (compatível com leitores de código de barras).
 
-URLs antigas continuam funcionando, direcionando para a aplicação unificada.
+## Segurança
 
-## Decisões técnicas
+- Toda consulta usa parâmetros (`sqlsrv_query` com bind), nunca concatenação.
+- Todo POST que altera dados exige token CSRF (campo `_token` ou cabeçalho
+  `X-CSRF-Token`).
+- Cookie de sessão com `HttpOnly`, `SameSite=Lax` e `Secure` sob HTTPS;
+  identificador renovado no login.
+- Senha conferida contra bcrypt ou os formatos legados do RM — nunca
+  comparação com texto puro.
+- Autenticação só contra o `api_url` do ambiente escolhido. Hosts alternativos
+  existem apenas se declarados em `api_fallbacks`.
 
-1. **Sessão PHP** para ambiente ativo — evita expor credenciais na URL e permite trocar ambiente sem duplicar código.
-2. **`EnvironmentManager`** centralizado — ponto único para teste de conexão e leitura de configuração.
-3. **SQL compartilhado em `baseSelectSql()`** — elimina duplicação entre `listarPorInventario` e `listarTodos`.
-4. **`encode_db_value()`** — substitui `utf8_encode()` (depreciado no PHP 8.2+) sem alterar o comportamento.
-5. **Bootstrap 5** — interface moderna sem mudar o fluxo operacional.
-6. **Overlay de carregamento** — feedback visual durante submissão de formulários.
+## Erros e tempo de resposta
+
+- Consulta que falha levanta `DatabaseException`: o operador lê uma frase, o
+  log do PHP recebe o `SQLSTATE` e o SQL completo. Antes a falha virava "zero
+  linhas" e a tela dizia "inventário não cadastrado no RM".
+- Endpoints JSON respondem JSON mesmo quando quebram — nada de HTML no meio da
+  resposta.
+- `query_timeout` faz a consulta estourar no SQL Server antes do PHP-FPM, de
+  modo que a tela mostra "estreite o filtro" em vez de um 504 em branco.
+- As telas pesadas (posição, conferência, exportações) levantam o próprio teto
+  de tempo e memória.
+- Listas grandes têm teto (`LIMITE_LOTES`, `LIMITE_ITENS`, `LIMITE_LISTAGEM`) e
+  avisam na tela quando foram cortadas.
 
 ## Requisitos
 
-- PHP com extensão **sqlsrv** habilitada
-- Acesso de rede aos servidores SQL Server dos ambientes RM
-- Servidor web (Apache/XAMPP, IIS, Laragon)
+- PHP 8.0+ (o servidor roda 8.3) com as extensões **sqlsrv** e **mbstring**
+- Acesso de rede ao SQL Server do ambiente e ao RM Host (porta 8051)
+- Servidor web (Apache/XAMPP, Nginx + PHP-FPM, IIS)
 
 ## Melhorias futuras sugeridas
 
-- Prepared statements (`sqlsrv_prepare`) para mitigar SQL injection
-- Migrar gravação para POST com token CSRF (mantendo compatibilidade com leitores)
 - Autenticação integrada ao Active Directory
 - Log de auditoria por usuário e ambiente
 - API REST para integração com coletores mobile
-
-## Alterações em relação ao código original
-
-| Item | Antes | Depois |
-|------|-------|--------|
-| Projetos | `h9/` + `teste/` duplicados | `inventario/` único |
-| Configuração | `config.php` por pasta | `config/environments.php` centralizado |
-| Seleção de ambiente | URL diferente por pasta | Tela inicial com escolha |
-| Conexão | Fixa por pasta | Dinâmica via sessão |
-| Views | HTML misturado no `index.php` | `views/` separadas |
-| Duplicação SQL | Queries repetidas | `baseSelectSql()` + `mapearResultado()` |
+- Paginação no servidor para locais acima do teto de linhas
+- Reserva atômica do número da contagem avulsa (hoje dois operadores
+  simultâneos podem escolher o mesmo número)

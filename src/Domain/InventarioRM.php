@@ -10,15 +10,8 @@ class InventarioRM
     /** Teto de lotes carregados na tela; acima disso use a busca no servidor. */
     public const LIMITE_LOTES = 4000;
 
-
-
-    /**
-     * Escapa aspas simples para uso em literais SQL (valores já normalizados).
-     */
-    private static function sqlStr(string $value): string
-    {
-        return str_replace("'", "''", $value);
-    }
+    /** Teto de produtos na folha "sem lote". */
+    public const LIMITE_ITENS = 4000;
 
     /**
      * @return array{valid: bool, codinventario: string, status: string, error: string}
@@ -39,12 +32,12 @@ class InventarioRM
         }
 
         $c = new Connection('RM');
-        $inv = self::sqlStr($codinventario);
-        $SQL = "SELECT TOP 1 CODINVENTARIO, STATUS
-                FROM TINVENTARIO
-                WHERE CODCOLIGADA = " . self::CODCOLIGADA . "
-                  AND CODINVENTARIO = '{$inv}'";
-        $c->Consulta($SQL);
+        $c->Consulta(
+            'SELECT TOP 1 CODINVENTARIO, STATUS
+             FROM TINVENTARIO
+             WHERE CODCOLIGADA = ? AND CODINVENTARIO = ?',
+            [self::CODCOLIGADA, $codinventario]
+        );
 
         if (!$c->Resultado()) {
             $result['error'] = "Inventário {$codinventario} não está cadastrado no RM (TINVENTARIO). Cadastre-o antes de usar na leitura.";
@@ -68,21 +61,17 @@ class InventarioRM
         }
 
         $c = new Connection('RM');
-        $inv = self::sqlStr($codinventario);
-        $loc = self::sqlStr($codloc);
-        $col = self::CODCOLIGADA;
 
         // Local vem dos itens gerados (TITMINVENTARIO). A tabela TINVENTARIOLOCESTOQUE
         // não existe em todos os bancos RM deste hospital.
-        $SQL = "SELECT TOP 1 1 AS OK
-                FROM TITMINVENTARIO
-                WHERE CODCOLIGADA = {$col}
-                  AND CODINVENTARIO = '{$inv}'
-                  AND (
-                        LTRIM(RTRIM(CODLOC)) = '{$loc}'
-                     OR RIGHT(REPLICATE('0', 3) + LTRIM(RTRIM(CODLOC)), 3) = '{$loc}'
-                  )";
-        $c->Consulta($SQL);
+        $c->Consulta(
+            'SELECT TOP 1 1 AS OK
+             FROM TITMINVENTARIO
+             WHERE CODCOLIGADA = ?
+               AND CODINVENTARIO = ?
+               AND ' . self::condicaoCodloc(''),
+            array_merge([self::CODCOLIGADA, $codinventario], self::paramsCodloc($codloc))
+        );
 
         return (bool) $c->Resultado();
     }
@@ -132,25 +121,21 @@ class InventarioRM
             return 0;
         }
 
-        $c = new Connection('RM');
-        $inv = self::sqlStr($codinventario);
-        $col = self::CODCOLIGADA;
+        $params = [self::CODCOLIGADA, $codinventario];
         $whereLoc = '';
 
-        if ($codloc !== '') {
-            $loc = self::sqlStr(LocaisEstoque::normalizar($codloc));
-            $whereLoc = " AND (
-                LTRIM(RTRIM(CODLOC)) = '{$loc}'
-                OR RIGHT(REPLICATE('0', 3) + LTRIM(RTRIM(CODLOC)), 3) = '{$loc}'
-            )";
+        if (LocaisEstoque::normalizar($codloc) !== '') {
+            $whereLoc = ' AND ' . self::condicaoCodloc('');
+            $params = array_merge($params, self::paramsCodloc($codloc));
         }
 
-        $SQL = "SELECT COUNT(*) AS TOTAL
-                FROM TITMINVENTARIO
-                WHERE CODCOLIGADA = {$col}
-                  AND CODINVENTARIO = '{$inv}'
-                  {$whereLoc}";
-        $c->Consulta($SQL);
+        $c = new Connection('RM');
+        $c->Consulta(
+            "SELECT COUNT(*) AS TOTAL
+             FROM TITMINVENTARIO
+             WHERE CODCOLIGADA = ? AND CODINVENTARIO = ?{$whereLoc}",
+            $params
+        );
 
         if (!$c->Resultado()) {
             return 0;
@@ -160,99 +145,122 @@ class InventarioRM
     }
 
     /**
-     * Itens gerados no inventário RM (TITMINVENTARIO).
-     *
-     * @return array<int, array{idprd: string, nome: string, und: string, codloc: string, numlote: string}>
-     */
-    public static function listarItensInventario(string $codinventario, string $codloc = ''): array
-    {
-        $codinventario = trim($codinventario);
-        if ($codinventario === '') {
-            return [];
-        }
-
-        $c = new Connection('RM');
-        $inv = self::sqlStr($codinventario);
-        $col = self::CODCOLIGADA;
-        $whereLoc = '';
-
-        if ($codloc !== '') {
-            $loc = self::sqlStr(LocaisEstoque::normalizar($codloc));
-            $whereLoc = " AND (
-                LTRIM(RTRIM(I.CODLOC)) = '{$loc}'
-                OR RIGHT(REPLICATE('0', 3) + LTRIM(RTRIM(I.CODLOC)), 3) = '{$loc}'
-            )";
-        }
-
-        $SQL = "SELECT TOP 2000 I.IDPRD, I.CODLOC, T.NOMEFANTASIA AS NOME,
-                       TPRODUTODEF.CODUNDCONTROLE AS UND
-                FROM TITMINVENTARIO I
-                LEFT JOIN TPRODUTO T ON T.IDPRD = I.IDPRD
-                LEFT JOIN TPRODUTODEF ON TPRODUTODEF.IDPRD = I.IDPRD
-                WHERE I.CODCOLIGADA = {$col}
-                  AND I.CODINVENTARIO = '{$inv}'
-                  {$whereLoc}
-                ORDER BY T.NOMEFANTASIA, I.IDPRD";
-        $c->Consulta($SQL);
-
-        $itens = [];
-        while ($c->Resultado()) {
-            $itens[] = [
-                'idprd'   => encode_db_value((string) ($c->linha['IDPRD'] ?? '')),
-                'nome'    => encode_db_value($c->linha['NOME'] ?? ''),
-                'und'     => encode_db_value($c->linha['UND'] ?? ''),
-                'codloc'  => encode_db_value($c->linha['CODLOC'] ?? ''),
-                'numlote' => '',
-            ];
-        }
-
-        return $itens;
-    }
-
-    /**
      * Itens do inventário RM sem controle de lote (sem cadastro em TLOTEPRD).
      *
-     * @return array<int, array{idprd: int, codigo: string, nome: string, und: string, codloc: string}>
+     * Contagem avulsa não tem itens gerados no RM: a lista vem da posição de
+     * estoque do local. Sem esse desvio, a tela "Sem lote" abria vazia numa
+     * avulsa e os produtos sem lote simplesmente não tinham como ser contados
+     * — a tela "Por lote" também não os mostra, porque ela só existe para quem
+     * tem lote.
+     *
+     * @return array<int, array{idprd: int, codigo: string, nome: string, und: string, codloc: string, saldo: float}>
      */
-    public static function listarItensSemLote(string $codinventario, string $codloc = ''): array
-    {
+    public static function listarItensSemLote(
+        string $codinventario,
+        string $codloc = '',
+        bool $avulso = false,
+        bool $somenteComSaldo = false
+    ): array {
+        if ($avulso) {
+            return self::listarItensSemLoteDoLocal($codloc, $somenteComSaldo);
+        }
+
         $codinventario = trim($codinventario);
         if ($codinventario === '') {
             return [];
         }
 
-        $c = new Connection('RM');
-        $inv = self::sqlStr($codinventario);
-        $col = self::CODCOLIGADA;
+        $limite = self::LIMITE_ITENS;
+        $params = [self::CODCOLIGADA, $codinventario];
         $whereLoc = '';
 
-        if ($codloc !== '') {
-            $loc = self::sqlStr(LocaisEstoque::normalizar($codloc));
-            $whereLoc = " AND (
-                LTRIM(RTRIM(I.CODLOC)) = '{$loc}'
-                OR RIGHT(REPLICATE('0', 3) + LTRIM(RTRIM(I.CODLOC)), 3) = '{$loc}'
-            )";
+        if (LocaisEstoque::normalizar($codloc) !== '') {
+            $whereLoc = ' AND ' . self::condicaoCodloc('I');
+            $params = array_merge($params, self::paramsCodloc($codloc));
         }
 
-        $SQL = "SELECT TOP 4000
+        // PRDLOC entra como LEFT JOIN só para mostrar o saldo ao lado da
+        // contagem; produto sem linha de posição no local continua na folha.
+        $SQL = "SELECT TOP {$limite}
                     I.IDPRD,
                     MAX(RTRIM(I.CODLOC)) AS CODLOC,
                     MAX(T.CODIGOPRD) AS CODIGO,
                     MAX(T.NOMEFANTASIA) AS NOME,
-                    MAX(TPRODUTODEF.CODUNDCONTROLE) AS UND
+                    MAX(TPRODUTODEF.CODUNDCONTROLE) AS UND,
+                    MAX(PRDLOC.SALDOFISICO2) AS SALDO
                 FROM TITMINVENTARIO I
                 LEFT JOIN TPRODUTO T ON T.IDPRD = I.IDPRD
                 LEFT JOIN TPRODUTODEF ON TPRODUTODEF.IDPRD = I.IDPRD
-                WHERE I.CODCOLIGADA = {$col}
-                  AND I.CODINVENTARIO = '{$inv}'
+                LEFT JOIN TPRDLOC PRDLOC
+                    ON PRDLOC.IDPRD = I.IDPRD
+                   AND LTRIM(RTRIM(PRDLOC.CODLOC)) = LTRIM(RTRIM(I.CODLOC))
+                WHERE I.CODCOLIGADA = ?
+                  AND I.CODINVENTARIO = ?
                   {$whereLoc}
                   AND NOT EXISTS (
                         SELECT 1 FROM TLOTEPRD L WHERE L.IDPRD = I.IDPRD
                   )
                 GROUP BY I.IDPRD
                 ORDER BY MAX(T.NOMEFANTASIA), I.IDPRD";
-        $c->Consulta($SQL);
 
+        $c = new Connection('RM');
+        $c->Consulta($SQL, $params);
+
+        return self::mapearItensSemLote($c);
+    }
+
+    /**
+     * Produtos sem controle de lote que têm posição no local.
+     *
+     * É a folha "sem lote" da contagem avulsa. Espelha a fonte que a tela de
+     * lotes usa (TPRDLOC), só que do lado de quem não tem TLOTEPRD.
+     *
+     * @return array<int, array{idprd: int, codigo: string, nome: string, und: string, codloc: string, saldo: float}>
+     */
+    public static function listarItensSemLoteDoLocal(string $codloc, bool $somenteComSaldo = false): array
+    {
+        $codloc = LocaisEstoque::normalizar($codloc);
+        if ($codloc === '') {
+            return [];
+        }
+
+        $limite = self::LIMITE_ITENS;
+        $whereSaldo = $somenteComSaldo ? ' AND PRDLOC.SALDOFISICO2 <> 0' : '';
+
+        $SQL = "SELECT TOP {$limite}
+                    PRD.IDPRD,
+                    MAX(RTRIM(PRDLOC.CODLOC)) AS CODLOC,
+                    MAX(PRD.CODIGOPRD) AS CODIGO,
+                    MAX(PRD.NOMEFANTASIA) AS NOME,
+                    MAX(PRDDEF.CODUNDCONTROLE) AS UND,
+                    MAX(PRDLOC.SALDOFISICO2) AS SALDO
+                FROM TPRODUTO PRD
+                INNER JOIN TPRODUTODEF PRDDEF
+                    ON PRD.IDPRD = PRDDEF.IDPRD
+                   AND PRD.CODCOLPRD = PRDDEF.CODCOLIGADA
+                INNER JOIN TPRDLOC PRDLOC
+                    ON PRD.IDPRD = PRDLOC.IDPRD
+                   AND PRD.CODCOLPRD = PRDLOC.CODCOLIGADA
+                WHERE PRD.INATIVO = 0
+                  AND " . self::condicaoCodloc('PRDLOC') . "
+                  {$whereSaldo}
+                  AND NOT EXISTS (
+                        SELECT 1 FROM TLOTEPRD L WHERE L.IDPRD = PRD.IDPRD
+                  )
+                GROUP BY PRD.IDPRD
+                ORDER BY MAX(PRD.NOMEFANTASIA), PRD.IDPRD";
+
+        $c = new Connection('RM');
+        $c->Consulta($SQL, self::paramsCodloc($codloc));
+
+        return self::mapearItensSemLote($c);
+    }
+
+    /**
+     * @return array<int, array{idprd: int, codigo: string, nome: string, und: string, codloc: string, saldo: float}>
+     */
+    private static function mapearItensSemLote(Connection $c): array
+    {
         $itens = [];
         while ($c->Resultado()) {
             $itens[] = [
@@ -261,6 +269,7 @@ class InventarioRM
                 'nome'   => encode_db_value((string) ($c->linha['NOME'] ?? '')),
                 'und'    => encode_db_value((string) ($c->linha['UND'] ?? '')),
                 'codloc' => encode_db_value((string) ($c->linha['CODLOC'] ?? '')),
+                'saldo'  => (float) ($c->linha['SALDO'] ?? 0),
             ];
         }
 
@@ -272,26 +281,34 @@ class InventarioRM
      */
     private static function sqlLike(string $value): string
     {
-        $value = self::sqlStr($value);
+        $value = str_replace("'", "''", $value);
 
         return str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $value);
     }
 
     /**
      * Condição de CODLOC tolerante a zero à esquerda ('28' e '028' no mesmo banco).
+     *
+     * Devolve SQL com dois marcadores; os valores vêm de paramsCodloc().
      */
-    private static function condicaoCodloc(string $alias, string $codloc): string
+    private static function condicaoCodloc(string $alias): string
     {
-        $loc = self::sqlStr(LocaisEstoque::normalizar($codloc));
+        $prefixo = $alias !== '' ? $alias . '.' : '';
 
-        if ($loc === '') {
-            return '';
-        }
-
-        return " AND (
-                LTRIM(RTRIM({$alias}.CODLOC)) = '{$loc}'
-                OR RIGHT(REPLICATE('0', 3) + LTRIM(RTRIM({$alias}.CODLOC)), 3) = '{$loc}'
+        return "(
+                LTRIM(RTRIM({$prefixo}CODLOC)) = ?
+                OR RIGHT(REPLICATE('0', 3) + LTRIM(RTRIM({$prefixo}CODLOC)), 3) = ?
             )";
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function paramsCodloc(string $codloc): array
+    {
+        $loc = LocaisEstoque::normalizar($codloc);
+
+        return [$loc, $loc];
     }
 
     /**
@@ -323,20 +340,19 @@ class InventarioRM
         }
 
         $limite = max(1, min(self::LIMITE_LOTES, $limite));
-        $c = new Connection('RM');
-        $locWhere = self::condicaoCodloc('PRDLOC', $codloc);
+        $params = self::paramsCodloc($codloc);
 
         $whereSaldo = '';
         if ($somenteComSaldo) {
-            $whereSaldo = " AND PRDLOC.SALDOFISICO2 <> 0
-                  AND LOTLOC.SALDOFISICO2 <> 0";
+            $whereSaldo = ' AND PRDLOC.SALDOFISICO2 <> 0
+                  AND LOTLOC.SALDOFISICO2 <> 0';
         }
 
         $whereGrupo = '';
         $grupoContabil = trim($grupoContabil);
         if ($grupoContabil !== '') {
-            $grp = self::sqlStr($grupoContabil);
-            $whereGrupo = " AND LTRIM(RTRIM(PRDDEF.CODTB2FAT)) = '{$grp}'";
+            $whereGrupo = ' AND LTRIM(RTRIM(PRDDEF.CODTB2FAT)) = ?';
+            $params[] = $grupoContabil;
         }
 
         $whereBusca = '';
@@ -348,11 +364,12 @@ class InventarioRM
             $digitos = preg_replace('/\D/', '', $busca);
 
             if (strlen($digitos) === 13) {
-                $idprd = ZMDCODBARRAS::idprdDoBarcode($digitos);
-                $idlote = ZMDCODBARRAS::idloteDoBarcode($digitos);
-                $whereBusca = " AND PRD.IDPRD = {$idprd}
-                  AND LOTLOC.IDLOTE = {$idlote}";
+                $whereBusca = ' AND PRD.IDPRD = ? AND LOTLOC.IDLOTE = ?';
+                $params[] = ZMDCODBARRAS::idprdDoBarcode($digitos);
+                $params[] = ZMDCODBARRAS::idloteDoBarcode($digitos);
             } else {
+                // O LIKE fica no SQL (com curingas escapados) porque o padrão
+                // %texto% precisa ser montado antes de virar parâmetro.
                 $like = self::sqlLike($busca);
                 $whereBusca = " AND (
                     LOT.NUMLOTE LIKE '%{$like}%'
@@ -405,13 +422,15 @@ class InventarioRM
                    AND PRDLOC.CODFILIAL = CUST.CODFILIAL
                    AND CUST.CODCOLIGADA = PRDLOC.CODCOLIGADA
                 WHERE PRD.INATIVO = 0
-                  {$locWhere}
+                  AND " . self::condicaoCodloc('PRDLOC') . "
                   {$whereSaldo}
                   {$whereGrupo}
                   {$whereBusca}
                 GROUP BY PRD.IDPRD, LOTLOC.IDLOTE
                 ORDER BY MAX(PRD.NOMEFANTASIA), MAX(LOT.DATAVALIDADE), MAX(RTRIM(LOT.NUMLOTE))";
-        $c->Consulta($SQL);
+
+        $c = new Connection('RM');
+        $c->Consulta($SQL, $params);
 
         $linhas = [];
         while ($c->Resultado()) {
@@ -454,17 +473,23 @@ class InventarioRM
             return [];
         }
 
-        $c = new Connection('RM');
-        $inv = self::sqlStr($codinventario);
-        $col = self::CODCOLIGADA;
-        $locWhere = self::condicaoCodloc('ITM', $codloc);
+        $params = [self::CODCOLIGADA, $codinventario];
+        $whereLoc = '';
 
-        $SQL = "SELECT DISTINCT ITM.IDPRD
-                FROM TITMINVENTARIO ITM
-                WHERE ITM.CODCOLIGADA = {$col}
-                  AND ITM.CODINVENTARIO = '{$inv}'
-                  {$locWhere}";
-        $c->Consulta($SQL);
+        if (LocaisEstoque::normalizar($codloc) !== '') {
+            $whereLoc = ' AND ' . self::condicaoCodloc('ITM');
+            $params = array_merge($params, self::paramsCodloc($codloc));
+        }
+
+        $c = new Connection('RM');
+        $c->Consulta(
+            "SELECT DISTINCT ITM.IDPRD
+             FROM TITMINVENTARIO ITM
+             WHERE ITM.CODCOLIGADA = ?
+               AND ITM.CODINVENTARIO = ?
+               {$whereLoc}",
+            $params
+        );
 
         $mapa = [];
         while ($c->Resultado()) {
@@ -495,27 +520,22 @@ class InventarioRM
      */
     public static function conferenciaDoLocal(string $codinventario, string $codloc): array
     {
-        $vazio = [
-            'itens'  => [],
-            'totais' => [
-                'esperados' => 0, 'contados' => 0, 'nao_contados' => 0, 'sobras' => 0,
-                'saldo' => 0.0, 'contado' => 0.0, 'diferenca' => 0.0, 'valor_diferenca' => 0.0,
-            ],
-            'truncado' => false,
+        $totaisZerados = [
+            'esperados' => 0, 'contados' => 0, 'nao_contados' => 0, 'sobras' => 0,
+            'saldo' => 0.0, 'contado' => 0.0, 'diferenca' => 0.0, 'valor_diferenca' => 0.0,
         ];
 
         $codinventario = trim($codinventario);
         $codloc = LocaisEstoque::normalizar($codloc);
         if ($codinventario === '' || $codloc === '') {
-            return $vazio;
+            return ['itens' => [], 'totais' => $totaisZerados, 'truncado' => false];
         }
 
         $posicao = self::listarPosicaoPorLote($codloc, '', '', true);
         $contagem = ZMDCODBARRAS::contagemPorProdutoLote($codinventario);
 
         $itens = [];
-        $t = $vazio['totais'];
-        $t['truncado'] = false;
+        $t = $totaisZerados;
 
         foreach ($posicao as $linha) {
             $chave = $linha['idprd'] . ':' . $linha['idlote'];
@@ -556,7 +576,7 @@ class InventarioRM
         }
 
         // Sobrou contagem sem linha na posição: tudo isso é excedente.
-        foreach ($contagem as $chave => $linha) {
+        foreach ($contagem as $linha) {
             $contado = (float) $linha['quantidade'];
             $itens[] = [
                 'situacao'        => 'sobra',
@@ -591,8 +611,6 @@ class InventarioRM
             return strcasecmp((string) $a['nome'], (string) $b['nome']);
         });
 
-        unset($t['truncado']);
-
         return [
             'itens'    => $itens,
             'totais'   => $t,
@@ -615,10 +633,8 @@ class InventarioRM
             return [];
         }
 
-        $c = new Connection('RM');
-        $locWhere = self::condicaoCodloc('PRDLOC', $codloc);
         $whereSaldo = $somenteComSaldo
-            ? " AND PRDLOC.SALDOFISICO2 <> 0 AND LOTLOC.SALDOFISICO2 <> 0"
+            ? ' AND PRDLOC.SALDOFISICO2 <> 0 AND LOTLOC.SALDOFISICO2 <> 0'
             : '';
 
         $SQL = "SELECT DISTINCT
@@ -639,12 +655,14 @@ class InventarioRM
                     ON PRDDEF.CODTB2FAT = GRUP.CODTB2FAT
                    AND GRUP.CODCOLIGADA = PRDDEF.CODCOLIGADA
                 WHERE PRD.INATIVO = 0
-                  {$locWhere}
+                  AND " . self::condicaoCodloc('PRDLOC') . "
                   {$whereSaldo}
                   AND PRDDEF.CODTB2FAT IS NOT NULL
                   AND LTRIM(RTRIM(PRDDEF.CODTB2FAT)) <> ''
                 ORDER BY GRUP.DESCRICAO, GRUPOCOD";
-        $c->Consulta($SQL);
+
+        $c = new Connection('RM');
+        $c->Consulta($SQL, self::paramsCodloc($codloc));
 
         $grupos = [];
         while ($c->Resultado()) {
@@ -660,6 +678,10 @@ class InventarioRM
     /**
      * Inventários em aberto no RM (TINVENTARIO.STATUS = 'A').
      *
+     * A contagem de itens sai de um JOIN agregado, não de uma consulta por
+     * linha: com 40 inventários abertos, o laço anterior fazia 41 idas ao SQL
+     * Server só para montar a tela inicial, e era aí que o tempo estourava.
+     *
      * @return array<int, array{
      *   codinventario: string,
      *   status: string,
@@ -674,29 +696,34 @@ class InventarioRM
     public static function listarAbertos(int $limit = 50): array
     {
         $limit = max(1, min(200, $limit));
-        $col = self::CODCOLIGADA;
+
+        $SQL = "SELECT TOP {$limit}
+                    RTRIM(INV.CODINVENTARIO) AS CODINVENTARIO,
+                    RTRIM(CAST(INV.STATUS AS VARCHAR(10))) AS STATUS,
+                    INV.DATABASEINVENTARIO,
+                    INV.DATASTATUS,
+                    ISNULL(ITENS.TOTAL, 0) AS ITENS
+                FROM TINVENTARIO INV
+                OUTER APPLY (
+                    SELECT COUNT(*) AS TOTAL
+                    FROM TITMINVENTARIO I
+                    WHERE I.CODCOLIGADA = INV.CODCOLIGADA
+                      AND I.CODINVENTARIO = INV.CODINVENTARIO
+                ) ITENS
+                WHERE INV.CODCOLIGADA = ?
+                  AND RTRIM(CAST(INV.STATUS AS VARCHAR(10))) = 'A'
+                ORDER BY INV.DATABASEINVENTARIO DESC, INV.CODINVENTARIO DESC";
 
         $c = new Connection('RM');
-        $SQL = "SELECT TOP {$limit}
-                    RTRIM(CODINVENTARIO) AS CODINVENTARIO,
-                    RTRIM(CAST(STATUS AS VARCHAR(10))) AS STATUS,
-                    DATABASEINVENTARIO,
-                    DATASTATUS
-                FROM TINVENTARIO
-                WHERE CODCOLIGADA = {$col}
-                  AND RTRIM(CAST(STATUS AS VARCHAR(10))) = 'A'
-                ORDER BY DATABASEINVENTARIO DESC, CODINVENTARIO DESC";
-        $c->Consulta($SQL);
+        $c->Consulta($SQL, [self::CODCOLIGADA]);
 
         $lista = [];
         while ($c->Resultado()) {
             $cod = encode_db_value((string) ($c->linha['CODINVENTARIO'] ?? ''));
             $codloc = '';
-            if (class_exists('ZMDCODBARRAS')) {
-                $parsed = ZMDCODBARRAS::parseCodigoInventario($cod);
-                if (!empty($parsed['valid'])) {
-                    $codloc = (string) $parsed['codloc'];
-                }
+            $parsed = ZMDCODBARRAS::parseCodigoInventario($cod);
+            if (!empty($parsed['valid'])) {
+                $codloc = (string) $parsed['codloc'];
             }
             if ($codloc === '' && preg_match('/^\d{2}\.(\d{3})\.\d{3}$/', $cod, $m)) {
                 $codloc = $m[1];
@@ -710,14 +737,8 @@ class InventarioRM
                 'local_nome'    => $codloc !== '' ? LocaisEstoque::nome($codloc) : '',
                 'data'          => self::formatDateTime($c->linha['DATABASEINVENTARIO'] ?? null),
                 'data_status'   => self::formatDateTime($c->linha['DATASTATUS'] ?? null),
-                'itens'         => 0,
+                'itens'         => (int) ($c->linha['ITENS'] ?? 0),
             ];
-        }
-
-        foreach ($lista as $i => $item) {
-            if ($item['codinventario'] !== '') {
-                $lista[$i]['itens'] = self::contarItensInventario($item['codinventario'], $item['codloc']);
-            }
         }
 
         return $lista;
@@ -741,9 +762,6 @@ class InventarioRM
         if ($value instanceof DateTimeInterface) {
             return $value->format($formato);
         }
-        if ($value instanceof DateTime) {
-            return $value->format($formato);
-        }
         if (is_object($value) && method_exists($value, 'format')) {
             try {
                 return (string) $value->format($formato);
@@ -761,14 +779,6 @@ class InventarioRM
         return '';
     }
 
-    /**
-     * @deprecated Use ZMDCODBARRAS::idprdDoBarcode(), dona do layout do código.
-     */
-    public static function idprdDoBarcode(string $codigobarras): int
-    {
-        return ZMDCODBARRAS::idprdDoBarcode($codigobarras);
-    }
-
     public static function itemPertenceAoInventario(string $codinventario, string $codloc, int $idprd): bool
     {
         $codinventario = trim($codinventario);
@@ -779,20 +789,15 @@ class InventarioRM
         }
 
         $c = new Connection('RM');
-        $inv = self::sqlStr($codinventario);
-        $loc = self::sqlStr($codloc);
-        $col = self::CODCOLIGADA;
-
-        $SQL = "SELECT TOP 1 1 AS OK
-                FROM TITMINVENTARIO
-                WHERE CODCOLIGADA = {$col}
-                  AND CODINVENTARIO = '{$inv}'
-                  AND IDPRD = {$idprd}
-                  AND (
-                        LTRIM(RTRIM(CODLOC)) = '{$loc}'
-                     OR RIGHT(REPLICATE('0', 3) + LTRIM(RTRIM(CODLOC)), 3) = '{$loc}'
-                  )";
-        $c->Consulta($SQL);
+        $c->Consulta(
+            'SELECT TOP 1 1 AS OK
+             FROM TITMINVENTARIO
+             WHERE CODCOLIGADA = ?
+               AND CODINVENTARIO = ?
+               AND IDPRD = ?
+               AND ' . self::condicaoCodloc(''),
+            array_merge([self::CODCOLIGADA, $codinventario, $idprd], self::paramsCodloc($codloc))
+        );
 
         return (bool) $c->Resultado();
     }

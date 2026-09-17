@@ -24,9 +24,6 @@ abstract class RelatorioPdfBase extends FPDF
     protected static function acharLogo(): string
     {
         $logo = APP_ROOT . DS . 'assets' . DS . 'img' . DS . 'logo.png';
-        if (!is_file($logo)) {
-            $logo = APP_ROOT . DS . 'logo.png';
-        }
 
         return is_file($logo) ? $logo : '';
     }

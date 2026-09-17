@@ -262,6 +262,7 @@ $avulso = !empty($avulso);
                 <?php if ($mostrarTabela && $codinventario !== ''): ?>
                 <form action="inventario-item.php" method="post" class="inv-delete-inventario-form"
                       onsubmit="return confirm('Excluir o inventário <?= e($codinventario) ?> e todos os <?= $totalBipagens ?> itens gravados?\n\nEsta ação não pode ser desfeita.');">
+                    <?= csrf_field() ?>
                     <input type="hidden" name="acao" value="excluir_inventario">
                     <input type="hidden" name="CODINVENTARIO" value="<?= e($codinventario) ?>">
                     <input type="hidden" name="CODLOC" value="<?= e($codloc) ?>">
@@ -303,6 +304,7 @@ $avulso = !empty($avulso);
                                         data-loc="<?= e($cod->getCodloc()) ?>">Editar</button>
                                 <form action="inventario-item.php" method="post" class="inline-form"
                                       onsubmit="return confirm('Excluir este registro?');">
+                                    <?= csrf_field() ?>
                                     <input type="hidden" name="acao" value="excluir">
                                     <input type="hidden" name="id" value="<?= e($cod->getId()) ?>">
                                     <input type="hidden" name="CODLOC" value="<?= e($codloc) ?>">
@@ -329,6 +331,7 @@ $avulso = !empty($avulso);
     <div class="modal-panel" role="dialog" aria-labelledby="edit-modal-title">
         <h3 id="edit-modal-title" class="modal-title">Editar registro</h3>
         <form action="inventario-item.php" method="post" id="edit-form">
+            <?= csrf_field() ?>
             <input type="hidden" name="acao" value="editar">
             <input type="hidden" name="id" id="edit-id">
             <input type="hidden" name="CODLOC" value="<?= e($codloc) ?>">

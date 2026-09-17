@@ -18,7 +18,7 @@ if ($selectedEnvironment === null && $environments !== []) {
     <div class="login-shell">
         <header class="login-brand">
             <div class="login-brand-mark">
-                <img src="assets/img/logo.png" alt="Hospital 9 de Julho de Rondônia" class="login-logo" width="280" height="auto">
+                <img src="assets/img/logo.png" alt="Hospital 9 de Julho de Rondônia" class="login-logo" width="280">
             </div>
             <h1 class="login-title">Inventário</h1>
             <p class="login-tagline">Contagem de estoque · TOTVS RM</p>
@@ -44,6 +44,7 @@ if ($selectedEnvironment === null && $environments !== []) {
             <h2 id="login-heading" class="login-panel-title">Acessar</h2>
 
             <form action="conectar.php" method="post" id="connect-form" class="login-form" novalidate>
+                <?= csrf_field() ?>
                 <div class="form-group">
                     <label for="usuario" class="form-label">Usuário</label>
                     <input type="text" class="form-control" id="usuario" name="usuario"

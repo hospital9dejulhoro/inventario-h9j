@@ -3,10 +3,6 @@
 define('APP_ROOT', dirname(__FILE__));
 define('DS', DIRECTORY_SEPARATOR);
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
 $appConfig = array_merge([
     'debug' => false,
     'app_name' => 'Inventário RM',
@@ -24,45 +20,46 @@ if ($appConfig['debug']) {
     error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED);
 }
 
+// O cookie de sessão é a única credencial depois do login: fora do alcance do
+// JavaScript, preso ao próprio site e marcado como seguro quando há HTTPS.
+if (session_status() === PHP_SESSION_NONE) {
+    $emHttps = (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off')
+        || (int) ($_SERVER['SERVER_PORT'] ?? 0) === 443
+        || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
+
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path'     => rtrim((string) $appConfig['base_path'], '/') . '/',
+        'httponly' => true,
+        'samesite' => 'Lax',
+        'secure'   => $emHttps,
+    ]);
+
+    session_start();
+}
+
+require APP_ROOT . DS . 'src' . DS . 'Support' . DS . 'AppException.php';
 require APP_ROOT . DS . 'src' . DS . 'Helpers' . DS . 'functions.php';
 require APP_ROOT . DS . 'src' . DS . 'Config' . DS . 'EnvironmentManager.php';
 require APP_ROOT . DS . 'src' . DS . 'Http' . DS . 'SessionManager.php';
+require APP_ROOT . DS . 'src' . DS . 'Database' . DS . 'DatabaseException.php';
 require APP_ROOT . DS . 'src' . DS . 'Database' . DS . 'Connection.php';
 require APP_ROOT . DS . 'src' . DS . 'Domain' . DS . 'LocaisEstoque.php';
 require APP_ROOT . DS . 'src' . DS . 'Domain' . DS . 'InventarioRM.php';
 require APP_ROOT . DS . 'src' . DS . 'Domain' . DS . 'RmAuth.php';
 require APP_ROOT . DS . 'src' . DS . 'Domain' . DS . 'ZMDCODBARRAS.php';
 require APP_ROOT . DS . 'src' . DS . 'Domain' . DS . 'ContextoInventario.php';
-require APP_ROOT . DS . 'src' . DS . 'Domain' . DS . 'RelatorioContagemPdf.php';
-require APP_ROOT . DS . 'src' . DS . 'Domain' . DS . 'PosicaoEstoquePdf.php';
+
+// As classes de PDF arrastam o FPDF inteiro junto. Carregar aqui custava esse
+// parse em toda requisição — inclusive em cada bipe. Quem exporta chama
+// carregar_pdf() na hora.
+if (!function_exists('carregar_pdf')) {
+    function carregar_pdf(string $classe): void
+    {
+        require_once APP_ROOT . DS . 'src' . DS . 'Domain' . DS . $classe . '.php';
+    }
+}
+
+set_exception_handler('app_tratar_excecao');
 
 EnvironmentManager::boot(APP_ROOT . DS . 'config' . DS . 'environments.php');
-
-// Compatibilidade se arquivos auxiliares não foram atualizados no servidor
-if (!function_exists('base_path')) {
-    function base_path(): string
-    {
-        global $appConfig;
-        return rtrim((string) ($appConfig['base_path'] ?? ''), '/');
-    }
-}
-
-if (!function_exists('url')) {
-    function url(string $path = ''): string
-    {
-        $base = base_path();
-        $path = ltrim($path, '/');
-        if ($path === '') {
-            return $base === '' ? '/' : $base . '/';
-        }
-        return $base === '' ? $path : $base . '/' . $path;
-    }
-}
-
-if (!function_exists('redirect_to')) {
-    function redirect_to(string $path): void
-    {
-        header('Location: ' . url($path));
-        exit;
-    }
-}

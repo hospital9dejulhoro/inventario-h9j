@@ -22,6 +22,10 @@ if (!$somenteComSaldo) {
     $paramsFiltro['todos'] = '1';
 }
 
+// A posicao de um local grande e a consulta mais cara do sistema; o teto
+// padrao do PHP derrubava a tela antes de ela terminar de montar.
+app_operacao_demorada();
+
 // Abrir contagem avulsa: gera o proximo codigo livre do local e entra nele.
 if (isset($_GET['avulsa'])) {
     $novo = ZMDCODBARRAS::proximoCodigoAvulso((string) ($_GET['CODLOC'] ?? ''));

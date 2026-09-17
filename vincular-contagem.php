@@ -14,6 +14,8 @@ $paraBruto = trim((string) ($_POST['para'] ?? ''));
 
 $voltar = 'por-lote.php?' . http_build_query(['CODINVENTARIO' => $de, 'aplicar' => '1']);
 
+csrf_exigir($voltar);
+
 $origem = ZMDCODBARRAS::parseCodigoInventario($de);
 if (empty($origem['valid'])) {
     flash_set('danger', 'Código de origem inválido.');
@@ -55,7 +57,10 @@ if (!$resultado['ok']) {
     redirect_to($voltar);
 }
 
-SessionManager::removeRecentInventario($de);
+// A sessão inteira passa a apontar para o código novo. Só tirar dos recentes
+// deixava o "último inventário" apontando para o avulso recém-esvaziado, e a
+// próxima visita sem parâmetros retomava uma contagem que não existe mais.
+SessionManager::trocarCodigoInventario($de, $para, $destino['codloc']);
 
 $msg = "Contagem movida de {$de} para {$para} ({$resultado['movidos']} "
     . ($resultado['movidos'] === 1 ? 'item' : 'itens') . ').';

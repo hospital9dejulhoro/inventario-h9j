@@ -4,6 +4,8 @@ require __DIR__ . '/bootstrap.php';
 
 SessionManager::requireConnection();
 
+app_operacao_demorada();
+
 // Relatorio de posicao: depende so do local. Nao tem inventario nem data de
 // referencia - e sempre o saldo de agora, direto de TPRDLOC/TLOTEPRDLOC.
 $codloc = LocaisEstoque::normalizar((string) ($_GET['CODLOC'] ?? ''));
@@ -38,6 +40,7 @@ if ($localValido) {
 }
 
 if ($export === 'pdf' && $localValido) {
+    carregar_pdf('PosicaoEstoquePdf');
     $grupoLabel = '';
     if ($grupoContabil !== '') {
         $grupoLabel = isset($grupos[$grupoContabil]) && $grupos[$grupoContabil] !== ''

@@ -188,6 +188,24 @@
         });
     });
 
+    // Filtros que mudam a consulta no servidor (grupo contábil, "incluir
+    // zerados") recarregam a tela sozinhos. Fica aqui, e não na tela de lotes,
+    // porque a tela "sem lote" usa o mesmo recurso e não carrega aquele script.
+    document.querySelectorAll('[data-autosubmit]').forEach(function (el) {
+        el.addEventListener('change', function () {
+            if (!el.form) {
+                return;
+            }
+            // requestSubmit dispara o evento submit; form.submit() não, e sem ele
+            // a troca de filtro navegava sem nenhum sinal de carregamento.
+            if (el.form.requestSubmit) {
+                el.form.requestSubmit();
+            } else {
+                el.form.submit();
+            }
+        });
+    });
+
     document.querySelectorAll('.env-item input[type="radio"]').forEach(function (radio) {
         radio.addEventListener('change', function () {
             document.querySelectorAll('.env-item').forEach(function (item) {

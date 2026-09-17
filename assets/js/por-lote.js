@@ -257,6 +257,7 @@
         body.append('CODINVENTARIO', cfg.inventario);
         body.append('CODLOC', cfg.codloc);
         body.append('modo', modoAtual());
+        body.append('_token', cfg.token || '');
 
         fetch(cfg.saveUrl, { method: 'POST', body: body, credentials: 'same-origin' })
             .then(function (r) { return r.json(); })
@@ -385,18 +386,8 @@
         r.addEventListener('change', aplicarModo);
     });
 
-    // Grupo contabil e "incluir zerados" mudam a consulta, entao recarregam.
-    document.querySelectorAll('[data-autosubmit]').forEach(function (el) {
-        el.addEventListener('change', function () {
-            // requestSubmit dispara o evento submit; form.submit() nao, e sem ele
-            // a troca de filtro navegava sem nenhum sinal de carregamento.
-            if (el.form.requestSubmit) {
-                el.form.requestSubmit();
-            } else {
-                el.form.submit();
-            }
-        });
-    });
+    // O disparo de [data-autosubmit] mora no app.js: a tela "sem lote" usa o
+    // mesmo recurso e não carrega este arquivo.
 
     form.addEventListener('submit', function (e) {
         e.preventDefault();

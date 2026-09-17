@@ -1,7 +1,14 @@
 <?php
 
 /**
- * Camada de acesso ao SQL Server — compatível com a API original.
+ * Camada de acesso ao SQL Server.
+ *
+ * Duas regras que a versão anterior não tinha:
+ *
+ *  1. Consulta que falha LEVANTA exceção. Antes deixava Resultado() em false,
+ *     indistinguível de "zero linhas" — e a tela dizia "inventário não está
+ *     cadastrado no RM" quando na verdade a consulta tinha quebrado.
+ *  2. Todo valor variável vai por parâmetro ($params), não concatenado no SQL.
  */
 class Connection
 {
@@ -11,20 +18,17 @@ class Connection
     /** @var resource|false */
     public $res;
 
-    /** @var int */
-    public $qtd;
-
     /** @var array|false */
     public $linha;
 
-    /** @var string */
-    public $erro;
-
-    /** @var array|false */
-    public $data;
+    /** Mensagem técnica da última escrita que falhou (manipula). @var string */
+    public $erro = '';
 
     /**
      * Conexões reaproveitadas dentro da mesma requisição, por ambiente/banco.
+     *
+     * Antes era uma por consulta: um único bipe chegava a abrir dezenas de
+     * conexões no SQL Server.
      *
      * @var array<string, resource>
      */
@@ -40,11 +44,9 @@ class Connection
         $current = EnvironmentManager::getCurrent();
 
         if ($current === null) {
-            die('Nenhum ambiente selecionado. Retorne à tela inicial e conecte-se.');
+            throw new DatabaseException('Nenhum ambiente selecionado. Volte à tela inicial e conecte-se.');
         }
 
-        // Uma conexão por ambiente/banco por requisição. Antes era uma por consulta:
-        // um único bipe chegava a abrir dezenas de conexões no SQL Server.
         $chave = (string) EnvironmentManager::getCurrentKey()
             . '|' . (string) ($current['host'] ?? '')
             . '|' . (string) ($current['database'] ?? '');
@@ -54,41 +56,35 @@ class Connection
             return;
         }
 
-        $connectionInfo = EnvironmentManager::buildConnectionInfo($current);
+        // Sem a extensão, o que aparecia era "Call to undefined function" — um
+        // erro de PHP para um problema de instalação do servidor.
+        if (!function_exists('sqlsrv_connect')) {
+            throw new DatabaseException(
+                'A extensão PHP sqlsrv não está instalada ou habilitada neste servidor.',
+                'sqlsrv_connect indisponivel (php.ini)'
+            );
+        }
 
-        $this->id = sqlsrv_connect($current['host'], $connectionInfo);
+        $this->id = @sqlsrv_connect($current['host'], EnvironmentManager::buildConnectionInfo($current));
 
         if ($this->id === false) {
-            die(print_r(sqlsrv_errors(), true));
+            $detalhe = DatabaseException::formatarErros(sqlsrv_errors());
+            throw new DatabaseException(
+                'Não foi possível conectar ao banco do ambiente ' . (string) ($current['label'] ?? '') . '.',
+                'conectar em ' . (string) ($current['host'] ?? '') . ' — ' . $detalhe
+            );
         }
 
         self::$conexoes[$chave] = $this->id;
     }
 
-    public function fecha()
-    {
-        if ($this->id) {
-            // A conexão é compartilhada: tira do cache antes de fechar, senão o
-            // próximo new Connection() receberia um handle já fechado.
-            foreach (self::$conexoes as $chave => $handle) {
-                if ($handle === $this->id) {
-                    unset(self::$conexoes[$chave]);
-                }
-            }
-
-            @sqlsrv_close($this->id);
-        }
-
-        $this->id = '';
-        $this->res = 0;
-        $this->qtd = 0;
-        $this->linha = '';
-    }
-
     /**
+     * Executa um SELECT. Os valores vão em $params, nunca dentro de $sql.
+     *
      * @param string $sql
+     * @param array<int, mixed> $params
      */
-    public function Consulta($sql = '')
+    public function Consulta($sql = '', array $params = [])
     {
         // Libera o statement anterior deste objeto e zera a linha: com a conexão
         // compartilhada, uma consulta que falhe não pode devolver a linha da anterior.
@@ -98,32 +94,68 @@ class Connection
 
         $this->res = false;
         $this->linha = false;
+        $this->erro = '';
 
-        if ($sql == '') {
-            $this->res = 0;
-            $this->qtd = 0;
-        } else {
-            $this->res = sqlsrv_query($this->id, $sql);
+        if ($sql === '' || $sql === null) {
+            return;
+        }
 
-            if ($this->res) {
-                $this->qtd = sqlsrv_num_rows($this->res);
-            } else {
-                $errors = sqlsrv_errors();
-                $this->erro = is_array($errors) ? print_r($errors, true) : 'Erro na consulta SQL.';
-                $this->res = false;
-                $this->qtd = 0;
-            }
+        $this->res = sqlsrv_query($this->id, $sql, $params, self::opcoesStatement());
+
+        if ($this->res === false) {
+            throw self::excecaoDaConsulta($sql);
         }
     }
 
-    public function manipula($sql = '')
+    /**
+     * Executa INSERT / UPDATE / DELETE.
+     *
+     * Devolve bool porque quem chama já tem uma mensagem própria para a tela,
+     * mas agora guarda o motivo em $this->erro e o registra no log — antes a
+     * causa era apagada com um `$this->erro = ''`.
+     *
+     * @param string $sql
+     * @param array<int, mixed> $params
+     */
+    public function manipula($sql = '', array $params = [])
     {
-        if (sqlsrv_query($this->id, $sql)) {
+        $this->erro = '';
+
+        $stmt = sqlsrv_query($this->id, $sql, $params, self::opcoesStatement());
+
+        if ($stmt !== false) {
+            @sqlsrv_free_stmt($stmt);
             return true;
         }
 
-        $this->erro = '';
+        $this->erro = DatabaseException::formatarErros(sqlsrv_errors());
+        log_erro('Connection::manipula', $this->erro . ' -- SQL: ' . preg_replace('/\s+/', ' ', $sql));
+
         return false;
+    }
+
+    /**
+     * Quantas linhas a última escrita afetou. Útil para distinguir "apagou"
+     * de "não havia nada para apagar".
+     *
+     * @param array<int, mixed> $params
+     */
+    public function manipulaContando(string $sql, array $params = []): int
+    {
+        $this->erro = '';
+
+        $stmt = sqlsrv_query($this->id, $sql, $params, self::opcoesStatement());
+
+        if ($stmt === false) {
+            $this->erro = DatabaseException::formatarErros(sqlsrv_errors());
+            log_erro('Connection::manipulaContando', $this->erro . ' -- SQL: ' . preg_replace('/\s+/', ' ', $sql));
+            return -1;
+        }
+
+        $linhas = sqlsrv_rows_affected($stmt);
+        @sqlsrv_free_stmt($stmt);
+
+        return is_int($linhas) && $linhas >= 0 ? $linhas : 0;
     }
 
     public function Resultado()
@@ -139,36 +171,38 @@ class Connection
         return true;
     }
 
-    public function retornaJson()
+    /**
+     * Opções de statement: teto de tempo por consulta.
+     *
+     * Sem isso, uma consulta de posição num local grande fica presa até o
+     * PHP-FPM derrubar a requisição inteira — e aí nem a mensagem de erro
+     * chega na tela. Com o teto, o SQL Server devolve o erro de timeout e o
+     * app consegue dizer ao operador para estreitar o filtro.
+     *
+     * @return array<string, mixed>
+     */
+    private static function opcoesStatement(): array
     {
-        $json = [];
-
-        do {
-            while ($row = sqlsrv_fetch_array($this->res, SQLSRV_FETCH_ASSOC)) {
-                $json[] = $row;
-            }
-        } while (sqlsrv_next_result($this->res));
-
-        print_r($json);
-        $retorno = json_encode($json);
-        print_r($retorno);
+        return ['QueryTimeout' => EnvironmentManager::queryTimeout()];
     }
 
-    public function dados()
+    private static function excecaoDaConsulta(string $sql): DatabaseException
     {
-        if ($this->res) {
-            $this->data = sqlsrv_fetch_array($this->res);
+        $errors = sqlsrv_errors();
+        $detalhe = DatabaseException::formatarErros($errors)
+            . ' -- SQL: ' . preg_replace('/\s+/', ' ', $sql);
+
+        if (DatabaseException::ehTimeout($errors)) {
+            return new DatabaseException(
+                'A consulta passou de ' . EnvironmentManager::queryTimeout() . ' segundos e foi interrompida. '
+                . 'Estreite o filtro (grupo contábil, busca ou um local menor) e tente de novo.',
+                $detalhe
+            );
         }
 
-        if (!$this->data) {
-            return false;
-        }
-
-        return true;
-    }
-
-    public function libera()
-    {
-        // Mantido por compatibilidade com a versão anterior.
+        return new DatabaseException(
+            'Falha ao consultar o banco do RM. Tente novamente; se persistir, avise a TI.',
+            $detalhe
+        );
     }
 }

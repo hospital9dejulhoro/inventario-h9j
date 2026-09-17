@@ -4,92 +4,49 @@ require __DIR__ . '/bootstrap.php';
 
 SessionManager::requireConnection();
 
-$codloc = isset($_GET['CODLOC']) ? (string) $_GET['CODLOC'] : '';
-$codinventario = isset($_GET['CODINVENTARIO']) ? (string) $_GET['CODINVENTARIO'] : '';
-$retomadoDaSessao = false;
-$modoLista = false;
+// Numa avulsa a folha vem da posição do local, e lá "com saldo" é o padrão
+// útil; o operador marca a caixa quando quiser ver também o que está zerado.
+$somenteComSaldo = !isset($_GET['todos']);
+
+$paramsFiltro = [];
+if (!$somenteComSaldo) {
+    $paramsFiltro['todos'] = '1';
+}
+
+$ctx = ContextoInventario::resolver('sem-lote.php', $paramsFiltro);
+
+$codloc = $ctx->codloc;
+$codinventario = $ctx->codinventario;
+$nomeLocal = $ctx->nomeLocal;
+$statusInventarioRm = $ctx->statusRm;
+$retomadoDaSessao = $ctx->retomadoDaSessao;
+$modoLista = $ctx->ativo;
+$avulso = $ctx->avulso;
+
 $itens = [];
 $totaisProduto = [];
 $qtdItensRm = 0;
+$listaTruncada = false;
 $envAtual = EnvironmentManager::getCurrent();
 $recentInventarios = SessionManager::getRecentInventarios();
-$statusInventarioRm = '';
+$inventariosAbertos = $modoLista ? [] : InventarioRM::listarAbertos();
+$contagensAvulsas = $modoLista ? [] : ZMDCODBARRAS::listarAvulsos();
 
-$deveValidarAcao = isset($_GET['aplicar']);
-$veioDaUrl = isset($_GET['CODINVENTARIO']) && trim((string) $_GET['CODINVENTARIO']) !== '';
+if ($modoLista) {
+    // A folha de um local grande é pesada de montar; o teto padrão do PHP
+    // derrubava a tela no meio.
+    app_operacao_demorada();
 
-if ($codinventario === '' && SessionManager::hasLastInventario()) {
-    $last = SessionManager::getLastInventario();
-    $codloc = (string) ($last['codloc'] ?? '');
-    $codinventario = (string) ($last['codinventario'] ?? '');
-    $retomadoDaSessao = true;
-}
-
-$redirectParams = function () use (&$codloc, &$codinventario) {
-    return [
-        'CODLOC'        => $codloc,
-        'CODINVENTARIO' => $codinventario,
-    ];
-};
-
-$parsedInv = null;
-if ($codinventario !== '') {
-    $parsedInv = ZMDCODBARRAS::parseCodigoInventario($codinventario);
-    if ($parsedInv['valid']) {
-        $codinventario = $parsedInv['formatted'];
-        $codloc = $parsedInv['codloc'];
-    } elseif ($deveValidarAcao) {
-        flash_set('danger', $parsedInv['error']);
-        redirect_to('sem-lote.php?' . http_build_query($redirectParams()));
-    } else {
-        $codinventario = ZMDCODBARRAS::formatCodigoInventario($codinventario);
-        if (strlen(preg_replace('/\D/', '', $codinventario)) >= 5) {
-            $codloc = substr(preg_replace('/\D/', '', $codinventario), 2, 3);
-        }
-        $parsedInv = ZMDCODBARRAS::parseCodigoInventario($codinventario);
-    }
-}
-
-if ($codloc !== '') {
-    $localCheck = LocaisEstoque::validar($codloc);
-    if ($localCheck['valid']) {
-        $codloc = $localCheck['codloc'];
-    } elseif ($deveValidarAcao) {
-        flash_set('danger', $localCheck['error']);
-        redirect_to('sem-lote.php?' . http_build_query($redirectParams()));
-    }
-}
-
-$mascaraOk = is_array($parsedInv) && !empty($parsedInv['valid']);
-$rmOk = false;
-
-if ($mascaraOk && $codloc !== '') {
-    $rmCheck = InventarioRM::validarParaUso($codinventario, $codloc);
-    if ($rmCheck['valid']) {
-        $statusInventarioRm = $rmCheck['status'];
-        if ($deveValidarAcao || $veioDaUrl) {
-            $rmOk = true;
-        }
-    } elseif ($deveValidarAcao) {
-        flash_set('danger', $rmCheck['error']);
-        redirect_to('sem-lote.php?' . http_build_query($redirectParams()));
-    }
-}
-
-$nomeLocal = LocaisEstoque::nome($codloc);
-// Só a tela de seleção usa a lista (view: if (!$modoLista), e $modoLista === $rmOk).
-$inventariosAbertos = $rmOk ? [] : InventarioRM::listarAbertos();
-
-if ($rmOk) {
-    $modoLista = true;
-    if (isset($_GET['aplicar'])) {
-        SessionManager::setLastInventario($codloc, $codinventario, '1');
-        redirect_to('sem-lote.php?' . http_build_query($redirectParams()));
-    }
     SessionManager::setLastInventario($codloc, $codinventario, '1');
-    $itens = InventarioRM::listarItensSemLote($codinventario, $codloc);
+
+    if (isset($_GET['aplicar'])) {
+        redirect_to('sem-lote.php?' . http_build_query($ctx->params($paramsFiltro)));
+    }
+
+    $itens = InventarioRM::listarItensSemLote($codinventario, $codloc, $avulso, $somenteComSaldo);
     $totaisProduto = ZMDCODBARRAS::totaisPorProduto($codinventario);
     $qtdItensRm = count($itens);
+    $listaTruncada = $qtdItensRm >= InventarioRM::LIMITE_ITENS;
 }
 
 $pageTitle = 'Inventário — Sem lote';

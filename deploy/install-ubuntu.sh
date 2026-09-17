@@ -59,6 +59,26 @@ echo "extension=pdo_sqlsrv.so" > "/etc/php/${PHP_VERSION}/mods-available/pdo_sql
 phpenmod -v "${PHP_VERSION}" -s cli sqlsrv pdo_sqlsrv 2>/dev/null || phpenmod sqlsrv pdo_sqlsrv
 phpenmod -v "${PHP_VERSION}" -s fpm sqlsrv pdo_sqlsrv 2>/dev/null || true
 
+# O pool do PHP-FPM derruba a requisicao por request_terminate_timeout antes de
+# o set_time_limit do app valer de alguma coisa: a folha de contagem de um local
+# grande morria no meio, sem mensagem. Os tetos ficam alinhados com o nginx
+# (fastcgi_read_timeout) e com o query_timeout do environments.php.
+echo "==> Ajustando tempo e memoria do PHP para as telas de contagem..."
+cat > "/etc/php/${PHP_VERSION}/fpm/conf.d/99-inventario.ini" <<'PHPINI'
+max_execution_time = 300
+max_input_time = 120
+memory_limit = 512M
+PHPINI
+
+FPM_POOL="/etc/php/${PHP_VERSION}/fpm/pool.d/www.conf"
+if [ -f "$FPM_POOL" ]; then
+  if grep -q '^;*request_terminate_timeout' "$FPM_POOL"; then
+    sed -i 's|^;*request_terminate_timeout.*|request_terminate_timeout = 300|' "$FPM_POOL"
+  else
+    echo "request_terminate_timeout = 300" >> "$FPM_POOL"
+  fi
+fi
+
 echo "==> Configurando site Inventario na porta ${INVENTARIO_PORT}..."
 mkdir -p "$DEPLOY_DIR"
 

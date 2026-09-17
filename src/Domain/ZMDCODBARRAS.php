@@ -42,20 +42,7 @@ class ZMDCODBARRAS
     public static function listarPorInventario($inventario)
     {
         $c = new Connection('RM');
-        $SQL = self::baseSelectSql() . " WHERE ZMD.CODINVENTARIO = '$inventario' ORDER BY 1 DESC ";
-        $c->Consulta($SQL);
-
-        return self::mapearResultado($c);
-    }
-
-    /**
-     * @return ZMDCODBARRAS[]
-     */
-    public static function listarTodos()
-    {
-        $c = new Connection('RM');
-        $SQL = self::baseSelectSql() . " ORDER BY 1 DESC ";
-        $c->Consulta($SQL);
+        $c->Consulta(self::baseSelectSql() . ' WHERE ZMD.CODINVENTARIO = ? ORDER BY 1 DESC', [(string) $inventario]);
 
         return self::mapearResultado($c);
     }
@@ -85,11 +72,75 @@ class ZMDCODBARRAS
         return $arrayZMD;
     }
 
+    /**
+     * Mensagem técnica da última gravação que falhou, para quem quiser logar
+     * ou exibir em modo debug.
+     *
+     * @var string
+     */
+    public static $ultimoErro = '';
+
+    /**
+     * Recusa gravar o que as consultas de leitura não conseguiriam ler depois.
+     *
+     * CONVERT(INT, SUBSTRING(CODIGOBARRAS, 0, 7)) é usado por praticamente
+     * toda consulta de totais. Uma única linha com código não numérico faz
+     * esse CONVERT falhar e derruba o relatório do inventário inteiro — não só
+     * a linha ruim. O mesmo vale para a quantidade: texto que o TRY_CAST não
+     * lê vira NULL e some de todas as somas em silêncio.
+     *
+     * @return string '' quando está tudo certo, ou o motivo da recusa.
+     */
+    private function motivoParaNaoGravar(bool $exigirInventario = true): string
+    {
+        $codigo = (string) $this->codigobarras;
+        if (strlen($codigo) !== 13 || preg_match('/\D/', $codigo)) {
+            return 'Código de barras inválido: são exatamente 13 dígitos.';
+        }
+
+        if (normalizar_quantidade($this->quantidade) === null) {
+            return 'Quantidade inválida.';
+        }
+
+        // O UPDATE não mexe no CODINVENTARIO, então só o INSERT exige um.
+        if ($exigirInventario && trim((string) $this->codinventario) === '') {
+            return 'Inventário não informado.';
+        }
+
+        if (!LocaisEstoque::existe((string) $this->codloc)) {
+            return 'Local de estoque inválido.';
+        }
+
+        return '';
+    }
+
     public function save()
     {
+        self::$ultimoErro = '';
+
+        $motivo = $this->motivoParaNaoGravar();
+        if ($motivo !== '') {
+            self::$ultimoErro = $motivo;
+            log_erro('ZMDCODBARRAS::save', $motivo . ' (codigo=' . $this->codigobarras . ', qtd=' . $this->quantidade . ')');
+            return false;
+        }
+
         $c = new Connection('RM');
-        $SQL = "INSERT INTO ZMDCODBARRAS (CODIGOBARRAS,CODINVENTARIO,QUANTIDADE,CODLOC) VALUES ('{$this->codigobarras}','{$this->codinventario}','{$this->quantidade}','{$this->codloc}')";
-        return $c->manipula($SQL);
+        $ok = $c->manipula(
+            'INSERT INTO ZMDCODBARRAS (CODIGOBARRAS, CODINVENTARIO, QUANTIDADE, CODLOC) VALUES (?, ?, ?, ?)',
+            [
+                (string) $this->codigobarras,
+                (string) $this->codinventario,
+                quantidade_para_banco((float) normalizar_quantidade($this->quantidade)),
+                LocaisEstoque::normalizar((string) $this->codloc),
+            ]
+        );
+
+        if (!$ok) {
+            self::$ultimoErro = $c->erro;
+        }
+
+        return $ok;
     }
 
     /**
@@ -162,15 +213,14 @@ class ZMDCODBARRAS
         }
 
         $c = new Connection('RM');
-        $inv = self::sqlStr($codinventario);
         $SQL = "SELECT CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 0, 7)) AS IDPRD,
                        CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 8, 5)) AS IDLOTE,
                        SUM(TRY_CAST(REPLACE(LTRIM(RTRIM(CAST(ZMD.QUANTIDADE AS VARCHAR(30)))), ',', '.') AS DECIMAL(18, 4))) AS QUANTIDADE
                 FROM ZMDCODBARRAS ZMD
-                WHERE ZMD.CODINVENTARIO = '{$inv}'
+                WHERE ZMD.CODINVENTARIO = ?
                 GROUP BY CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 0, 7)),
                          CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 8, 5))";
-        $c->Consulta($SQL);
+        $c->Consulta($SQL, [$codinventario]);
 
         $mapa = [];
         while ($c->Resultado()) {
@@ -197,13 +247,12 @@ class ZMDCODBARRAS
         }
 
         $c = new Connection('RM');
-        $inv = self::sqlStr($codinventario);
         $SQL = "SELECT CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 0, 7)) AS IDPRD,
                        SUM(TRY_CAST(REPLACE(LTRIM(RTRIM(CAST(ZMD.QUANTIDADE AS VARCHAR(30)))), ',', '.') AS DECIMAL(18, 4))) AS QUANTIDADE
                 FROM ZMDCODBARRAS ZMD
-                WHERE ZMD.CODINVENTARIO = '{$inv}'
+                WHERE ZMD.CODINVENTARIO = ?
                 GROUP BY CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 0, 7))";
-        $c->Consulta($SQL);
+        $c->Consulta($SQL, [$codinventario]);
 
         $mapa = [];
         while ($c->Resultado()) {
@@ -234,7 +283,6 @@ class ZMDCODBARRAS
         }
 
         $c = new Connection('RM');
-        $inv = self::sqlStr($codinventario);
         $SQL = "SELECT
                     CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 0, 7)) AS IDPRD,
                     CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 8, 5)) AS IDLOTE,
@@ -250,10 +298,10 @@ class ZMDCODBARRAS
                 LEFT JOIN TLOTEPRD L
                     ON L.IDPRD = T.IDPRD
                    AND L.IDLOTE = CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 8, 5))
-                WHERE ZMD.CODINVENTARIO = '{$inv}'
+                WHERE ZMD.CODINVENTARIO = ?
                 GROUP BY CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 0, 7)),
                          CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 8, 5))";
-        $c->Consulta($SQL);
+        $c->Consulta($SQL, [$codinventario]);
 
         $mapa = [];
         while ($c->Resultado()) {
@@ -317,22 +365,21 @@ class ZMDCODBARRAS
 
         $ano = $ano !== null && $ano !== '' ? substr(preg_replace('/\D/', '', $ano), -2) : date('y');
         $prefixo = $ano . '.' . $codloc . '.';
-        $pref = self::sqlStr($prefixo);
         $inicio = self::NUMERO_AVULSO_INICIAL;
 
         $c = new Connection('RM');
         $SQL = "SELECT MAX(N) AS ULTIMO FROM (
                     SELECT TRY_CAST(RIGHT(RTRIM(CODINVENTARIO), 3) AS INT) AS N
                     FROM ZMDCODBARRAS
-                    WHERE LEFT(RTRIM(CODINVENTARIO), 7) = '{$pref}'
+                    WHERE LEFT(RTRIM(CODINVENTARIO), 7) = ?
                     UNION ALL
                     SELECT TRY_CAST(RIGHT(RTRIM(CODINVENTARIO), 3) AS INT) AS N
                     FROM TINVENTARIO
                     WHERE CODCOLIGADA = 1
-                      AND LEFT(RTRIM(CODINVENTARIO), 7) = '{$pref}'
+                      AND LEFT(RTRIM(CODINVENTARIO), 7) = ?
                 ) X
                 WHERE N >= {$inicio}";
-        $c->Consulta($SQL);
+        $c->Consulta($SQL, [$prefixo, $prefixo]);
 
         $ultimo = 0;
         if ($c->Resultado()) {
@@ -381,11 +428,9 @@ class ZMDCODBARRAS
         }
 
         $c = new Connection('RM');
-        $SQL = "UPDATE ZMDCODBARRAS SET CODINVENTARIO = '" . self::sqlStr($para) . "'
-                WHERE CODINVENTARIO = '" . self::sqlStr($de) . "'";
 
-        if (!$c->manipula($SQL)) {
-            $r['error'] = 'Nao foi possivel mover a contagem. Tente novamente.';
+        if (!$c->manipula('UPDATE ZMDCODBARRAS SET CODINVENTARIO = ? WHERE CODINVENTARIO = ?', [$para, $de])) {
+            $r['error'] = 'Não foi possível mover a contagem. Tente novamente.';
             return $r;
         }
 
@@ -481,14 +526,18 @@ class ZMDCODBARRAS
             return $r;
         }
 
-        $inv = self::sqlStr($codinventario);
-        $filtroItem = "CODINVENTARIO = '{$inv}'
-                  AND CONVERT(INT, SUBSTRING(CODIGOBARRAS, 0, 7)) = {$idprd}
-                  AND CONVERT(INT, SUBSTRING(CODIGOBARRAS, 8, 5)) = {$idlote}";
+        // ISNUMERIC + LEN protegem o CONVERT: uma linha com codigo fora do
+        // layout faria o CONVERT falhar e derrubaria a correcao inteira.
+        $filtroItem = "CODINVENTARIO = ?
+                  AND LEN(CODIGOBARRAS) = 13
+                  AND CODIGOBARRAS NOT LIKE '%[^0-9]%'
+                  AND CONVERT(INT, SUBSTRING(CODIGOBARRAS, 0, 7)) = ?
+                  AND CONVERT(INT, SUBSTRING(CODIGOBARRAS, 8, 5)) = ?";
+        $filtroParams = [$codinventario, $idprd, $idlote];
 
         // Marca ate onde apagar depois, para nao levar junto a linha nova.
         $c = new Connection('RM');
-        $c->Consulta("SELECT MAX(ID) AS ULTIMO, COUNT(*) AS TOTAL FROM ZMDCODBARRAS WHERE {$filtroItem}");
+        $c->Consulta("SELECT MAX(ID) AS ULTIMO, COUNT(*) AS TOTAL FROM ZMDCODBARRAS WHERE {$filtroItem}", $filtroParams);
 
         $ultimoAntes = 0;
         $existentes = 0;
@@ -512,7 +561,7 @@ class ZMDCODBARRAS
             $zmd = new self();
             $zmd->setCodigobarras($codigobarras);
             $zmd->setCodinventario($codinventario);
-            $zmd->setQuantidade((string) (0 + $quantidade));
+            $zmd->setQuantidade(quantidade_para_banco($quantidade));
             $zmd->setCodloc($codloc);
 
             if (!$zmd->save()) {
@@ -523,7 +572,10 @@ class ZMDCODBARRAS
 
         if ($ultimoAntes > 0) {
             $d = new Connection('RM');
-            if (!$d->manipula("DELETE FROM ZMDCODBARRAS WHERE ID <= {$ultimoAntes} AND {$filtroItem}")) {
+            if (!$d->manipula(
+                "DELETE FROM ZMDCODBARRAS WHERE ID <= ? AND {$filtroItem}",
+                array_merge([$ultimoAntes], $filtroParams)
+            )) {
                 $r['error'] = 'A contagem nova foi gravada, mas as anteriores não puderam ser apagadas. '
                     . 'O total está somado — corrija novamente.';
                 return $r;
@@ -538,13 +590,38 @@ class ZMDCODBARRAS
 
     public function atualizar()
     {
-        if (empty($this->id)) {
+        self::$ultimoErro = '';
+
+        $id = (int) $this->id;
+        if ($id <= 0) {
+            self::$ultimoErro = 'Registro não informado.';
+            return false;
+        }
+
+        // Mesma regra do save(): a edição não pode gravar o que a leitura não
+        // consegue reprocessar depois.
+        $motivo = $this->motivoParaNaoGravar(false);
+        if ($motivo !== '') {
+            self::$ultimoErro = $motivo;
             return false;
         }
 
         $c = new Connection('RM');
-        $SQL = "UPDATE ZMDCODBARRAS SET CODIGOBARRAS='{$this->codigobarras}', QUANTIDADE='{$this->quantidade}', CODLOC='{$this->codloc}' WHERE ID='{$this->id}'";
-        return $c->manipula($SQL);
+        $ok = $c->manipula(
+            'UPDATE ZMDCODBARRAS SET CODIGOBARRAS = ?, QUANTIDADE = ?, CODLOC = ? WHERE ID = ?',
+            [
+                (string) $this->codigobarras,
+                quantidade_para_banco((float) normalizar_quantidade($this->quantidade)),
+                LocaisEstoque::normalizar((string) $this->codloc),
+                $id,
+            ]
+        );
+
+        if (!$ok) {
+            self::$ultimoErro = $c->erro;
+        }
+
+        return $ok;
     }
 
     /**
@@ -552,14 +629,22 @@ class ZMDCODBARRAS
      */
     public static function excluirPorId($id)
     {
-        $c = new Connection('RM');
-        $SQL = "DELETE FROM ZMDCODBARRAS WHERE ID='{$id}'";
-        return $c->manipula($SQL);
-    }
+        self::$ultimoErro = '';
 
-    private static function sqlStr(string $value): string
-    {
-        return str_replace("'", "''", $value);
+        $id = (int) $id;
+        if ($id <= 0) {
+            self::$ultimoErro = 'Registro não informado.';
+            return false;
+        }
+
+        $c = new Connection('RM');
+        $ok = $c->manipula('DELETE FROM ZMDCODBARRAS WHERE ID = ?', [$id]);
+
+        if (!$ok) {
+            self::$ultimoErro = $c->erro;
+        }
+
+        return $ok;
     }
 
     /**
@@ -624,7 +709,6 @@ class ZMDCODBARRAS
         }
 
         $c = new Connection('RM');
-        $inv = self::sqlStr($codinventario);
         $SQL = "SELECT
                     CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 0, 7)) AS IDPRD,
                     T.NOMEFANTASIA AS NOME,
@@ -638,7 +722,7 @@ class ZMDCODBARRAS
                 LEFT JOIN TPRODUTODEF ON TPRODUTODEF.IDPRD = T.IDPRD
                 LEFT JOIN TLOTEPRD ON TLOTEPRD.IDPRD = T.IDPRD
                     AND TLOTEPRD.IDLOTE = CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 8, 5))
-                WHERE ZMD.CODINVENTARIO = '{$inv}'
+                WHERE ZMD.CODINVENTARIO = ?
                 GROUP BY
                     CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 0, 7)),
                     T.NOMEFANTASIA,
@@ -646,7 +730,7 @@ class ZMDCODBARRAS
                     TLOTEPRD.NUMLOTE,
                     RTRIM(ZMD.CODLOC)
                 ORDER BY T.NOMEFANTASIA, TLOTEPRD.NUMLOTE, RTRIM(ZMD.CODLOC)";
-        $c->Consulta($SQL);
+        $c->Consulta($SQL, [$codinventario]);
 
         $itens = [];
         $qtd = 0.0;
@@ -664,8 +748,10 @@ class ZMDCODBARRAS
             if ($idprd > 0) {
                 $produtos[$idprd] = true;
             }
+            // Chaveado por produto+lote: dois produtos diferentes podem usar o
+            // mesmo NUMLOTE, e contando só pelo texto do lote os dois viravam um.
             if (trim($lote) !== '') {
-                $lotes[$lote] = true;
+                $lotes[$idprd . ':' . $lote] = true;
             }
             $itens[] = [
                 'idprd'      => $idprd,
@@ -700,15 +786,56 @@ class ZMDCODBARRAS
         }
 
         $c = new Connection('RM');
-        $inv = self::sqlStr($codinventario);
-        $SQL = "SELECT COUNT(*) AS TOTAL FROM ZMDCODBARRAS WHERE CODINVENTARIO = '{$inv}'";
-        $c->Consulta($SQL);
+        $c->Consulta('SELECT COUNT(*) AS TOTAL FROM ZMDCODBARRAS WHERE CODINVENTARIO = ?', [$codinventario]);
 
         if (!$c->Resultado()) {
             return 0;
         }
 
         return (int) ($c->linha['TOTAL'] ?? 0);
+    }
+
+    /**
+     * Total de bipagens de vários inventários numa consulta só.
+     *
+     * A home e a lista de inventários abertos mostram o total de cada linha.
+     * Uma consulta por linha significava dezenas de idas ao SQL Server só para
+     * pintar a tela — e era o suficiente para estourar o tempo quando a lista
+     * crescia.
+     *
+     * @param string[] $codigos
+     * @return array<string, int> codinventario => total
+     */
+    public static function contarPorInventarios(array $codigos): array
+    {
+        $codigos = array_values(array_unique(array_filter(array_map('trim', $codigos), function ($v) {
+            return $v !== '';
+        })));
+
+        if ($codigos === []) {
+            return [];
+        }
+
+        $marcadores = implode(', ', array_fill(0, count($codigos), '?'));
+
+        $c = new Connection('RM');
+        $c->Consulta(
+            "SELECT RTRIM(CODINVENTARIO) AS CODINVENTARIO, COUNT(*) AS TOTAL
+             FROM ZMDCODBARRAS
+             WHERE RTRIM(CODINVENTARIO) IN ({$marcadores})
+             GROUP BY RTRIM(CODINVENTARIO)",
+            $codigos
+        );
+
+        $mapa = array_fill_keys($codigos, 0);
+        while ($c->Resultado()) {
+            $cod = trim(encode_db_value((string) ($c->linha['CODINVENTARIO'] ?? '')));
+            if ($cod !== '') {
+                $mapa[$cod] = (int) ($c->linha['TOTAL'] ?? 0);
+            }
+        }
+
+        return $mapa;
     }
 
     /**
@@ -764,14 +891,15 @@ class ZMDCODBARRAS
         }
 
         $c = new Connection('RM');
-        $inv = self::sqlStr($codinventario);
         $SQL = "SELECT COUNT(*) AS LEITURAS,
                        SUM(TRY_CAST(REPLACE(LTRIM(RTRIM(CAST(QUANTIDADE AS VARCHAR(30)))), ',', '.') AS DECIMAL(18, 4))) AS QUANTIDADE
                 FROM ZMDCODBARRAS
-                WHERE CODINVENTARIO = '{$inv}'
-                  AND CONVERT(INT, SUBSTRING(CODIGOBARRAS, 0, 7)) = {$idprd}
-                  AND CONVERT(INT, SUBSTRING(CODIGOBARRAS, 8, 5)) = {$idlote}";
-        $c->Consulta($SQL);
+                WHERE CODINVENTARIO = ?
+                  AND LEN(CODIGOBARRAS) = 13
+                  AND CODIGOBARRAS NOT LIKE '%[^0-9]%'
+                  AND CONVERT(INT, SUBSTRING(CODIGOBARRAS, 0, 7)) = ?
+                  AND CONVERT(INT, SUBSTRING(CODIGOBARRAS, 8, 5)) = ?";
+        $c->Consulta($SQL, [$codinventario, $idprd, $idlote]);
 
         if (!$c->Resultado()) {
             return $vazio;
@@ -788,14 +916,22 @@ class ZMDCODBARRAS
      */
     public static function excluirPorInventario(string $codinventario): bool
     {
+        self::$ultimoErro = '';
+
         $codinventario = trim($codinventario);
         if ($codinventario === '') {
+            self::$ultimoErro = 'Inventário não informado.';
             return false;
         }
 
         $c = new Connection('RM');
-        $SQL = "DELETE FROM ZMDCODBARRAS WHERE CODINVENTARIO = '{$codinventario}'";
-        return $c->manipula($SQL);
+        $ok = $c->manipula('DELETE FROM ZMDCODBARRAS WHERE CODINVENTARIO = ?', [$codinventario]);
+
+        if (!$ok) {
+            self::$ultimoErro = $c->erro;
+        }
+
+        return $ok;
     }
 
     /**
@@ -900,10 +1036,10 @@ class ZMDCODBARRAS
                 FROM TPRODUTO T
                 LEFT JOIN TPRODUTODEF ON TPRODUTODEF.IDPRD = T.IDPRD
                 LEFT JOIN TLOTEPRD ON TLOTEPRD.IDPRD = T.IDPRD
-                    AND TLOTEPRD.IDLOTE = CONVERT(INT, SUBSTRING('{$codigobarras}', 8, 5))
-                WHERE T.IDPRD = CONVERT(INT, SUBSTRING('{$codigobarras}', 0, 7))";
+                    AND TLOTEPRD.IDLOTE = ?
+                WHERE T.IDPRD = ?";
 
-        $c->Consulta($SQL);
+        $c->Consulta($SQL, [self::idloteDoBarcode($codigobarras), self::idprdDoBarcode($codigobarras)]);
 
         if (!$c->Resultado()) {
             $result['errors'][] = 'Produto não encontrado no RM para este código de barras.';
