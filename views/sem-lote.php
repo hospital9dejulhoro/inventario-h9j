@@ -21,6 +21,7 @@ $totaisProduto = $totaisProduto ?? [];
 $inventariosAbertos = $inventariosAbertos ?? [];
 $contagensAvulsas = $contagensAvulsas ?? [];
 $statusInventarioRm = $statusInventarioRm ?? '';
+$bipagensAvulsa = (int) ($bipagensAvulsa ?? 0);
 $avulso = !empty($avulso);
 $somenteComSaldo = !empty($somenteComSaldo);
 $listaTruncada = !empty($listaTruncada);
@@ -125,6 +126,36 @@ $colunas = $temSaldo ? 7 : 6;
         </form>
     </section>
 
+    <?php /* Mesma abertura de avulsa da tela de lotes. Um almoxarifado de
+             gaze, luva e seringa não tem um lote sequer: obrigar a criar a
+             contagem lá, numa lista que sairia vazia, era desvio sem motivo. */ ?>
+    <section class="inv-section panel" aria-labelledby="secao-avulsa">
+        <div class="inv-section-head">
+            <span class="inv-step">2</span>
+            <div>
+                <h2 id="secao-avulsa" class="section-title">Ou conte sem inventário cadastrado</h2>
+                <p class="section-desc">
+                    Abre uma contagem avulsa do local, sem esperar o inventário existir no RM.
+                    Lista os produtos sem lote que têm saldo ali. Quando o inventário for
+                    criado, você move a contagem para o código dele em um clique.
+                </p>
+            </div>
+        </div>
+        <form action="sem-lote.php" method="get" autocomplete="off" class="pl-filtro-linha">
+            <input type="hidden" name="avulsa" value="1">
+            <label class="pl-filtro-campo">
+                <span>Local</span>
+                <select name="CODLOC" class="form-control" required>
+                    <option value="">Escolha o local...</option>
+                    <?php foreach (LocaisEstoque::todos() as $cod => $descricao): ?>
+                        <option value="<?= e($cod) ?>"><?= e($cod . ' — ' . $descricao) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </label>
+            <button type="submit" class="btn btn-secondary">Abrir contagem avulsa</button>
+        </form>
+    </section>
+
     <?php
     $destinoAvulsa = 'sem-lote.php';
     require __DIR__ . '/_avulsas.php';
@@ -173,6 +204,36 @@ $colunas = $temSaldo ? 7 : 6;
             <?php endif; ?>
             <a class="btn btn-ghost sl-link" href="inventario.php?<?= e(http_build_query(['CODINVENTARIO' => $codinventario, 'aplicar' => '1'])) ?>">Leitura (lote)</a>
             <a class="btn btn-ghost sl-link" href="por-lote.php?<?= e(http_build_query(['CODINVENTARIO' => $codinventario, 'aplicar' => '1'])) ?>">Por lote</a>
+            <?php /* Quem abre a avulsa aqui tem de poder terminá-la aqui:
+                     vincular ao RM quando o inventário existir, ou jogar fora
+                     se a contagem não prestar. */ ?>
+            <?php if ($avulso): ?>
+            <details class="pl-vincular">
+                <summary class="btn btn-ghost sl-link">Vincular ao RM</summary>
+                <form action="<?= e(url('vincular-contagem.php')) ?>" method="post" class="pl-vincular-form"
+                      onsubmit="return confirm('Mover toda a contagem de <?= e($codinventario) ?> para o código informado?');">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="de" value="<?= e($codinventario) ?>">
+                    <input type="hidden" name="voltar" value="sem-lote.php">
+                    <p>Informe o inventário que o RM criou para o local <?= e($codloc) ?>. A contagem inteira passa para ele.</p>
+                    <input type="text" name="para" class="form-control mono" required
+                           inputmode="numeric" maxlength="10" placeholder="<?= e(substr($codinventario, 0, 7)) ?>001"
+                           pattern="\d{2}\.\d{3}\.\d{3}" data-inventario-mask>
+                    <button type="submit" class="btn btn-primary">Mover contagem</button>
+                </form>
+            </details>
+            <form action="<?= e(url('inventario-item.php')) ?>" method="post" class="pl-descartar-form"
+                  data-confirmar-codigo="<?= e($codinventario) ?>"
+                  data-confirmar-total="<?= (int) $bipagensAvulsa ?>"
+                  data-confirmar-rotulo="a contagem avulsa">
+                <?= csrf_field() ?>
+                <input type="hidden" name="acao" value="excluir_avulsa">
+                <input type="hidden" name="CODINVENTARIO" value="<?= e($codinventario) ?>">
+                <input type="hidden" name="voltar" value="sem-lote.php">
+                <button type="submit" class="btn btn-ghost sl-link"
+                        title="Apagar esta contagem avulsa">Descartar avulsa</button>
+            </form>
+            <?php endif; ?>
             <a class="btn btn-ghost sl-link" href="sem-lote.php">Trocar inventário</a>
         </div>
     </div>

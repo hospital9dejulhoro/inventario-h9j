@@ -13,6 +13,12 @@ if (!$somenteComSaldo) {
     $paramsFiltro['todos'] = '1';
 }
 
+// Abrir contagem avulsa direto daqui: num local sem lote nenhum, criar pela
+// tela de lotes só para voltar para cá era desvio sem motivo.
+if (isset($_GET['avulsa'])) {
+    ContextoInventario::abrirAvulsa('sem-lote.php');
+}
+
 $ctx = ContextoInventario::resolver('sem-lote.php', $paramsFiltro);
 
 $codloc = $ctx->codloc;
@@ -42,6 +48,10 @@ if ($modoLista) {
     if (isset($_GET['aplicar'])) {
         redirect_to('sem-lote.php?' . http_build_query($ctx->params($paramsFiltro)));
     }
+
+    // Só na avulsa, e só porque a confirmação de descarte precisa dizer
+    // quantos lançamentos vão embora.
+    $bipagensAvulsa = $avulso ? ZMDCODBARRAS::contarPorInventario($codinventario) : 0;
 
     $itens = InventarioRM::listarItensSemLote($codinventario, $codloc, $avulso, $somenteComSaldo);
     $totaisProduto = ZMDCODBARRAS::totaisPorProduto($codinventario);

@@ -12,14 +12,21 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $de = trim((string) ($_POST['de'] ?? ''));
 $paraBruto = trim((string) ($_POST['para'] ?? ''));
 
-$voltar = 'por-lote.php?' . http_build_query(['CODINVENTARIO' => $de, 'aplicar' => '1']);
+// Vincular pode partir da tela de lotes ou da de itens sem lote; o operador
+// volta para a que estava usando. Whitelist porque destino de redirect vindo
+// de POST é entrada do usuário como qualquer outra.
+$tela = in_array($_POST['voltar'] ?? '', ['por-lote.php', 'sem-lote.php'], true)
+    ? (string) $_POST['voltar']
+    : 'por-lote.php';
+
+$voltar = $tela . '?' . http_build_query(['CODINVENTARIO' => $de, 'aplicar' => '1']);
 
 csrf_exigir($voltar);
 
 $origem = ZMDCODBARRAS::parseCodigoInventario($de);
 if (empty($origem['valid'])) {
     flash_set('danger', 'Código de origem inválido.');
-    redirect_to('por-lote.php');
+    redirect_to($tela);
 }
 
 $destino = ZMDCODBARRAS::parseCodigoInventario($paraBruto);
@@ -70,4 +77,4 @@ if ($jaTem > 0) {
 }
 
 flash_set($jaTem > 0 ? 'warning' : 'success', $msg);
-redirect_to('por-lote.php?' . http_build_query(['CODINVENTARIO' => $para, 'aplicar' => '1']));
+redirect_to($tela . '?' . http_build_query(['CODINVENTARIO' => $para, 'aplicar' => '1']));

@@ -28,21 +28,7 @@ app_operacao_demorada();
 
 // Abrir contagem avulsa: gera o proximo codigo livre do local e entra nele.
 if (isset($_GET['avulsa'])) {
-    $novo = ZMDCODBARRAS::proximoCodigoAvulso((string) ($_GET['CODLOC'] ?? ''));
-    if ($novo['error'] !== '') {
-        flash_set('danger', $novo['error']);
-        redirect_to('por-lote.php');
-    }
-    flash_set(
-        'info',
-        'Contagem avulsa ' . $novo['codinventario'] . ' aberta. Ela ainda nao existe no RM — '
-        . 'quando o inventario for criado, use "Vincular ao RM" para mover a contagem.'
-    );
-    redirect_to('por-lote.php?' . http_build_query([
-        'CODINVENTARIO' => $novo['codinventario'],
-        'CODLOC'        => LocaisEstoque::normalizar((string) ($_GET['CODLOC'] ?? '')),
-        'aplicar'       => '1',
-    ]));
+    ContextoInventario::abrirAvulsa('por-lote.php');
 }
 
 $ctx = ContextoInventario::resolver('por-lote.php', $paramsFiltro);

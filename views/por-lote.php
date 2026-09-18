@@ -136,7 +136,8 @@ $moeda = function ($v) {
                 <h2 id="secao-avulsa" class="section-title">Ou conte sem inventário cadastrado</h2>
                 <p class="section-desc">
                     Abre uma contagem avulsa do local, sem esperar o inventário existir no RM.
-                    Quando ele for criado, você move a contagem para o código dele em um clique.
+                    Lista os lotes com saldo ali. Quando o inventário for criado, você move
+                    a contagem para o código dele em um clique.
                 </p>
             </div>
         </div>

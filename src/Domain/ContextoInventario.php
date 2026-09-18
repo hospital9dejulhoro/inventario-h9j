@@ -121,6 +121,39 @@ class ContextoInventario
     }
 
     /**
+     * Abre uma contagem avulsa no local pedido e entra nela. Não retorna.
+     *
+     * Vive aqui, e não numa tela, porque as duas telas de contagem abrem
+     * avulsa: a de lotes e a de itens sem lote. Num almoxarifado de gaze e
+     * luva não existe um lote sequer, e obrigar a criar a contagem pela tela
+     * de lotes — que abriria vazia — era um desvio sem motivo.
+     *
+     * @param string $script Tela que recebe a contagem recém-aberta.
+     */
+    public static function abrirAvulsa(string $script): void
+    {
+        $codloc = LocaisEstoque::normalizar((string) ($_GET['CODLOC'] ?? ''));
+        $novo = ZMDCODBARRAS::proximoCodigoAvulso($codloc);
+
+        if ($novo['error'] !== '') {
+            flash_set('danger', $novo['error']);
+            redirect_to($script);
+        }
+
+        flash_set(
+            'info',
+            'Contagem avulsa ' . $novo['codinventario'] . ' aberta. Ela ainda não existe no RM — '
+            . 'quando o inventário for criado, use "Vincular ao RM" para mover a contagem.'
+        );
+
+        redirect_to($script . '?' . http_build_query([
+            'CODINVENTARIO' => $novo['codinventario'],
+            'CODLOC'        => $codloc,
+            'aplicar'       => '1',
+        ]));
+    }
+
+    /**
      * @param array<string, string> $extra
      * @return array<string, string>
      */
