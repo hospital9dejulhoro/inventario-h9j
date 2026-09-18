@@ -21,22 +21,34 @@ $envAtual = EnvironmentManager::getCurrent();
 $linhas = [];
 $grupos = [];
 $truncado = false;
-$totais = ['linhas' => 0, 'produtos' => 0, 'lotes' => 0, 'quantidade' => 0.0, 'valor' => 0.0];
+$totais = [
+    'linhas' => 0, 'produtos' => 0, 'lotes' => 0, 'sem_lote' => 0,
+    'quantidade' => 0.0, 'valor' => 0.0,
+];
 
 if ($localValido) {
-    $linhas = InventarioRM::listarPosicaoPorLote($codloc, $busca, $grupoContabil, $somenteComSaldo);
+    // Posição do local inteira: com lote e sem lote. Só a metade com lote
+    // deixava o relatório em branco num local de gaze, luva e seringa —
+    // nenhum desses produtos tem lote cadastrado.
+    $linhas = InventarioRM::listarPosicaoDoLocal($codloc, $busca, $grupoContabil, $somenteComSaldo);
     $grupos = InventarioRM::gruposContabeisDoLocal($codloc, $somenteComSaldo);
-    $truncado = count($linhas) >= InventarioRM::LIMITE_LOTES;
+    $truncado = count($linhas) >= (InventarioRM::LIMITE_LOTES + InventarioRM::LIMITE_ITENS);
 
     $produtos = [];
     foreach ($linhas as $linha) {
         $totais['linhas']++;
         $produtos[(int) $linha['idprd']] = true;
+        // "Lotes" tem de continuar contando lote: uma linha sem lote é um
+        // produto, e somá-la ali inflaria o indicador com o que não é lote.
+        if ((int) $linha['idlote'] > 0) {
+            $totais['lotes']++;
+        } else {
+            $totais['sem_lote']++;
+        }
         $totais['quantidade'] += (float) $linha['saldo'];
         $totais['valor'] += (float) $linha['saldo_financeiro'];
     }
     $totais['produtos'] = count($produtos);
-    $totais['lotes'] = $totais['linhas'];
 }
 
 if ($export === 'pdf' && $localValido) {
@@ -74,6 +86,7 @@ if ($export === 'csv' && $localValido) {
         fputcsv($out, ['Grupo contabil', $grupoContabil], ';');
     }
     fputcsv($out, ['Lotes', $totais['lotes']], ';');
+    fputcsv($out, ['Produtos sem lote', $totais['sem_lote']], ';');
     fputcsv($out, ['Produtos', $totais['produtos']], ';');
     fputcsv($out, ['Saldo financeiro', round($totais['valor'], 2)], ';');
     fputcsv($out, [], ';');

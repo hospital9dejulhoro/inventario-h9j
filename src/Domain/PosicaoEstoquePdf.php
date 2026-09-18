@@ -3,7 +3,10 @@
 require_once APP_ROOT . DS . 'src' . DS . 'Domain' . DS . 'RelatorioPdfBase.php';
 
 /**
- * Posição de estoque por lote em PDF A4 (retrato), para impressão.
+ * Posição de estoque do local em PDF A4 (retrato), para impressão.
+ *
+ * Traz o que tem lote e o que não tem: um local de gaze, luva e seringa não
+ * tem um lote sequer, e a folha saía em branco.
  *
  * Custo médio e valor financeiro ficam de fora de propósito: esta é a folha que
  * circula pela prateleira, e valor numa folha de conferência tanto vaza
@@ -12,7 +15,7 @@ require_once APP_ROOT . DS . 'src' . DS . 'Domain' . DS . 'RelatorioPdfBase.php'
  */
 class PosicaoEstoquePdf extends RelatorioPdfBase
 {
-    protected string $titulo = 'Posição de Estoque por Lote';
+    protected string $titulo = 'Posição de Estoque do Local';
 
     /** @var string */
     private string $grupoLabel = '';
@@ -70,7 +73,6 @@ class PosicaoEstoquePdf extends RelatorioPdfBase
         $this->SetFont('Arial', 'B', 10);
         $this->Cell(0, 6, $this->t('Totais'), 0, 1, 'L');
 
-        $w = 59.3;
         $h = 16;
         $x = 14;
         $y = $this->GetY();
@@ -79,8 +81,22 @@ class PosicaoEstoquePdf extends RelatorioPdfBase
             ['Lotes', (string) (int) ($totais['lotes'] ?? 0)],
             ['Quantidade', $this->fmtQtd((float) ($totais['quantidade'] ?? 0))],
         ];
+
+        // Só entra quando há: num local sem nenhum item desses, um cartão
+        // zerado seria ruído numa folha que vai para a prateleira.
+        $semLote = (int) ($totais['sem_lote'] ?? 0);
+        if ($semLote > 0) {
+            array_splice($cards, 2, 0, [['Sem lote', (string) $semLote]]);
+        }
+
+        // A largura sai da quantidade de cartões: era fixa em 59,3 mm, que só
+        // fecha a linha com três. Com o quarto, a última caixa passava da
+        // margem direita da folha.
+        $util = 210 - 14 - 14;                       // A4 menos as margens
+        $vao = 2;
+        $w = ($util - $vao * (count($cards) - 1)) / count($cards);
         foreach ($cards as $i => $card) {
-            $cx = $x + ($i * ($w + 2));
+            $cx = $x + ($i * ($w + $vao));
             $this->SetFillColor(248, 251, 255);
             $this->SetDrawColor(229, 231, 235);
             $this->Rect($cx, $y, $w, $h, 'DF');
@@ -102,7 +118,7 @@ class PosicaoEstoquePdf extends RelatorioPdfBase
     private function desenharTabela(array $itens): void
     {
         $this->SetFont('Arial', 'B', 10);
-        $this->Cell(0, 6, $this->t('Lotes em estoque'), 0, 1, 'L');
+        $this->Cell(0, 6, $this->t('Itens em estoque'), 0, 1, 'L');
         $this->Ln(1);
 
         // A4 útil ~182mm (210 - 14*2). Sem custo e sem valor: sobra largura
@@ -121,7 +137,7 @@ class PosicaoEstoquePdf extends RelatorioPdfBase
 
         if ($itens === []) {
             $this->SetFont('Arial', 'I', 9);
-            $this->Cell(182, 8, $this->t('Nenhum lote com saldo neste local.'), 1, 1, 'C');
+            $this->Cell(182, 8, $this->t('Nenhum item com saldo neste local.'), 1, 1, 'C');
             return;
         }
 

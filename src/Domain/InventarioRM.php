@@ -215,26 +215,68 @@ class InventarioRM
      * É a folha "sem lote" da contagem avulsa. Espelha a fonte que a tela de
      * lotes usa (TPRDLOC), só que do lado de quem não tem TLOTEPRD.
      *
-     * @return array<int, array{idprd: int, codigo: string, nome: string, und: string, codloc: string, saldo: float, custo_medio: float}>
+     * Aceita os mesmos filtros da consulta por lote (busca e grupo contábil)
+     * para que as duas metades da posição do local respondam igual.
+     *
+     * @return array<int, array<string, mixed>> mesma forma de listarPosicaoPorLote
      */
-    public static function listarItensSemLoteDoLocal(string $codloc, bool $somenteComSaldo = false): array
-    {
+    public static function listarItensSemLoteDoLocal(
+        string $codloc,
+        bool $somenteComSaldo = false,
+        string $busca = '',
+        string $grupoContabil = ''
+    ): array {
         $codloc = LocaisEstoque::normalizar($codloc);
         if ($codloc === '') {
             return [];
         }
 
         $limite = self::LIMITE_ITENS;
+        $params = self::paramsCodloc($codloc);
         $whereSaldo = $somenteComSaldo ? ' AND PRDLOC.SALDOFISICO2 <> 0' : '';
 
+        $whereGrupo = '';
+        $grupoContabil = trim($grupoContabil);
+        if ($grupoContabil !== '') {
+            $whereGrupo = ' AND LTRIM(RTRIM(PRDDEF.CODTB2FAT)) = ?';
+            $params[] = $grupoContabil;
+        }
+
+        $whereBusca = '';
+        $busca = trim($busca);
+        if ($busca !== '') {
+            $digitos = preg_replace('/\D/', '', $busca);
+
+            if (strlen($digitos) === 13) {
+                // Etiqueta com lote não pode casar com item sem lote: o
+                // parâmetro impossível deixa a consulta voltar vazia sem
+                // inventar um resultado.
+                if (ZMDCODBARRAS::idloteDoBarcode($digitos) > 0) {
+                    return [];
+                }
+                $whereBusca = ' AND PRD.IDPRD = ?';
+                $params[] = ZMDCODBARRAS::idprdDoBarcode($digitos);
+            } else {
+                // Sem NUMLOTE para procurar; sobram nome e código do produto.
+                $like = self::sqlLike($busca);
+                $whereBusca = " AND (
+                    PRD.NOMEFANTASIA LIKE '%{$like}%'
+                    OR PRD.CODIGOPRD LIKE '%{$like}%'
+                )";
+            }
+        }
+
         // O custo entra porque a conferência calcula o valor da diferença com
-        // ele. A folha de contagem em si não mostra valor.
+        // ele, e o relatório de posição mostra o valor financeiro.
         $SQL = "SELECT TOP {$limite}
                     PRD.IDPRD,
                     MAX(RTRIM(PRDLOC.CODLOC)) AS CODLOC,
                     MAX(PRD.CODIGOPRD) AS CODIGO,
                     MAX(PRD.NOMEFANTASIA) AS NOME,
                     MAX(PRDDEF.CODUNDCONTROLE) AS UND,
+                    MAX(LTRIM(RTRIM(PRDDEF.CODTB2FAT))) AS GRUPOCOD,
+                    MAX(GRUP.DESCRICAO) AS GRUPONOME,
+                    MAX(LOC.NOME) AS LOCALNOME,
                     MAX(PRDLOC.SALDOFISICO2) AS SALDO,
                     MAX(CUST.CUSTOMEDIO) AS CUSTOMEDIO
                 FROM TPRODUTO PRD
@@ -244,6 +286,13 @@ class InventarioRM
                 INNER JOIN TPRDLOC PRDLOC
                     ON PRD.IDPRD = PRDLOC.IDPRD
                    AND PRD.CODCOLPRD = PRDLOC.CODCOLIGADA
+                LEFT JOIN TTB2 GRUP
+                    ON PRDDEF.CODTB2FAT = GRUP.CODTB2FAT
+                   AND GRUP.CODCOLIGADA = PRDDEF.CODCOLIGADA
+                LEFT JOIN TLOC LOC
+                    ON PRDLOC.CODLOC = LOC.CODLOC
+                   AND PRDLOC.CODFILIAL = LOC.CODFILIAL
+                   AND LOC.CODCOLIGADA = PRDLOC.CODCOLIGADA
                 LEFT JOIN TPRDCUSTOFILIAL CUST
                     ON PRDLOC.IDPRD = CUST.IDPRD
                    AND PRDLOC.CODFILIAL = CUST.CODFILIAL
@@ -251,6 +300,8 @@ class InventarioRM
                 WHERE PRD.INATIVO = 0
                   AND " . self::condicaoCodloc('PRDLOC') . "
                   {$whereSaldo}
+                  {$whereGrupo}
+                  {$whereBusca}
                   AND NOT EXISTS (
                         SELECT 1 FROM TLOTEPRD L WHERE L.IDPRD = PRD.IDPRD
                   )
@@ -258,9 +309,44 @@ class InventarioRM
                 ORDER BY MAX(PRD.NOMEFANTASIA), PRD.IDPRD";
 
         $c = new Connection('RM');
-        $c->Consulta($SQL, self::paramsCodloc($codloc));
+        $c->Consulta($SQL, $params);
 
         return self::mapearItensSemLote($c);
+    }
+
+    /**
+     * Posição completa do local: o que tem lote e o que não tem.
+     *
+     * As duas metades vêm de consultas diferentes porque as tabelas são
+     * diferentes — TLOTEPRDLOC só existe para produto com lote, e um INNER
+     * JOIN nela apaga todo o resto. Era por isso que um local de gaze, luva e
+     * seringa gerava relatório de posição vazio: nenhum desses produtos tem
+     * lote, então nenhum aparecia.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function listarPosicaoDoLocal(
+        string $codloc,
+        string $busca = '',
+        string $grupoContabil = '',
+        bool $somenteComSaldo = true
+    ): array {
+        $linhas = array_merge(
+            self::listarPosicaoPorLote($codloc, $busca, $grupoContabil, $somenteComSaldo),
+            self::listarItensSemLoteDoLocal($codloc, $somenteComSaldo, $busca, $grupoContabil)
+        );
+
+        // Cada metade vem ordenada por nome; juntas, precisam ser reordenadas
+        // ou o relatório sairia com os sem lote todos no fim.
+        usort($linhas, function ($a, $b) {
+            $porNome = strcasecmp((string) $a['nome'], (string) $b['nome']);
+            if ($porNome !== 0) {
+                return $porNome;
+            }
+            return strcmp((string) $a['numlote'], (string) $b['numlote']);
+        });
+
+        return $linhas;
     }
 
     /**
@@ -270,14 +356,28 @@ class InventarioRM
     {
         $itens = [];
         while ($c->Resultado()) {
+            $saldo = (float) ($c->linha['SALDO'] ?? 0);
+            $custo = (float) ($c->linha['CUSTOMEDIO'] ?? 0);
+
+            // Mesma forma da posição por lote, com os campos de lote vazios:
+            // assim as duas metades se juntam sem o chamador ter de saber de
+            // qual consulta cada linha veio. IDLOTE 0 é "sem lote" em todo o
+            // sistema, inclusive no layout do código de barras.
             $itens[] = [
-                'idprd'       => (int) ($c->linha['IDPRD'] ?? 0),
-                'codigo'      => encode_db_value((string) ($c->linha['CODIGO'] ?? '')),
-                'nome'        => encode_db_value((string) ($c->linha['NOME'] ?? '')),
-                'und'         => encode_db_value((string) ($c->linha['UND'] ?? '')),
-                'codloc'      => encode_db_value((string) ($c->linha['CODLOC'] ?? '')),
-                'saldo'       => (float) ($c->linha['SALDO'] ?? 0),
-                'custo_medio' => (float) ($c->linha['CUSTOMEDIO'] ?? 0),
+                'idprd'            => (int) ($c->linha['IDPRD'] ?? 0),
+                'idlote'           => 0,
+                'numlote'          => '',
+                'codigo'           => encode_db_value((string) ($c->linha['CODIGO'] ?? '')),
+                'nome'             => encode_db_value((string) ($c->linha['NOME'] ?? '')),
+                'und'              => encode_db_value((string) ($c->linha['UND'] ?? '')),
+                'codloc'           => encode_db_value((string) ($c->linha['CODLOC'] ?? '')),
+                'local_nome'       => encode_db_value((string) ($c->linha['LOCALNOME'] ?? '')),
+                'grupo_cod'        => encode_db_value((string) ($c->linha['GRUPOCOD'] ?? '')),
+                'grupo_nome'       => encode_db_value((string) ($c->linha['GRUPONOME'] ?? '')),
+                'validade'         => '',
+                'saldo'            => $saldo,
+                'custo_medio'      => $custo,
+                'saldo_financeiro' => $saldo * $custo,
             ];
         }
 
@@ -549,35 +649,11 @@ class InventarioRM
             return ['itens' => [], 'totais' => $totaisZerados, 'truncado' => false];
         }
 
-        // Duas fontes, porque a posição do local tem duas naturezas e a
-        // conferência precisa das duas.
-        //
-        // listarPosicaoPorLote faz INNER JOIN em TLOTEPRDLOC: por definição só
-        // enxerga produto COM lote. Sozinha, ela fazia todo item contado pela
-        // tela "Sem lote" cair no balde de sobra — o produto existia no local,
-        // tinha saldo, foi contado certo, e o relatório o acusava de excedente.
-        // Quanto mais o local tem de item sem lote, mais o relatório mentia.
-        $posicao = self::listarPosicaoPorLote($codloc, '', '', true);
-
-        foreach (self::listarItensSemLoteDoLocal($codloc, true) as $item) {
-            $posicao[] = [
-                'idprd'            => $item['idprd'],
-                'idlote'           => 0,
-                'numlote'          => '',
-                'codigo'           => $item['codigo'],
-                'nome'             => $item['nome'],
-                'und'              => $item['und'],
-                'codloc'           => $item['codloc'],
-                'local_nome'       => '',
-                'grupo_cod'        => '',
-                'grupo_nome'       => '',
-                'validade'         => '',
-                'saldo'            => $item['saldo'],
-                'custo_medio'      => $item['custo_medio'],
-                'saldo_financeiro' => $item['saldo'] * $item['custo_medio'],
-            ];
-        }
-
+        // A posição do local traz o que tem lote e o que não tem. Só a metade
+        // com lote fazia todo item contado pela tela "Sem lote" cair no balde
+        // de sobra — o produto existia no local, tinha saldo, foi contado
+        // certo, e o relatório o acusava de excedente.
+        $posicao = self::listarPosicaoDoLocal($codloc, '', '', true);
         $truncado = count($posicao) >= (self::LIMITE_LOTES + self::LIMITE_ITENS);
         $contagem = ZMDCODBARRAS::contagemPorProdutoLote($codinventario);
 
@@ -698,36 +774,67 @@ class InventarioRM
             return [];
         }
 
-        // Mesmo critério da lista de lotes. Se divergisse, o seletor ofereceria
-        // um grupo que a lista não mostra, ou esconderia um que ela mostra.
-        $whereSaldo = $somenteComSaldo ? ' AND LOTLOC.SALDOFISICO2 <> 0' : '';
+        // Mesmo critério da lista, nas duas metades: com lote o saldo que
+        // manda é o do lote, sem lote é o do produto no local. Um seletor que
+        // divergisse ofereceria grupo que a lista não mostra — ou, num local
+        // só de item sem lote, viria vazio e o filtro parecia quebrado.
+        $whereLote = $somenteComSaldo ? ' AND LOTLOC.SALDOFISICO2 <> 0' : '';
+        $whereProduto = $somenteComSaldo ? ' AND PRDLOC.SALDOFISICO2 <> 0' : '';
+        $condLoc = self::condicaoCodloc('PRDLOC');
+        $temGrupo = " AND PRDDEF.CODTB2FAT IS NOT NULL
+                  AND LTRIM(RTRIM(PRDDEF.CODTB2FAT)) <> ''";
 
-        $SQL = "SELECT DISTINCT
-                    LTRIM(RTRIM(PRDDEF.CODTB2FAT)) AS GRUPOCOD,
-                    GRUP.DESCRICAO AS GRUPONOME
-                FROM TPRODUTO PRD
-                INNER JOIN TPRODUTODEF PRDDEF
-                    ON PRD.IDPRD = PRDDEF.IDPRD
-                   AND PRD.CODCOLPRD = PRDDEF.CODCOLIGADA
-                INNER JOIN TPRDLOC PRDLOC
-                    ON PRD.IDPRD = PRDLOC.IDPRD
-                   AND PRD.CODCOLPRD = PRDLOC.CODCOLIGADA
-                INNER JOIN TLOTEPRDLOC LOTLOC
-                    ON LOTLOC.IDPRD = PRDLOC.IDPRD
-                   AND LOTLOC.CODCOLIGADA = PRDLOC.CODCOLIGADA
-                   AND LOTLOC.CODLOC = PRDLOC.CODLOC
-                LEFT JOIN TTB2 GRUP
-                    ON PRDDEF.CODTB2FAT = GRUP.CODTB2FAT
-                   AND GRUP.CODCOLIGADA = PRDDEF.CODCOLIGADA
-                WHERE PRD.INATIVO = 0
-                  AND " . self::condicaoCodloc('PRDLOC') . "
-                  {$whereSaldo}
-                  AND PRDDEF.CODTB2FAT IS NOT NULL
-                  AND LTRIM(RTRIM(PRDDEF.CODTB2FAT)) <> ''
-                ORDER BY GRUP.DESCRICAO, GRUPOCOD";
+        $SQL = "SELECT DISTINCT GRUPOCOD, GRUPONOME FROM (
+                    SELECT
+                        LTRIM(RTRIM(PRDDEF.CODTB2FAT)) AS GRUPOCOD,
+                        GRUP.DESCRICAO AS GRUPONOME
+                    FROM TPRODUTO PRD
+                    INNER JOIN TPRODUTODEF PRDDEF
+                        ON PRD.IDPRD = PRDDEF.IDPRD
+                       AND PRD.CODCOLPRD = PRDDEF.CODCOLIGADA
+                    INNER JOIN TPRDLOC PRDLOC
+                        ON PRD.IDPRD = PRDLOC.IDPRD
+                       AND PRD.CODCOLPRD = PRDLOC.CODCOLIGADA
+                    INNER JOIN TLOTEPRDLOC LOTLOC
+                        ON LOTLOC.IDPRD = PRDLOC.IDPRD
+                       AND LOTLOC.CODCOLIGADA = PRDLOC.CODCOLIGADA
+                       AND LOTLOC.CODLOC = PRDLOC.CODLOC
+                    LEFT JOIN TTB2 GRUP
+                        ON PRDDEF.CODTB2FAT = GRUP.CODTB2FAT
+                       AND GRUP.CODCOLIGADA = PRDDEF.CODCOLIGADA
+                    WHERE PRD.INATIVO = 0
+                      AND {$condLoc}
+                      {$whereLote}
+                      {$temGrupo}
+
+                    UNION
+
+                    SELECT
+                        LTRIM(RTRIM(PRDDEF.CODTB2FAT)) AS GRUPOCOD,
+                        GRUP.DESCRICAO AS GRUPONOME
+                    FROM TPRODUTO PRD
+                    INNER JOIN TPRODUTODEF PRDDEF
+                        ON PRD.IDPRD = PRDDEF.IDPRD
+                       AND PRD.CODCOLPRD = PRDDEF.CODCOLIGADA
+                    INNER JOIN TPRDLOC PRDLOC
+                        ON PRD.IDPRD = PRDLOC.IDPRD
+                       AND PRD.CODCOLPRD = PRDLOC.CODCOLIGADA
+                    LEFT JOIN TTB2 GRUP
+                        ON PRDDEF.CODTB2FAT = GRUP.CODTB2FAT
+                       AND GRUP.CODCOLIGADA = PRDDEF.CODCOLIGADA
+                    WHERE PRD.INATIVO = 0
+                      AND {$condLoc}
+                      {$whereProduto}
+                      {$temGrupo}
+                      AND NOT EXISTS (
+                            SELECT 1 FROM TLOTEPRD L WHERE L.IDPRD = PRD.IDPRD
+                      )
+                ) X
+                ORDER BY GRUPONOME, GRUPOCOD";
 
         $c = new Connection('RM');
-        $c->Consulta($SQL, self::paramsCodloc($codloc));
+        // O CODLOC entra duas vezes: uma por metade da UNION.
+        $c->Consulta($SQL, array_merge(self::paramsCodloc($codloc), self::paramsCodloc($codloc)));
 
         $grupos = [];
         while ($c->Resultado()) {

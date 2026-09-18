@@ -20,8 +20,8 @@ $moeda = function ($v) {
     <header class="inv-page-header">
         <h1 class="page-title">Posição de estoque</h1>
         <p class="page-subtitle">
-            Saldo atual por lote, com valor financeiro pelo custo médio. Sem data de
-            referência — é a posição de agora.
+            Saldo atual do local — com lote e sem lote —, com valor financeiro pelo
+            custo médio. Sem data de referência: é a posição de agora.
             <?php if ($envAtual): ?>
                 Ambiente: <strong><?= e($envAtual['label']) ?></strong>.
             <?php endif; ?>
@@ -132,6 +132,14 @@ $moeda = function ($v) {
                     <span class="rpt-kpi-value"><?= (int) $totais['lotes'] ?></span>
                     <span class="rpt-kpi-label">Lotes</span>
                 </div>
+                <?php /* Produto sem lote nao e lote nenhum, mas tambem esta no
+                         local e conta no saldo — vale ver os dois numeros. */ ?>
+                <?php if ((int) ($totais['sem_lote'] ?? 0) > 0): ?>
+                <div class="rpt-kpi">
+                    <span class="rpt-kpi-value"><?= (int) $totais['sem_lote'] ?></span>
+                    <span class="rpt-kpi-label">Sem lote</span>
+                </div>
+                <?php endif; ?>
                 <div class="rpt-kpi">
                     <span class="rpt-kpi-value"><?= e(formatar_quantidade($totais['quantidade'])) ?></span>
                     <span class="rpt-kpi-label">Quantidade</span>
@@ -145,7 +153,7 @@ $moeda = function ($v) {
 
         <?php if ($truncado): ?>
             <p class="sl-hint is-err">
-                A posição bateu o teto de <?= (int) InventarioRM::LIMITE_LOTES ?> linhas e foi cortada —
+                A posição bateu o teto de <?= (int) (InventarioRM::LIMITE_LOTES + InventarioRM::LIMITE_ITENS) ?> linhas e foi cortada —
                 os totais acima estão incompletos. Estreite por grupo contábil.
             </p>
         <?php endif; ?>
@@ -156,7 +164,7 @@ $moeda = function ($v) {
                     <span class="inv-step inv-step--muted">3</span>
                     <div>
                         <h2 id="secao-linhas" class="section-title">Posição por lote</h2>
-                        <p class="section-desc">Ordenado por produto, validade e lote.</p>
+                        <p class="section-desc">Ordenado por produto e lote. Produto sem lote aparece com &mdash; nas colunas de lote.</p>
                     </div>
                 </div>
             </div>
