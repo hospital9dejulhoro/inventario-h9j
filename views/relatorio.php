@@ -222,7 +222,8 @@ $fmtMoeda = function ($v) { return 'R$ ' . number_format((float) $v, 2, ',', '.'
 
             <?php if (!empty($conferencia['truncado'])): ?>
                 <p class="sl-hint is-err">
-                    A posição do local bateu o teto de <?= (int) InventarioRM::LIMITE_LOTES ?> linhas e foi cortada —
+                    A posição do local bateu o teto de <?= (int) InventarioRM::LIMITE_LOTES ?> linhas com lote
+                    ou <?= (int) InventarioRM::LIMITE_ITENS ?> sem lote e foi cortada —
                     a lista de não contados pode estar incompleta.
                 </p>
             <?php endif; ?>

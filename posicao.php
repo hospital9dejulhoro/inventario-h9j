@@ -22,7 +22,7 @@ $linhas = [];
 $grupos = [];
 $truncado = false;
 $totais = [
-    'linhas' => 0, 'produtos' => 0, 'lotes' => 0, 'sem_lote' => 0,
+    'produtos' => 0, 'lotes' => 0, 'sem_lote' => 0,
     'quantidade' => 0.0, 'valor' => 0.0,
 ];
 
@@ -32,11 +32,10 @@ if ($localValido) {
     // nenhum desses produtos tem lote cadastrado.
     $linhas = InventarioRM::listarPosicaoDoLocal($codloc, $busca, $grupoContabil, $somenteComSaldo);
     $grupos = InventarioRM::gruposContabeisDoLocal($codloc, $somenteComSaldo);
-    $truncado = count($linhas) >= (InventarioRM::LIMITE_LOTES + InventarioRM::LIMITE_ITENS);
+    $truncado = InventarioRM::posicaoTruncada($linhas);
 
     $produtos = [];
     foreach ($linhas as $linha) {
-        $totais['linhas']++;
         $produtos[(int) $linha['idprd']] = true;
         // "Lotes" tem de continuar contando lote: uma linha sem lote é um
         // produto, e somá-la ali inflaria o indicador com o que não é lote.

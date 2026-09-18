@@ -153,8 +153,9 @@ $moeda = function ($v) {
 
         <?php if ($truncado): ?>
             <p class="sl-hint is-err">
-                A posição bateu o teto de <?= (int) (InventarioRM::LIMITE_LOTES + InventarioRM::LIMITE_ITENS) ?> linhas e foi cortada —
-                os totais acima estão incompletos. Estreite por grupo contábil.
+                A posição bateu o teto de <?= (int) InventarioRM::LIMITE_LOTES ?> linhas com lote
+                ou <?= (int) InventarioRM::LIMITE_ITENS ?> sem lote e foi cortada —
+                os totais acima estão incompletos. Estreite por grupo contábil ou use a busca.
             </p>
         <?php endif; ?>
 

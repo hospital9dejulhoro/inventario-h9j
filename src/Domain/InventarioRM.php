@@ -350,6 +350,32 @@ class InventarioRM
     }
 
     /**
+     * A posição do local foi cortada por algum teto?
+     *
+     * Tem de olhar metade por metade. Somar as duas e comparar com a soma dos
+     * tetos esconde o caso comum: 4000 lotes (no teto) mais 10 itens sem lote
+     * dá 4010, que não alcança 8000 — e a lista saía cortada sem aviso nenhum,
+     * com totais incompletos passando por completos.
+     *
+     * @param array<int, array<string, mixed>> $linhas
+     */
+    public static function posicaoTruncada(array $linhas): bool
+    {
+        $comLote = 0;
+        $semLote = 0;
+
+        foreach ($linhas as $linha) {
+            if ((int) $linha['idlote'] > 0) {
+                $comLote++;
+            } else {
+                $semLote++;
+            }
+        }
+
+        return $comLote >= self::LIMITE_LOTES || $semLote >= self::LIMITE_ITENS;
+    }
+
+    /**
      * @return array<int, array{idprd: int, codigo: string, nome: string, und: string, codloc: string, saldo: float}>
      */
     private static function mapearItensSemLote(Connection $c): array
@@ -654,7 +680,7 @@ class InventarioRM
         // de sobra — o produto existia no local, tinha saldo, foi contado
         // certo, e o relatório o acusava de excedente.
         $posicao = self::listarPosicaoDoLocal($codloc, '', '', true);
-        $truncado = count($posicao) >= (self::LIMITE_LOTES + self::LIMITE_ITENS);
+        $truncado = self::posicaoTruncada($posicao);
         $contagem = ZMDCODBARRAS::contagemPorProdutoLote($codinventario);
 
         return self::reconciliar($posicao, $contagem, $truncado);

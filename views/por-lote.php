@@ -28,6 +28,7 @@ $inventariosAbertos = $inventariosAbertos ?? [];
 $contagensAvulsas = $contagensAvulsas ?? [];
 $listaTruncada = !empty($listaTruncada);
 $somenteComSaldo = !empty($somenteComSaldo);
+$statusInventarioRm = $statusInventarioRm ?? '';
 $avulso = !empty($avulso);
 $foraDoInventario = (int) ($foraDoInventario ?? 0);
 $valorTotal = (float) ($valorTotal ?? 0);
@@ -167,6 +168,11 @@ $moeda = function ($v) {
             <span><?= e($codloc) ?><?= $nomeLocal !== '' ? ' — ' . e($nomeLocal) : '' ?></span>
             <?php if ($envAtual): ?>
                 <span><?= e($envAtual['label']) ?></span>
+            <?php endif; ?>
+            <?php /* Se o RM fechar o inventario no meio da contagem, quem esta
+                     contando precisa ver. A tela de Leitura ja mostrava. */ ?>
+            <?php if ($statusInventarioRm !== ''): ?>
+                <span title="STATUS em TINVENTARIO">Status RM <strong><?= e($statusInventarioRm) ?></strong></span>
             <?php endif; ?>
             <span id="pl-counts"><?= (int) $contados ?>/<?= count($linhas) ?> contados</span>
             <?php /* Com varias pessoas no mesmo inventario, a coluna "Ja"

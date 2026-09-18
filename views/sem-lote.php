@@ -20,6 +20,7 @@ $itens = $itens ?? [];
 $totaisProduto = $totaisProduto ?? [];
 $inventariosAbertos = $inventariosAbertos ?? [];
 $contagensAvulsas = $contagensAvulsas ?? [];
+$statusInventarioRm = $statusInventarioRm ?? '';
 $avulso = !empty($avulso);
 $somenteComSaldo = !empty($somenteComSaldo);
 $listaTruncada = !empty($listaTruncada);
@@ -135,6 +136,11 @@ $colunas = $temSaldo ? 7 : 6;
             <span><?= e($codloc) ?><?= $nomeLocal !== '' ? ' — ' . e($nomeLocal) : '' ?></span>
             <?php if ($envAtual): ?>
                 <span><?= e($envAtual['label']) ?></span>
+            <?php endif; ?>
+            <?php /* Se o RM fechar o inventario no meio da contagem, quem esta
+                     contando precisa ver. A tela de Leitura ja mostrava. */ ?>
+            <?php if (($statusInventarioRm ?? '') !== ''): ?>
+                <span title="STATUS em TINVENTARIO">Status RM <strong><?= e($statusInventarioRm) ?></strong></span>
             <?php endif; ?>
             <span id="sl-counts"><?= (int) $contados ?>/<?= (int) $qtdItensRm ?> contados</span>
             <button type="button" class="btn-ghost sl-atualizar" id="sl-atualizar"

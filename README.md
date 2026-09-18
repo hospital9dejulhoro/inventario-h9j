@@ -76,6 +76,7 @@ inventario/
 ├── sem-lote.php              # Folha dos produtos sem cadastro de lote
 ├── sem-lote-salvar.php       # Grava a contagem sem lote (JSON)
 ├── vincular-contagem.php     # Move uma contagem avulsa para o código do RM
+├── contagem-totais.php       # Totais já contados, para as telas atualizarem (JSON)
 ├── relatorio.php             # Relatório de contagem + conferência (tela/CSV/PDF)
 ├── posicao.php               # Posição de estoque do local (tela/CSV/PDF)
 ├── bootstrap.php             # Sessão, configuração, autoload manual, erros
@@ -146,7 +147,8 @@ chaves, incluindo as opcionais `query_timeout`, `login_timeout` e
    - **Sem lote** — folha dos produtos que não têm cadastro de lote
 5. Conferir em **Relatório** (totais, conferência do local) e exportar CSV/PDF
 6. Quando o RM criar o inventário de verdade, **Vincular ao RM** move a
-   contagem avulsa para o código definitivo
+   contagem avulsa para o código definitivo — ou **Descartar**, se a contagem
+   não prestar
 
 ## Contagem avulsa
 
@@ -160,6 +162,23 @@ As três telas de contagem aceitam avulsas. Como não há itens gerados no RM
 contra os quais conferir, a lista de produtos vem da posição de estoque do
 local — inclusive na tela **Sem lote**, que para uma avulsa lista os produtos
 sem `TLOTEPRD` com posição no local (com a opção de incluir os zerados).
+
+## Várias pessoas contando ao mesmo tempo
+
+- Bipar acumula: duas leituras do mesmo lote somam, porque contar duas caixas
+  é legítimo. O aviso de releitura não acusa ninguém — pode ter sido um colega.
+- **Corrigir o total** substitui, e roda numa transação: quem grava por último
+  vence. Sem ela, duas correções simultâneas do mesmo lote somavam em vez de
+  substituir, e os dois operadores liam "Total corrigido".
+- Se o total gravado sair diferente do pedido, a tela avisa: alguém mexeu
+  naquele lote entre a leitura da tela e o clique.
+- **Atualizar totais** recarrega a coluna "Já contado" sem recarregar a
+  página, e ela se atualiza sozinha quando a aba volta ao foco. Sem polling:
+  dez telas consultando em laço ocupariam os processos do PHP-FPM à toa.
+- Excluir inventário e descartar avulsa exigem digitar o código — o que some
+  é a contagem de todos.
+- `pm.max_children` do PHP-FPM é quantas requisições são atendidas ao mesmo
+  tempo. O padrão do Ubuntu é 5; `deploy/install-ubuntu.sh` ajusta para 16.
 
 ## Regras de negócio
 
@@ -209,7 +228,8 @@ sem `TLOTEPRD` com posição no local (com a opção de incluir os zerados).
 ## Melhorias futuras sugeridas
 
 - Autenticação integrada ao Active Directory
-- Log de auditoria por usuário e ambiente
+- Log de auditoria por usuário e ambiente (script pronto para revisão do DBA em
+  `deploy/migracao-auditoria-contagem.sql`)
 - API REST para integração com coletores mobile
 - Paginação no servidor para locais acima do teto de linhas
 - Reserva atômica do número da contagem avulsa (hoje dois operadores
