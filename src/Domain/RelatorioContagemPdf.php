@@ -17,7 +17,7 @@ class RelatorioContagemPdf extends RelatorioPdfBase
      *   operador?: string,
      *   status_rm?: string,
      *   totais: array{bipagens: int, quantidade: float, produtos: int, lotes: int},
-     *   itens: array<int, array{idprd: int, nome: string, und: string, lote: string, codloc: string, bipagens: int, quantidade: float}>
+     *   itens: array<int, array{idprd: int, codigo?: string, nome: string, und: string, lote: string, codloc: string, bipagens: int, quantidade: float}>
      * } $dados
      */
     public static function gerar(array $dados): void
@@ -89,7 +89,7 @@ class RelatorioContagemPdf extends RelatorioPdfBase
     }
 
     /**
-     * @param array<int, array{idprd: int, nome: string, und: string, lote: string, codloc: string, bipagens: int, quantidade: float}> $itens
+     * @param array<int, array{idprd: int, codigo?: string, nome: string, und: string, lote: string, codloc: string, bipagens: int, quantidade: float}> $itens
      */
     private function desenharTabela(array $itens): void
     {
@@ -99,13 +99,14 @@ class RelatorioContagemPdf extends RelatorioPdfBase
 
         // Larguras A4 útil ~182mm (210 - 14*2)
         $cols = [
-            ['Produto', 68],
-            ['ID', 16],
-            ['Lote', 24],
-            ['Local', 16],
-            ['Und', 12],
-            ['Bip.', 16],
-            ['Qtd', 30],
+            ['Código', 26],
+            ['Produto', 50],
+            ['ID', 14],
+            ['Lote', 22],
+            ['Local', 14],
+            ['Und', 10],
+            ['Bip.', 14],
+            ['Qtd', 32],
         ];
 
         $this->cabecalhoTabela($cols);
@@ -122,10 +123,18 @@ class RelatorioContagemPdf extends RelatorioPdfBase
             if ($nome === '') {
                 $nome = '—';
             }
-            // Uma linha por item (A4); corta nome longo
+            $codigo = trim((string) ($item['codigo'] ?? ''));
+            $codigoPdf = $this->t($codigo !== '' ? $codigo : '—');
+            if ($this->GetStringWidth($codigoPdf) > 24) {
+                while ($this->GetStringWidth($codigoPdf . '...') > 24 && strlen($codigoPdf) > 3) {
+                    $codigoPdf = substr($codigoPdf, 0, -1);
+                }
+                $codigoPdf .= '...';
+            }
+
             $nomePdf = $this->t($nome);
-            if ($this->GetStringWidth($nomePdf) > 66) {
-                while ($this->GetStringWidth($nomePdf . '...') > 66 && strlen($nomePdf) > 3) {
+            if ($this->GetStringWidth($nomePdf) > 48) {
+                while ($this->GetStringWidth($nomePdf . '...') > 48 && strlen($nomePdf) > 3) {
                     $nomePdf = substr($nomePdf, 0, -1);
                 }
                 $nomePdf .= '...';
@@ -147,13 +156,14 @@ class RelatorioContagemPdf extends RelatorioPdfBase
             $this->SetDrawColor(229, 231, 235);
             $lote = trim((string) ($item['lote'] ?? ''));
 
-            $this->Cell(68, $rowH, $nomePdf, 1, 0, 'L', true);
-            $this->Cell(16, $rowH, $this->t((string) (int) ($item['idprd'] ?? 0)), 1, 0, 'C', true);
-            $this->Cell(24, $rowH, $this->t($lote !== '' ? $lote : '—'), 1, 0, 'C', true);
-            $this->Cell(16, $rowH, $this->t((string) ($item['codloc'] ?? '')), 1, 0, 'C', true);
-            $this->Cell(12, $rowH, $this->t((string) ($item['und'] ?? '')), 1, 0, 'C', true);
-            $this->Cell(16, $rowH, $this->t((string) (int) ($item['bipagens'] ?? 0)), 1, 0, 'C', true);
-            $this->Cell(30, $rowH, $this->t($this->fmtQtd((float) ($item['quantidade'] ?? 0))), 1, 1, 'R', true);
+            $this->Cell(26, $rowH, $codigoPdf, 1, 0, 'L', true);
+            $this->Cell(50, $rowH, $nomePdf, 1, 0, 'L', true);
+            $this->Cell(14, $rowH, $this->t((string) (int) ($item['idprd'] ?? 0)), 1, 0, 'C', true);
+            $this->Cell(22, $rowH, $this->t($lote !== '' ? $lote : '—'), 1, 0, 'C', true);
+            $this->Cell(14, $rowH, $this->t((string) ($item['codloc'] ?? '')), 1, 0, 'C', true);
+            $this->Cell(10, $rowH, $this->t((string) ($item['und'] ?? '')), 1, 0, 'C', true);
+            $this->Cell(14, $rowH, $this->t((string) (int) ($item['bipagens'] ?? 0)), 1, 0, 'C', true);
+            $this->Cell(32, $rowH, $this->t($this->fmtQtd((float) ($item['quantidade'] ?? 0))), 1, 1, 'R', true);
 
             $fill = !$fill;
         }

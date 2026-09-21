@@ -111,9 +111,10 @@ if ($export === 'csv' && $codinventario !== '') {
     fputcsv($out, ['Quantidade total', $relatorio['totais']['quantidade']], ';');
     fputcsv($out, ['Produtos', $relatorio['totais']['produtos']], ';');
     fputcsv($out, [], ';');
-    fputcsv($out, ['Produto', 'ID', 'Lote', 'Local', 'Und', 'Bipagens', 'Quantidade'], ';');
+    fputcsv($out, ['Código', 'Produto', 'ID', 'Lote', 'Local', 'Und', 'Bipagens', 'Quantidade'], ';');
     foreach ($relatorio['itens'] as $item) {
         fputcsv($out, [
+            $item['codigo'] ?? '',
             $item['nome'],
             $item['idprd'],
             $item['lote'],

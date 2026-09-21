@@ -145,6 +145,7 @@ $fmtMoeda = function ($v) { return 'R$ ' . number_format((float) $v, 2, ',', '.'
                 <table class="data-table">
                     <thead>
                     <tr>
+                        <th>Código</th>
                         <th>Produto</th>
                         <th>ID</th>
                         <th>Lote</th>
@@ -156,10 +157,11 @@ $fmtMoeda = function ($v) { return 'R$ ' . number_format((float) $v, 2, ',', '.'
                     </thead>
                     <tbody>
                     <?php if ($itens === []): ?>
-                        <tr><td colspan="7" class="empty">Nenhuma bipagem neste inventário.</td></tr>
+                        <tr><td colspan="8" class="empty">Nenhuma bipagem neste inventário.</td></tr>
                     <?php else: ?>
                         <?php foreach ($itens as $item): ?>
                             <tr>
+                                <td class="mono"><?= e(($item['codigo'] ?? '') !== '' ? $item['codigo'] : '—') ?></td>
                                 <td><?= e($item['nome'] !== '' ? $item['nome'] : '—') ?></td>
                                 <td class="mono"><?= (int) $item['idprd'] ?></td>
                                 <td class="mono"><?= e($item['lote'] !== '' ? $item['lote'] : '—') ?></td>

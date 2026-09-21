@@ -708,7 +708,7 @@ class ZMDCODBARRAS
      *
      * @return array{
      *   totais: array{bipagens: int, quantidade: float, produtos: int, lotes: int},
-     *   itens: array<int, array{idprd: int, nome: string, und: string, lote: string, codloc: string, bipagens: int, quantidade: float}>
+     *   itens: array<int, array{idprd: int, codigo: string, nome: string, und: string, lote: string, codloc: string, bipagens: int, quantidade: float}>
      * }
      */
     public static function relatorioContagem(string $codinventario): array
@@ -726,6 +726,7 @@ class ZMDCODBARRAS
         $c = new Connection('RM');
         $SQL = "SELECT
                     CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 0, 7)) AS IDPRD,
+                    T.CODIGOPRD AS CODIGO,
                     T.NOMEFANTASIA AS NOME,
                     TPRODUTODEF.CODUNDCONTROLE AS UND,
                     TLOTEPRD.NUMLOTE AS NUMLOTE,
@@ -740,6 +741,7 @@ class ZMDCODBARRAS
                 WHERE ZMD.CODINVENTARIO = ?
                 GROUP BY
                     CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 0, 7)),
+                    T.CODIGOPRD,
                     T.NOMEFANTASIA,
                     TPRODUTODEF.CODUNDCONTROLE,
                     TLOTEPRD.NUMLOTE,
@@ -770,6 +772,7 @@ class ZMDCODBARRAS
             }
             $itens[] = [
                 'idprd'      => $idprd,
+                'codigo'     => encode_db_value(trim((string) ($c->linha['CODIGO'] ?? ''))),
                 'nome'       => encode_db_value((string) ($c->linha['NOME'] ?? '')),
                 'und'        => encode_db_value((string) ($c->linha['UND'] ?? '')),
                 'lote'       => $lote,
