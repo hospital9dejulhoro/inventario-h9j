@@ -294,7 +294,17 @@ $avulso = !empty($avulso);
                 <?php if ($mostrarTabela && !empty($registros)): ?>
                     <?php foreach ($registros as $cod): ?>
                         <tr>
-                            <td class="mono"><?= e($cod->getCodigobarras()) ?></td>
+                            <td class="mono">
+                                <?= e($cod->getCodigobarras()) ?>
+                                <?php /* Linha secundaria em vez de coluna nova: a tabela ja
+                                         tem sete colunas e o celular e o aparelho da bipagem.
+                                         Lancamento anterior a esta versao nao tem autoria
+                                         gravada e simplesmente nao mostra nada. */ ?>
+                                <?php $autoria = trim($cod->getCriadoPor() . ' · ' . $cod->getCriadoEm(), " ·"); ?>
+                                <?php if ($autoria !== ''): ?>
+                                    <span class="inv-autoria"><?= e($autoria) ?></span>
+                                <?php endif; ?>
+                            </td>
                             <td><?= e($cod->getQuantidade()) ?></td>
                             <td><?= e($cod->getCodloc()) ?></td>
                             <td><?= e($cod->getNome()) ?></td>

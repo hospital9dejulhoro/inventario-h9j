@@ -212,6 +212,54 @@ function log_erro(string $contexto, string $mensagem): void
     error_log('[inventario]' . $usuario . ' ' . $contexto . ': ' . preg_replace('/\s+/', ' ', $mensagem));
 }
 
+/**
+ * Registra uma operação sensível que deu certo.
+ *
+ * log_erro() só guarda o que falha. Exclusão apaga a linha, então o log é o
+ * único lugar onde sobra quem apagou o quê — as colunas de auditoria vão
+ * embora junto com o registro.
+ *
+ * Mesmo canal do log_erro (error_log do PHP), com marca própria para separar
+ * operação de falha na hora de procurar.
+ */
+function log_auditoria(string $operacao, string $detalhe): void
+{
+    $usuario = trim((string) ($_SESSION['rm_username'] ?? '')) ?: '?';
+
+    error_log('[inventario][auditoria] ' . $usuario . ' ' . $operacao . ': '
+        . preg_replace('/\s+/', ' ', $detalhe));
+}
+
+/**
+ * Data e hora vindas do banco, no formato da tela.
+ *
+ * O driver sqlsrv devolve DateTime para colunas datetime, mas cai para texto
+ * conforme a configuração — trata os dois.
+ *
+ * @param mixed $valor
+ */
+function formatar_data_hora($valor, string $formato = 'd/m/Y H:i'): string
+{
+    if ($valor instanceof DateTimeInterface) {
+        return $valor->format($formato);
+    }
+
+    if (is_object($valor) && method_exists($valor, 'format')) {
+        try {
+            return (string) $valor->format($formato);
+        } catch (Throwable $e) {
+            return '';
+        }
+    }
+
+    if (is_string($valor) && $valor !== '') {
+        $ts = strtotime($valor);
+        return $ts !== false ? date($formato, $ts) : $valor;
+    }
+
+    return '';
+}
+
 /* -------------------------------------------------------------------------
  * Proteção CSRF
  * ---------------------------------------------------------------------- */

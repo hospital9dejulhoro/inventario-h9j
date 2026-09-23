@@ -2090,3 +2090,13 @@ body.sl-corrigindo .sl-qtd::placeholder {
 .rpt-conf .data-table td:nth-child(2) {
     min-width: 15rem;
 }
+
+/* Autoria do lancamento: segunda linha discreta sob o codigo de barras */
+.inv-autoria {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.72rem;
+    font-family: var(--sans, inherit);
+    color: var(--text-muted);
+    white-space: nowrap;
+}

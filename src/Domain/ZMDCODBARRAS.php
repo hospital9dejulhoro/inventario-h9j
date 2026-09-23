@@ -23,12 +23,34 @@ class ZMDCODBARRAS
     private $und;
     private $numlote;
 
+    /** RECCREATEDBY / RECCREATEDON, só leitura na tela. */
+    private $criadoPor = '';
+    private $criadoEm = '';
+
     /**
      * SQL base compartilhado — evita duplicação entre listagens.
      */
+    /**
+     * Usuário do RM para RECCREATEDBY / RECMODIFIEDBY.
+     *
+     * É o CODUSUARIO que a sessão já guarda desde o login — a identidade
+     * sempre esteve disponível na hora de gravar, só não era escrita.
+     *
+     * O corte em 20 caracteres acompanha o tamanho de CODUSUARIO na GUSUARIO:
+     * um login maior que a coluna faria o INSERT inteiro falhar e derrubaria a
+     * contagem por causa do campo de auditoria.
+     */
+    private static function usuarioAuditoria(): string
+    {
+        $usuario = class_exists('SessionManager') ? trim(SessionManager::getUsername()) : '';
+
+        // Sem sessão (fila, script), fica registrado o sistema em vez de vazio.
+        return $usuario !== '' ? mb_substr($usuario, 0, 20) : 'INVENTARIO';
+    }
+
     private static function baseSelectSql(): string
     {
-        return "SELECT TOP " . self::LIMITE_LISTAGEM . " zmd.ID, ZMD.CODIGOBARRAS, ZMD.CODINVENTARIO, ZMD.QUANTIDADE, ZMD.CODLOC, T.NOMEFANTASIA AS NOME, TPRODUTODEF.CODUNDCONTROLE AS UND, TLOTEPRD.NUMLOTE
+        return "SELECT TOP " . self::LIMITE_LISTAGEM . " zmd.ID, ZMD.CODIGOBARRAS, ZMD.CODINVENTARIO, ZMD.QUANTIDADE, ZMD.CODLOC, ZMD.RECCREATEDBY, ZMD.RECCREATEDON, T.NOMEFANTASIA AS NOME, TPRODUTODEF.CODUNDCONTROLE AS UND, TLOTEPRD.NUMLOTE
                 FROM ZMDCODBARRAS ZMD
                 LEFT JOIN TPRODUTO T ON T.IDPRD = CONVERT(INT,SUBSTRING(ZMD.CODIGOBARRAS,0,7))
                 LEFT JOIN TPRODUTODEF ON TPRODUTODEF.IDPRD = T.IDPRD
@@ -65,6 +87,9 @@ class ZMDCODBARRAS
             $zmd->setNome(encode_db_value($c->linha['NOME']));
             $zmd->setUnd(encode_db_value($c->linha['UND']));
             $zmd->setNumlote(encode_db_value($c->linha['NUMLOTE']));
+            // RECCREATEDON vem como DateTime; encode_db_value espera texto.
+            $zmd->setCriadoPor(encode_db_value($c->linha['RECCREATEDBY'] ?? ''));
+            $zmd->setCriadoEm(formatar_data_hora($c->linha['RECCREATEDON'] ?? null));
 
             array_push($arrayZMD, $zmd);
         }
@@ -125,14 +150,18 @@ class ZMDCODBARRAS
             return false;
         }
 
+        // GETDATE() em vez de data do PHP: com vários operadores, o relógio
+        // que vale é o do banco, não o de cada servidor de aplicação.
         $c = new Connection('RM');
         $ok = $c->manipula(
-            'INSERT INTO ZMDCODBARRAS (CODIGOBARRAS, CODINVENTARIO, QUANTIDADE, CODLOC) VALUES (?, ?, ?, ?)',
+            'INSERT INTO ZMDCODBARRAS (CODIGOBARRAS, CODINVENTARIO, QUANTIDADE, CODLOC, RECCREATEDBY, RECCREATEDON)
+             VALUES (?, ?, ?, ?, ?, GETDATE())',
             [
                 (string) $this->codigobarras,
                 (string) $this->codinventario,
                 quantidade_para_banco((float) normalizar_quantidade($this->quantidade)),
                 LocaisEstoque::normalizar((string) $this->codloc),
+                self::usuarioAuditoria(),
             ]
         );
 
@@ -429,7 +458,11 @@ class ZMDCODBARRAS
 
         $c = new Connection('RM');
 
-        if (!$c->manipula('UPDATE ZMDCODBARRAS SET CODINVENTARIO = ? WHERE CODINVENTARIO = ?', [$para, $de])) {
+        if (!$c->manipula(
+            'UPDATE ZMDCODBARRAS SET CODINVENTARIO = ?, RECMODIFIEDBY = ?, RECMODIFIEDON = GETDATE()
+             WHERE CODINVENTARIO = ?',
+            [$para, self::usuarioAuditoria(), $de]
+        )) {
             $r['error'] = 'Não foi possível mover a contagem. Tente novamente.';
             return $r;
         }
@@ -575,12 +608,14 @@ class ZMDCODBARRAS
 
             if ($quantidade > 0) {
                 $ok = $c->manipula(
-                    'INSERT INTO ZMDCODBARRAS (CODIGOBARRAS, CODINVENTARIO, QUANTIDADE, CODLOC) VALUES (?, ?, ?, ?)',
+                    'INSERT INTO ZMDCODBARRAS (CODIGOBARRAS, CODINVENTARIO, QUANTIDADE, CODLOC, RECCREATEDBY, RECCREATEDON)
+                     VALUES (?, ?, ?, ?, ?, GETDATE())',
                     [
                         $codigobarras,
                         $codinventario,
                         quantidade_para_banco($quantidade),
                         LocaisEstoque::normalizar($codloc),
+                        self::usuarioAuditoria(),
                     ]
                 );
 
@@ -596,6 +631,11 @@ class ZMDCODBARRAS
             $r['error'] = 'Não foi possível corrigir o total. Nada foi alterado — tente de novo.';
             return $r;
         }
+
+        // A correção apaga lançamentos: as colunas de auditoria somem com eles,
+        // então o que aconteceu só fica registrado aqui.
+        log_auditoria('corrigir total', "inv={$codinventario} idprd={$idprd} idlote={$idlote} "
+            . "novo={$quantidade} substituiu={$apagados}");
 
         $r['ok'] = true;
         $r['apagados'] = $apagados;
@@ -623,11 +663,14 @@ class ZMDCODBARRAS
 
         $c = new Connection('RM');
         $ok = $c->manipula(
-            'UPDATE ZMDCODBARRAS SET CODIGOBARRAS = ?, QUANTIDADE = ?, CODLOC = ? WHERE ID = ?',
+            'UPDATE ZMDCODBARRAS SET CODIGOBARRAS = ?, QUANTIDADE = ?, CODLOC = ?,
+                    RECMODIFIEDBY = ?, RECMODIFIEDON = GETDATE()
+             WHERE ID = ?',
             [
                 (string) $this->codigobarras,
                 quantidade_para_banco((float) normalizar_quantidade($this->quantidade)),
                 LocaisEstoque::normalizar((string) $this->codloc),
+                self::usuarioAuditoria(),
                 $id,
             ]
         );
@@ -652,14 +695,32 @@ class ZMDCODBARRAS
             return false;
         }
 
+        // Lê antes de apagar: depois do DELETE não sobra nada para registrar,
+        // nem as colunas de auditoria da linha. Uma consulta a mais numa
+        // operação rara é o preço de saber o que foi removido.
         $c = new Connection('RM');
+        $c->Consulta(
+            'SELECT CODIGOBARRAS, CODINVENTARIO, QUANTIDADE, CODLOC FROM ZMDCODBARRAS WHERE ID = ?',
+            [$id]
+        );
+
+        $antes = $c->Resultado()
+            ? 'cod=' . trim((string) ($c->linha['CODIGOBARRAS'] ?? ''))
+              . ' inv=' . trim((string) ($c->linha['CODINVENTARIO'] ?? ''))
+              . ' qtd=' . trim((string) ($c->linha['QUANTIDADE'] ?? ''))
+              . ' loc=' . trim((string) ($c->linha['CODLOC'] ?? ''))
+            : 'linha nao encontrada';
+
         $ok = $c->manipula('DELETE FROM ZMDCODBARRAS WHERE ID = ?', [$id]);
 
         if (!$ok) {
             self::$ultimoErro = $c->erro;
+            return false;
         }
 
-        return $ok;
+        log_auditoria('excluir lancamento', "id={$id} {$antes}");
+
+        return true;
     }
 
     /**
@@ -942,14 +1003,20 @@ class ZMDCODBARRAS
             return false;
         }
 
+        // manipulaContando em vez de manipula: apagar a contagem inteira é a
+        // operação mais destrutiva do sistema, e quantas linhas se foram é a
+        // informação que faltaria depois.
         $c = new Connection('RM');
-        $ok = $c->manipula('DELETE FROM ZMDCODBARRAS WHERE CODINVENTARIO = ?', [$codinventario]);
+        $apagados = $c->manipulaContando('DELETE FROM ZMDCODBARRAS WHERE CODINVENTARIO = ?', [$codinventario]);
 
-        if (!$ok) {
+        if ($apagados < 0) {
             self::$ultimoErro = $c->erro;
+            return false;
         }
 
-        return $ok;
+        log_auditoria('excluir contagem', "inv={$codinventario} lancamentos={$apagados}");
+
+        return true;
     }
 
     /**
@@ -1150,6 +1217,26 @@ class ZMDCODBARRAS
     public function setNome($nome)
     {
         $this->nome = $nome;
+    }
+
+    public function getCriadoPor()
+    {
+        return $this->criadoPor;
+    }
+
+    public function setCriadoPor($criadoPor)
+    {
+        $this->criadoPor = $criadoPor;
+    }
+
+    public function getCriadoEm()
+    {
+        return $this->criadoEm;
+    }
+
+    public function setCriadoEm($criadoEm)
+    {
+        $this->criadoEm = $criadoEm;
     }
 
     public function getNumlote()
