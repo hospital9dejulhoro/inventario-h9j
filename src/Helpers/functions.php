@@ -107,10 +107,16 @@ function normalizar_quantidade($valor): ?float
  * notação científica e sem zeros à direita.
  *
  * (string) 0.0000001 sairia como "1.0E-7", que o TRY_CAST do relatório não lê.
+ *
+ * As casas acompanham a escala real da coluna — ZMDCODBARRAS.QUANTIDADE é
+ * decimal(10,2). Arredondar em quatro casas e deixar o banco cortar para duas
+ * fazia a gravação e a releitura discordarem: 1,125 ia como 1.1250, voltava
+ * 1,13, e a checagem que compara o pedido com o gravado acusava alteração
+ * concorrente que não houve.
  */
-function quantidade_para_banco(float $quantidade): string
+function quantidade_para_banco(float $quantidade, int $casas = ZMDCODBARRAS::QUANTIDADE_CASAS): string
 {
-    $texto = number_format($quantidade, 4, '.', '');
+    $texto = number_format($quantidade, $casas, '.', '');
 
     if (strpos($texto, '.') !== false) {
         $texto = rtrim(rtrim($texto, '0'), '.');

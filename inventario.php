@@ -125,7 +125,9 @@ if ($modoLeitura) {
                 flash_set('success', $msg);
             }
         } else {
-            flash_set('danger', 'Não foi possível salvar o registro. Tente novamente.');
+            // Antes esta tela engolia o motivo: recusa de quantidade ou de
+            // local virava sempre "tente novamente", sem dizer o que corrigir.
+            flash_set('danger', ZMDCODBARRAS::mensagemDaFalha('Não foi possível salvar o registro. Tente novamente.'));
         }
 
         redirect_to($redirectUrl);

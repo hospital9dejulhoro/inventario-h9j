@@ -174,9 +174,7 @@ if ($acao === 'editar') {
     if ($zmd->atualizar()) {
         flash_set('success', 'Registro atualizado com sucesso.');
     } else {
-        flash_set('danger', ZMDCODBARRAS::$ultimoErro !== ''
-            ? 'Não foi possível atualizar o registro: ' . ZMDCODBARRAS::$ultimoErro
-            : 'Não foi possível atualizar o registro.');
+        flash_set('danger', ZMDCODBARRAS::mensagemDaFalha('Não foi possível atualizar o registro.'));
     }
 
     redirect_to($redirectUrl);

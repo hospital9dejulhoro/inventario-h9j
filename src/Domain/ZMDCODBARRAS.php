@@ -23,6 +23,17 @@ class ZMDCODBARRAS
     private $und;
     private $numlote;
 
+    /**
+     * Forma da coluna ZMDCODBARRAS.QUANTIDADE — decimal(10,2).
+     *
+     * Passar do teto não trunca: o SQL Server recusa a gravação inteira com
+     * erro aritmético, e em produção o motivo técnico não vai para a tela — o
+     * operador veria só "não foi possível gravar". Melhor recusar antes, dizendo
+     * o que houve.
+     */
+    public const QUANTIDADE_CASAS = 2;
+    public const QUANTIDADE_MAXIMA = 99999999.99;
+
     /** RECCREATEDBY / RECCREATEDON, só leitura na tela. */
     private $criadoPor = '';
     private $criadoEm = '';
@@ -36,16 +47,20 @@ class ZMDCODBARRAS
      * É o CODUSUARIO que a sessão já guarda desde o login — a identidade
      * sempre esteve disponível na hora de gravar, só não era escrita.
      *
-     * O corte em 20 caracteres acompanha o tamanho de CODUSUARIO na GUSUARIO:
-     * um login maior que a coluna faria o INSERT inteiro falhar e derrubaria a
-     * contagem por causa do campo de auditoria.
+     * O corte acompanha o tamanho da coluna (varchar(50)): um login maior faria
+     * o INSERT inteiro falhar e derrubaria a contagem por causa do campo de
+     * auditoria.
      */
+    public const AUDITORIA_USUARIO_MAX = 50;
+
     private static function usuarioAuditoria(): string
     {
         $usuario = class_exists('SessionManager') ? trim(SessionManager::getUsername()) : '';
 
         // Sem sessão (fila, script), fica registrado o sistema em vez de vazio.
-        return $usuario !== '' ? mb_substr($usuario, 0, 20) : 'INVENTARIO';
+        return $usuario !== ''
+            ? mb_substr($usuario, 0, self::AUDITORIA_USUARIO_MAX)
+            : 'INVENTARIO';
     }
 
     private static function baseSelectSql(): string
@@ -106,6 +121,38 @@ class ZMDCODBARRAS
     public static $ultimoErro = '';
 
     /**
+     * Motivo da recusa em linguagem de quem está contando.
+     *
+     * Separado de $ultimoErro porque os dois têm destinos diferentes: recusa de
+     * validação é instrução para o operador e precisa aparecer sempre; erro
+     * técnico do banco vai para o log e só chega à tela em modo debug.
+     *
+     * @var string
+     */
+    public static $ultimoMotivo = '';
+
+    /**
+     * Texto para a tela depois de uma gravação que falhou.
+     *
+     * As quatro telas montavam essa decisão cada uma do seu jeito — uma mostrava
+     * o erro técnico sempre, duas só em debug, e a de leitura não mostrava nada.
+     *
+     * @param string $generico Texto de fallback já no contexto da tela.
+     */
+    public static function mensagemDaFalha(string $generico): string
+    {
+        if (self::$ultimoMotivo !== '') {
+            return self::$ultimoMotivo;
+        }
+
+        if (self::$ultimoErro !== '' && !empty($GLOBALS['appConfig']['debug'])) {
+            return $generico . ' ' . self::$ultimoErro;
+        }
+
+        return $generico;
+    }
+
+    /**
      * Recusa gravar o que as consultas de leitura não conseguiriam ler depois.
      *
      * CONVERT(INT, SUBSTRING(CODIGOBARRAS, 0, 7)) é usado por praticamente
@@ -123,8 +170,13 @@ class ZMDCODBARRAS
             return 'Código de barras inválido: são exatamente 13 dígitos.';
         }
 
-        if (normalizar_quantidade($this->quantidade) === null) {
+        $quantidade = normalizar_quantidade($this->quantidade);
+        if ($quantidade === null) {
             return 'Quantidade inválida.';
+        }
+
+        if ($motivoFaixa = self::motivoQuantidadeForaDaColuna($quantidade)) {
+            return $motivoFaixa;
         }
 
         // O UPDATE não mexe no CODINVENTARIO, então só o INSERT exige um.
@@ -139,13 +191,32 @@ class ZMDCODBARRAS
         return '';
     }
 
+    /**
+     * Quantidade que a coluna não comporta.
+     *
+     * O caso real não é alguém contar cem milhões: é o leitor de código de
+     * barras disparar no campo de quantidade e mandar treze dígitos.
+     *
+     * @return string '' quando cabe, ou o motivo.
+     */
+    private static function motivoQuantidadeForaDaColuna(float $quantidade): string
+    {
+        if (abs($quantidade) > self::QUANTIDADE_MAXIMA) {
+            return 'Quantidade acima do limite (' . formatar_quantidade(self::QUANTIDADE_MAXIMA)
+                . '). Confira se o leitor não disparou no campo de quantidade.';
+        }
+
+        return '';
+    }
+
     public function save()
     {
         self::$ultimoErro = '';
+        self::$ultimoMotivo = '';
 
         $motivo = $this->motivoParaNaoGravar();
         if ($motivo !== '') {
-            self::$ultimoErro = $motivo;
+            self::$ultimoMotivo = $motivo;
             log_erro('ZMDCODBARRAS::save', $motivo . ' (codigo=' . $this->codigobarras . ', qtd=' . $this->quantidade . ')');
             return false;
         }
@@ -567,6 +638,12 @@ class ZMDCODBARRAS
             return $r;
         }
 
+        // A correção monta o próprio INSERT e não passa por motivoParaNaoGravar().
+        if ($motivoFaixa = self::motivoQuantidadeForaDaColuna($quantidade)) {
+            $r['error'] = $motivoFaixa;
+            return $r;
+        }
+
         // ISNUMERIC + LEN protegem o CONVERT: uma linha com codigo fora do
         // layout faria o CONVERT falhar e derrubaria a correcao inteira.
         $filtroItem = "CODINVENTARIO = ?
@@ -646,10 +723,11 @@ class ZMDCODBARRAS
     public function atualizar()
     {
         self::$ultimoErro = '';
+        self::$ultimoMotivo = '';
 
         $id = (int) $this->id;
         if ($id <= 0) {
-            self::$ultimoErro = 'Registro não informado.';
+            self::$ultimoMotivo = 'Registro não informado.';
             return false;
         }
 
@@ -657,7 +735,7 @@ class ZMDCODBARRAS
         // consegue reprocessar depois.
         $motivo = $this->motivoParaNaoGravar(false);
         if ($motivo !== '') {
-            self::$ultimoErro = $motivo;
+            self::$ultimoMotivo = $motivo;
             return false;
         }
 

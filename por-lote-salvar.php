@@ -105,9 +105,7 @@ if ($modo === 'corrigir') {
     $zmd->setCodloc($codloc);
 
     if (!$zmd->save()) {
-        pl_falha(ZMDCODBARRAS::$ultimoErro !== '' && !empty($GLOBALS['appConfig']['debug'])
-            ? 'Não foi possível gravar: ' . ZMDCODBARRAS::$ultimoErro
-            : 'Não foi possível gravar. Tente novamente.');
+        pl_falha(ZMDCODBARRAS::mensagemDaFalha('Não foi possível gravar. Tente novamente.'));
     }
 
     SessionManager::incrementSessionScans();
