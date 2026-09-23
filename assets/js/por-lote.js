@@ -209,7 +209,11 @@
 
         // Item com saldo no local mas fora do inventario: mostra os dados para
         // conferencia, mas nao deixa gravar - o servidor recusaria de qualquer jeito.
-        var podeContar = dentroDoInventario(tr);
+        // Inventario encerrado no RM vale para a folha toda, pelo mesmo caminho.
+        var podeContar = dentroDoInventario(tr) && !cfg.somenteLeitura;
+        if (cfg.somenteLeitura && cfg.motivoBloqueio) {
+            bloqueioEl.textContent = cfg.motivoBloqueio;
+        }
         bloqueioEl.hidden = podeContar;
         grupoQtd.hidden = !podeContar;
         fGravar.disabled = !podeContar;

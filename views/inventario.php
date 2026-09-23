@@ -112,10 +112,20 @@ $avulso = !empty($avulso);
         <span><strong>Itens no RM:</strong> <?= (int) $qtdItensRm ?></span>
         <?php endif; ?>
         <?php if ($statusInventarioRm !== ''): ?>
-        <span><strong>Status RM:</strong> <?= e($statusInventarioRm) ?></span>
+        <span><strong>Status RM:</strong> <?= e(InventarioRM::rotuloStatus($statusInventarioRm)) ?></span>
         <?php endif; ?>
     </div>
     <?php endif; ?>
+
+<?php if (($somenteLeitura ?? false) && ($motivoBloqueio ?? '') !== ''): ?>
+    <?php /* O bloqueio de verdade e no backend; isto e para nao deixar a pessoa
+             contar uma prateleira inteira antes de descobrir. */ ?>
+    <div class="flash-wrap">
+        <div class="flash flash-warning" role="status">
+            <strong>Somente leitura.</strong> <?= e($motivoBloqueio) ?>
+        </div>
+    </div>
+<?php endif; ?>
 
     <form action="inventario.php" method="get" autocomplete="off" id="inventory-form" class="inv-form">
 

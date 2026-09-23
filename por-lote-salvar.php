@@ -70,6 +70,13 @@ if (!ZMDCODBARRAS::ehCodigoAvulso($codinventario)) {
         pl_falha($rmCheck['error']);
     }
 
+    // Inventário encerrado no RM já foi apurado: contar nele altera um
+    // resultado fechado sem o RM saber. O status vem da validação acima, sem
+    // consulta extra.
+    if (!$rmCheck['pode_gravar']) {
+        pl_falha($rmCheck['motivo_bloqueio']);
+    }
+
     // Pertencimento no RM é por produto: o lote vem do cadastro do próprio produto.
     if (!InventarioRM::itemPertenceAoInventario($codinventario, $codloc, $idprd)) {
         pl_falha('Este produto não faz parte do inventário neste local.');

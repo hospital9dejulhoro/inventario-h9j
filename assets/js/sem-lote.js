@@ -128,6 +128,13 @@
         if (saving || !tr) {
             return;
         }
+
+        // Inventario encerrado no RM: o servidor recusa de qualquer jeito, mas
+        // avisar aqui evita a ida e volta e diz o motivo na hora.
+        if (cfg.somenteLeitura) {
+            setStatus(cfg.motivoBloqueio || 'Inventário encerrado no RM: não aceita contagem.', 'is-err');
+            return;
+        }
         var input = tr.querySelector('.sl-qtd');
         var btn = tr.querySelector('.sl-btn');
         var raw = input ? String(input.value || '').trim() : '';

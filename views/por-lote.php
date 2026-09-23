@@ -109,6 +109,16 @@ $moeda = function ($v) {
                 </p>
             </div>
         </div>
+<?php if (($somenteLeitura ?? false) && ($motivoBloqueio ?? '') !== ''): ?>
+    <?php /* O bloqueio de verdade e no backend; isto e para nao deixar a pessoa
+             contar uma prateleira inteira antes de descobrir. */ ?>
+    <div class="flash-wrap">
+        <div class="flash flash-warning" role="status">
+            <strong>Somente leitura.</strong> <?= e($motivoBloqueio) ?>
+        </div>
+    </div>
+<?php endif; ?>
+
         <form action="por-lote.php" method="get" autocomplete="off" class="inv-form">
             <div class="inv-setup-row inv-setup-row--inventario">
                 <div class="form-group">
@@ -173,7 +183,7 @@ $moeda = function ($v) {
             <?php /* Se o RM fechar o inventario no meio da contagem, quem esta
                      contando precisa ver. A tela de Leitura ja mostrava. */ ?>
             <?php if ($statusInventarioRm !== ''): ?>
-                <span title="STATUS em TINVENTARIO">Status RM <strong><?= e($statusInventarioRm) ?></strong></span>
+                <span title="STATUS em TINVENTARIO">Status RM <strong><?= e(InventarioRM::rotuloStatus($statusInventarioRm)) ?></strong></span>
             <?php endif; ?>
             <span id="pl-counts"><?= (int) $contados ?>/<?= count($linhas) ?> contados</span>
             <?php /* Com varias pessoas no mesmo inventario, a coluna "Ja"
@@ -417,7 +427,9 @@ $moeda = function ($v) {
         totaisUrl: <?= json_encode(url('contagem-totais.php'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
         inventario: <?= json_encode($codinventario, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
         codloc: <?= json_encode($codloc, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
-        token: <?= json_encode(csrf_token(), JSON_HEX_TAG) ?>
+        token: <?= json_encode(csrf_token(), JSON_HEX_TAG) ?>,
+        somenteLeitura: <?= ($somenteLeitura ?? false) ? 'true' : 'false' ?>,
+        motivoBloqueio: <?= json_encode($motivoBloqueio ?? '', JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>
     };
     </script>
     <script src="<?= e(url('assets/js/por-lote.js')) ?>"></script>

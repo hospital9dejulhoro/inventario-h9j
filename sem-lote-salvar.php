@@ -64,6 +64,10 @@ if (!ZMDCODBARRAS::ehCodigoAvulso($codinventario)) {
         sl_falha($rmCheck['error']);
     }
 
+    if (!$rmCheck['pode_gravar']) {
+        sl_falha($rmCheck['motivo_bloqueio']);
+    }
+
     if (!InventarioRM::itemPertenceAoInventario($codinventario, $codloc, $idprd)) {
         sl_falha('Este produto não faz parte do inventário neste local.');
     }

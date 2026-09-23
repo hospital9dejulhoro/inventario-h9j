@@ -29,6 +29,8 @@ $codloc = $ctx->codloc;
 $codinventario = $ctx->codinventario;
 $nomeLocal = $ctx->nomeLocal;
 $statusInventarioRm = $ctx->statusRm;
+$somenteLeitura = $ctx->somenteLeitura;
+$motivoBloqueio = $ctx->motivoBloqueio;
 $retomadoDaSessao = $ctx->retomadoDaSessao;
 $modoLeitura = $ctx->ativo;
 $avulso = $ctx->avulso;
@@ -59,6 +61,13 @@ if ($modoLeitura) {
     $mostrarTabela = true;
 
     if ($barcodeInformado) {
+        // Esconder o campo não basta: o bipe chega por POST e um reload da
+        // página repete o último. A recusa fica aqui, antes de qualquer coisa.
+        if ($ctx->somenteLeitura) {
+            flash_set('danger', $ctx->motivoBloqueio);
+            redirect_to($redirectUrl);
+        }
+
         $codigobarras = preg_replace('/\D/', '', $codigobarras);
 
         $validacao = ZMDCODBARRAS::validarCodigoBarras($codigobarras);

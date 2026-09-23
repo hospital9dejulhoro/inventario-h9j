@@ -46,6 +46,14 @@ if (!$existe['valid']) {
     redirect_to($voltar);
 }
 
+// Vincular despeja a contagem inteira no destino. Se ele ja estiver encerrado,
+// isso entra numa apuracao fechada de uma vez so.
+$bloqueio = InventarioRM::motivoStatusBloqueia($para, $existe['status']);
+if ($bloqueio !== '') {
+    flash_set('danger', $bloqueio);
+    redirect_to($voltar);
+}
+
 // Mesmo local: mover contagem para o inventario de outro local misturaria
 // prateleiras diferentes na mesma apuracao.
 if ($origem['codloc'] !== $destino['codloc']) {

@@ -27,6 +27,16 @@ class ContextoInventario
     /** @var string STATUS do inventário no RM. */
     public $statusRm = '';
 
+    /**
+     * @var bool Inventário existe no RM mas não está aberto: dá para consultar
+     *     o que foi contado, não para contar. O backend recusa de qualquer
+     *     forma; isto é para a tela explicar antes de a pessoa tentar.
+     */
+    public $somenteLeitura = false;
+
+    /** @var string Por que está só de leitura, pronto para a tela. */
+    public $motivoBloqueio = '';
+
     /** @var string */
     public $nomeLocal = '';
 
@@ -101,6 +111,8 @@ class ContextoInventario
 
                 if ($rm['valid']) {
                     $ctx->statusRm = $rm['status'];
+                    $ctx->somenteLeitura = !$rm['pode_gravar'];
+                    $ctx->motivoBloqueio = $rm['motivo_bloqueio'];
                     // Sessão sozinha só pré-preenche; entrar na lista exige URL ou Aplicar.
                     $ctx->ativo = $deveValidar || $veioDaUrl;
                 } elseif ($deveValidar) {

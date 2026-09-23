@@ -7,6 +7,23 @@ class InventarioRM
 {
     private const CODCOLIGADA = 1;
 
+    /**
+     * TINVENTARIO.STATUS é varchar(1). No banco deste hospital aparecem três
+     * valores: 'A' aberto, 'E' encerrado e 'P' em processamento — este último
+     * só em registros de 2017 a 2020, abandonados pela migração.
+     *
+     * Contar só faz sentido no aberto. O encerrado já foi apurado no RM: gravar
+     * nele muda o resultado de uma apuração fechada sem que o RM saiba.
+     */
+    public const STATUS_ABERTO = 'A';
+
+    /** @var array<string, string> */
+    private const ROTULOS_STATUS = [
+        'A' => 'Aberto',
+        'E' => 'Encerrado',
+        'P' => 'Em processamento',
+    ];
+
     /** Teto de lotes carregados na tela; acima disso use a busca no servidor. */
     public const LIMITE_LOTES = 4000;
 
@@ -51,6 +68,65 @@ class InventarioRM
         return $result;
     }
 
+    public static function rotuloStatus(string $status): string
+    {
+        $status = strtoupper(trim($status));
+
+        return self::ROTULOS_STATUS[$status] ?? ($status !== '' ? $status : 'desconhecido');
+    }
+
+    /**
+     * Regra pura: este STATUS aceita gravação?
+     *
+     * Status vazio é o inventário que não tem linha em TINVENTARIO — avulsa, ou
+     * código órfão de antes da máscara. Não é assunto desta regra, e quem chama
+     * já trata: a gravação exige existir no RM, a exclusão precisa poder limpar.
+     */
+    public static function statusPermiteGravar(string $status): bool
+    {
+        $status = strtoupper(trim($status));
+
+        return $status === '' || $status === self::STATUS_ABERTO;
+    }
+
+    /**
+     * Motivo do bloqueio, pronto para a tela. '' quando pode gravar.
+     */
+    public static function motivoStatusBloqueia(string $codinventario, string $status): string
+    {
+        if (self::statusPermiteGravar($status)) {
+            return '';
+        }
+
+        return "Inventário {$codinventario} está " . self::rotuloStatus($status)
+            . ' no RM e não aceita mais contagem. Para continuar, reabra o inventário no RM.';
+    }
+
+    /**
+     * Mesma regra para quem só tem o código em mãos — a edição e a exclusão de
+     * lançamento, que não passam por validarParaUso().
+     *
+     * Custa uma consulta; as telas que já validaram usam o status que têm.
+     */
+    public static function motivoNaoPodeGravar(string $codinventario): string
+    {
+        $codinventario = trim($codinventario);
+
+        // Avulsa é rascunho fora do RM: não há status para consultar.
+        if ($codinventario === '' || ZMDCODBARRAS::ehCodigoAvulso($codinventario)) {
+            return '';
+        }
+
+        $existe = self::existeNoRm($codinventario);
+        if (!$existe['valid']) {
+            // Sem linha no RM não há apuração fechada para proteger. Quem grava
+            // já é barrado por validarParaUso(); quem exclui precisa limpar.
+            return '';
+        }
+
+        return self::motivoStatusBloqueia($codinventario, $existe['status']);
+    }
+
     public static function localPertenceAoInventario(string $codinventario, string $codloc): bool
     {
         $codinventario = trim($codinventario);
@@ -79,18 +155,27 @@ class InventarioRM
     /**
      * Valida inventário + local para uso na leitura.
      *
-     * @return array{valid: bool, status: string, error: string}
+     * `valid` responde "dá para abrir esta tela"; `pode_gravar`, "dá para
+     * gravar nela". São perguntas diferentes: inventário encerrado continua
+     * valendo para consultar o que foi contado, só não aceita contagem nova.
+     *
+     * @return array{valid: bool, status: string, error: string,
+     *               pode_gravar: bool, motivo_bloqueio: string}
      */
     public static function validarParaUso(string $codinventario, string $codloc): array
     {
         $existe = self::existeNoRm($codinventario);
         if (!$existe['valid']) {
             return [
-                'valid'  => false,
-                'status' => '',
-                'error'  => $existe['error'],
+                'valid'           => false,
+                'status'          => '',
+                'error'           => $existe['error'],
+                'pode_gravar'     => false,
+                'motivo_bloqueio' => $existe['error'],
             ];
         }
+
+        $bloqueio = self::motivoStatusBloqueia($codinventario, $existe['status']);
 
         if (!self::localPertenceAoInventario($codinventario, $codloc)) {
             $codloc = LocaisEstoque::normalizar($codloc);
@@ -98,16 +183,20 @@ class InventarioRM
             $label = $nome !== '' ? "{$codloc} — {$nome}" : $codloc;
 
             return [
-                'valid'  => false,
-                'status' => $existe['status'],
-                'error'  => "O local {$label} não está vinculado ao inventário {$codinventario} no RM.",
+                'valid'           => false,
+                'status'          => $existe['status'],
+                'error'           => "O local {$label} não está vinculado ao inventário {$codinventario} no RM.",
+                'pode_gravar'     => false,
+                'motivo_bloqueio' => $bloqueio,
             ];
         }
 
         return [
-            'valid'  => true,
-            'status' => $existe['status'],
-            'error'  => '',
+            'valid'           => true,
+            'status'          => $existe['status'],
+            'error'           => '',
+            'pode_gravar'     => $bloqueio === '',
+            'motivo_bloqueio' => $bloqueio,
         ];
     }
 

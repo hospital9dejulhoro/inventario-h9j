@@ -19,6 +19,25 @@ $redirectUrl = 'inventario.php?' . http_build_query($redirectParams);
 
 csrf_exigir($redirectUrl);
 
+/*
+ * Inventário encerrado no RM não aceita mais nenhuma escrita — nem incluir,
+ * nem corrigir, nem apagar. Apagar é o mais perigoso dos três: sumiria com a
+ * contagem que sustenta uma apuração que o RM já fechou.
+ *
+ * Vale para editar, excluir e excluir_inventario. Fora ficam excluir_avulsa,
+ * que por definição não tem linha no RM, e os códigos órfãos de antes da
+ * máscara, que precisam continuar podendo ser limpos — motivoNaoPodeGravar()
+ * só bloqueia o que existe no RM e não está aberto.
+ */
+$acoesQueEscrevem = ['excluir', 'excluir_inventario', 'editar'];
+if (in_array($acao, $acoesQueEscrevem, true)) {
+    $bloqueio = InventarioRM::motivoNaoPodeGravar($codinventario);
+    if ($bloqueio !== '') {
+        flash_set('danger', $bloqueio);
+        redirect_to($acao === 'excluir_inventario' ? 'inventario.php' : $redirectUrl);
+    }
+}
+
 if ($acao === 'excluir') {
     if ($id === '') {
         flash_set('danger', 'Registro não informado para exclusão.');
