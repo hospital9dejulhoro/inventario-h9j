@@ -23,6 +23,7 @@ $qtdItensRm = (int) ($qtdItensRm ?? 0);
 $totalBipagens = (int) ($totalBipagens ?? 0);
 $listaTruncada = !empty($listaTruncada);
 $statusInventarioRm = $statusInventarioRm ?? '';
+$modoContagem = $modoContagem ?? 'somar';
 
 // Quem nao pode apagar nao ve os botoes de apagar. Quem recusa de verdade e o
 // backend; isto e para nao oferecer o que vai ser negado.
@@ -139,7 +140,7 @@ $avulso = !empty($avulso);
                 <span class="inv-step">1</span>
                 <div>
                     <h2 id="secao-config" class="section-title">Inventário e local</h2>
-                    <p class="section-desc">Edite o código do inventário quando precisar trocar. Clique em <strong>Aplicar</strong> para confirmar.</p>
+                    <p class="section-desc">Troque o inventário na lista quando precisar. Clique em <strong>Aplicar</strong> para confirmar.</p>
                 </div>
             </div>
             <div class="inv-setup-row inv-setup-row--inventario">
@@ -178,6 +179,24 @@ $avulso = !empty($avulso);
                     <p class="section-desc">Ajuste a quantidade se precisar e escaneie os 13 dígitos (Enter para gravar).</p>
                 </div>
             </div>
+            <?php /* Mesma escolha das telas de lote, e pelo mesmo motivo: quem
+                     recontou uma posicao quer dizer quanto HA, nao quanto somar.
+                     O modo viaja na URL para nao voltar a somar a cada bipe. */ ?>
+            <div class="pl-modo" role="radiogroup" aria-label="O que fazer com a quantidade">
+                <label>
+                    <input type="radio" name="modo" value="somar" <?= $modoContagem !== 'corrigir' ? 'checked' : '' ?>>
+                    Somar ao contado
+                </label>
+                <label>
+                    <input type="radio" name="modo" value="corrigir" <?= $modoContagem === 'corrigir' ? 'checked' : '' ?>>
+                    Corrigir o total
+                </label>
+            </div>
+            <?php if ($modoContagem === 'corrigir'): ?>
+                <p class="form-hint pl-modo-aviso">
+                    Cada leitura substitui tudo que já foi contado do produto e lote. Zero apaga a contagem do item.
+                </p>
+            <?php endif; ?>
             <div class="inv-scan-row">
                 <div class="form-group inv-qtd-group">
                     <label for="QUANTIDADE" class="form-label">Quantidade</label>

@@ -79,7 +79,15 @@ class ZMDCODBARRAS
     public static function listarPorInventario($inventario)
     {
         $c = new Connection('RM');
-        $c->Consulta(self::baseSelectSql() . ' WHERE ZMD.CODINVENTARIO = ? ORDER BY 1 DESC', [(string) $inventario]);
+        // Ordena pela coluna, nao pela posicao dela. baseSelectSql() e
+        // compartilhado: bastava alguem por uma coluna antes do ID para a lista
+        // passar a ordenar por outra coisa, calada. E como o TOP corta em
+        // LIMITE_LISTAGEM, a tela mostraria as leituras mais ANTIGAS em vez das
+        // recentes - o contrario do que quem esta bipando precisa ver.
+        $c->Consulta(
+            self::baseSelectSql() . ' WHERE ZMD.CODINVENTARIO = ? ORDER BY ZMD.ID DESC',
+            [(string) $inventario]
+        );
 
         return self::mapearResultado($c);
     }
@@ -271,10 +279,15 @@ class ZMDCODBARRAS
      */
     public static function barcodeComLote(int $idprd, int $idlote = 0): string
     {
-        $idprd = max(0, $idprd);
         $idlote = max(0, $idlote);
 
-        if ($idprd > 999999 || $idlote > 99999) {
+        // Produto zero nao existe. Antes isso devolvia '0000000000000' - um
+        // codigo de aparencia valida para um produto que nao ha. Os dois
+        // endpoints de gravacao ja recusam idprd <= 0 antes de chegar aqui, mas
+        // a funcao devolvia '' para todo outro valor fora de faixa e um codigo
+        // para este: a proxima chamada que esquecesse a guarda gravaria fantasma
+        // em vez de receber erro.
+        if ($idprd <= 0 || $idprd > 999999 || $idlote > 99999) {
             return '';
         }
 

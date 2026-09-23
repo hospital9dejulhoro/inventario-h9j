@@ -7,13 +7,24 @@ SessionManager::requireConnection();
 $codigobarras = isset($_GET['CODIGOBARRAS']) ? (string) $_GET['CODIGOBARRAS'] : '';
 $barcodeInformado = trim($codigobarras) !== '';
 
+// Somar é o normal: cada bipe acrescenta. Corrigir substitui o total do
+// produto/lote — é para quem recontou uma posição e quer dizer quanto há, não
+// quanto acrescentar. Acompanha a tela pela URL junto com a quantidade, senão
+// voltaria a somar a cada leitura e a correção seguinte viraria soma.
+$modo = (isset($_GET['modo']) && $_GET['modo'] === 'corrigir') ? 'corrigir' : 'somar';
+
 // A quantidade acompanha a tela inteira: entra na URL, volta nos redirects e é
 // o que será gravado. Recusar aqui o que não é número evita gravar um texto que
 // o TRY_CAST dos totais descartaria depois, em silêncio.
 $quantidadeBruta = isset($_GET['QUANTIDADE']) ? (string) $_GET['QUANTIDADE'] : '1';
 $quantidadeNum = normalizar_quantidade($quantidadeBruta);
 $quantidadeInvalida = $quantidadeBruta !== '' && $quantidadeNum === null;
-$quantidade = ($quantidadeNum !== null && $quantidadeNum > 0)
+
+// Somando, zero não quer dizer nada e o padrão 1 é o que o bipe espera.
+// Corrigindo, zero é uma resposta legítima: "não há nada nesta posição", e
+// apaga a contagem do item. Forçar 1 aqui tornaria isso impossível.
+$minimoAceito = $modo === 'corrigir' ? 0.0 : 0.000001;
+$quantidade = ($quantidadeNum !== null && $quantidadeNum >= $minimoAceito)
     ? quantidade_para_banco($quantidadeNum)
     : '1';
 
@@ -21,7 +32,7 @@ $quantidade = ($quantidadeNum !== null && $quantidadeNum > 0)
 // não só pré-preencher a tela.
 $ctx = ContextoInventario::resolver(
     'inventario.php',
-    ['QUANTIDADE' => $quantidade],
+    ['QUANTIDADE' => $quantidade, 'modo' => $modo],
     $barcodeInformado
 );
 
@@ -30,6 +41,7 @@ $codinventario = $ctx->codinventario;
 $nomeLocal = $ctx->nomeLocal;
 $statusInventarioRm = $ctx->statusRm;
 $somenteLeitura = $ctx->somenteLeitura;
+$modoContagem = $modo;
 $motivoBloqueio = $ctx->motivoBloqueio;
 $retomadoDaSessao = $ctx->retomadoDaSessao;
 $modoLeitura = $ctx->ativo;
@@ -93,6 +105,37 @@ if ($modoLeitura) {
                 'danger',
                 "Produto {$produtoLabel} não faz parte do inventário {$codinventario} no local {$codloc}. Item não gravado."
             );
+            redirect_to($redirectUrl);
+        }
+
+        if ($modo === 'corrigir') {
+            // Mesma operação das telas de lote: troca o total do produto/lote
+            // por este valor, em transação. Zero apaga a contagem do item.
+            $idlote = ZMDCODBARRAS::idloteDoBarcode($codigobarras);
+            $correcao = ZMDCODBARRAS::corrigirTotalProdutoLote(
+                $codinventario,
+                $idprd,
+                $idlote,
+                (float) $quantidade,
+                $codloc
+            );
+
+            if ($correcao['error'] !== '') {
+                flash_set('danger', $correcao['error']);
+            } else {
+                $rotulo = $validacao['nome'] !== '' ? $validacao['nome'] : ('ID ' . $idprd);
+                $msg = 'Total corrigido: ' . $rotulo . ' · agora ' . formatar_quantidade((float) $quantidade)
+                    . ' ' . $validacao['und'];
+                if (!empty($validacao['lote'])) {
+                    $msg .= ' · Lote ' . $validacao['lote'];
+                }
+                if ($correcao['apagados'] > 0) {
+                    $msg .= ' (substituiu ' . $correcao['apagados']
+                        . ($correcao['apagados'] === 1 ? ' leitura' : ' leituras') . ')';
+                }
+                flash_set('success', $msg);
+            }
+
             redirect_to($redirectUrl);
         }
 

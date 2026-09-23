@@ -91,6 +91,26 @@
     const qtyInput = document.getElementById('QUANTIDADE');
     const inventoryForm = document.getElementById('inventory-form');
 
+    // Traz o campo para a tela quando ele nao esta visivel - e so nesse caso.
+    //
+    // preventScroll existe de proposito: no desktop o campo ja esta a vista, e
+    // deixar o foco rolar a pagina fazia a tela pular a cada bipe. No celular o
+    // efeito era o oposto e pior: depois de cada leitura a pagina volta ao topo
+    // e o campo fica em y=1185 numa tela de 812 - com o foco nele. A pessoa
+    // digitava as cegas, sem ver o que entrou nem a quantidade.
+    function trazerParaTela(input) {
+        const r = input.getBoundingClientRect();
+        const alturaVisivel = window.innerHeight || document.documentElement.clientHeight;
+
+        if (r.top >= 0 && r.bottom <= alturaVisivel) {
+            return;
+        }
+
+        if (input.scrollIntoView) {
+            input.scrollIntoView({ block: 'center' });
+        }
+    }
+
     function focusBarcode() {
         const input = document.getElementById('CODIGOBARRAS');
         if (!input) {
@@ -99,6 +119,7 @@
         input.value = '';
         input.focus({ preventScroll: true });
         input.select();
+        trazerParaTela(input);
     }
 
     function scheduleFocusBarcode() {
