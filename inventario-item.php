@@ -38,6 +38,27 @@ if (in_array($acao, $acoesQueEscrevem, true)) {
     }
 }
 
+/*
+ * Apagar exige perfil de supervisão no RM. Contar e corrigir não: recontar
+ * errado é rotina de quem conta, e virar chamado para a coordenação faria o
+ * pessoal parar de corrigir.
+ *
+ * excluir_avulsa fica de fora: é o rascunho da própria pessoa, que nunca
+ * entrou em apuração nenhuma do RM.
+ *
+ * Esconder o botão na tela não basta — este POST é forjável por quem souber o
+ * nome do campo.
+ */
+$acoesQueApagam = ['excluir', 'excluir_inventario'];
+if (in_array($acao, $acoesQueApagam, true)) {
+    $semPermissao = Permissoes::motivoNaoPodeExcluir();
+    if ($semPermissao !== '') {
+        log_auditoria('exclusao negada', "acao={$acao} inv={$codinventario} id={$id}");
+        flash_set('danger', $semPermissao);
+        redirect_to($acao === 'excluir_inventario' ? 'inventario.php' : $redirectUrl);
+    }
+}
+
 if ($acao === 'excluir') {
     if ($id === '') {
         flash_set('danger', 'Registro não informado para exclusão.');

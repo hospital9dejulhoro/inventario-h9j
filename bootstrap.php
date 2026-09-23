@@ -47,6 +47,8 @@ require APP_ROOT . DS . 'src' . DS . 'Database' . DS . 'Connection.php';
 require APP_ROOT . DS . 'src' . DS . 'Domain' . DS . 'LocaisEstoque.php';
 require APP_ROOT . DS . 'src' . DS . 'Domain' . DS . 'InventarioRM.php';
 require APP_ROOT . DS . 'src' . DS . 'Domain' . DS . 'RmAuth.php';
+require APP_ROOT . DS . 'src' . DS . 'Domain' . DS . 'PerfisRM.php';
+require APP_ROOT . DS . 'src' . DS . 'Domain' . DS . 'Permissoes.php';
 require APP_ROOT . DS . 'src' . DS . 'Domain' . DS . 'ZMDCODBARRAS.php';
 require APP_ROOT . DS . 'src' . DS . 'Domain' . DS . 'ContextoInventario.php';
 

@@ -65,6 +65,10 @@ if ($acao === 'testar') {
     redirect_to('index.php');
 }
 
+// Perfis do RM lidos aqui, uma vez. A alternativa seria consultar GUSRPERFIL a
+// cada clique — uma ida ao banco em cada bipe.
+SessionManager::setPerfis(PerfisRM::doUsuario($auth['codusuario']));
+
 SessionManager::setConnected(true);
 flash_set(
     'success',

@@ -42,6 +42,12 @@ $navPosicao = str_contains($bodyClassAtual, 'page-posicao');
                     <?php if (SessionManager::getUsername() !== '' && SessionManager::getDisplayName() !== SessionManager::getUsername()): ?>
                         <span class="nav-meta-user">(<?= e(SessionManager::getUsername()) ?>)</span>
                     <?php endif; ?>
+                    <?php /* Perfil a vista: e por ele que se decide quem apaga,
+                             e sem mostrar ninguem sabe o que por na configuracao. */ ?>
+                    <?php $resumoPerfis = PerfisRM::resumo(SessionManager::getPerfis()); ?>
+                    <?php if ($resumoPerfis !== ''): ?>
+                        <span class="nav-meta-user" title="Perfis no RM (GUSRPERFIL)">· <?= e($resumoPerfis) ?></span>
+                    <?php endif; ?>
                 </span>
                 <a href="inventario.php" class="btn-ghost<?= $navLeitura ? ' is-nav-on' : '' ?>">Leitura</a>
                 <a href="por-lote.php" class="btn-ghost<?= $navPorLote ? ' is-nav-on' : '' ?>">Por lote</a>

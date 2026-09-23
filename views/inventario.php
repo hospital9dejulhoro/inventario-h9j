@@ -23,6 +23,10 @@ $qtdItensRm = (int) ($qtdItensRm ?? 0);
 $totalBipagens = (int) ($totalBipagens ?? 0);
 $listaTruncada = !empty($listaTruncada);
 $statusInventarioRm = $statusInventarioRm ?? '';
+
+// Quem nao pode apagar nao ve os botoes de apagar. Quem recusa de verdade e o
+// backend; isto e para nao oferecer o que vai ser negado.
+$podeExcluir = Permissoes::podeExcluir();
 $inventariosAbertos = $inventariosAbertos ?? [];
 $contagensAvulsas = $contagensAvulsas ?? [];
 $avulso = !empty($avulso);
@@ -269,7 +273,7 @@ $avulso = !empty($avulso);
                         <?php endif; ?>
                     </p>
                 </div>
-                <?php if ($mostrarTabela && $codinventario !== ''): ?>
+                <?php if ($mostrarTabela && $codinventario !== '' && $podeExcluir): ?>
                 <?php /* Confirmacao por digitacao: numa contagem com varias
                          pessoas, este botao apaga o trabalho de todas, e um OK
                          de um clique so e leve demais para isso. */ ?>
@@ -326,6 +330,7 @@ $avulso = !empty($avulso);
                                         data-barras="<?= e($cod->getCodigobarras()) ?>"
                                         data-qtd="<?= e($cod->getQuantidade()) ?>"
                                         data-loc="<?= e($cod->getCodloc()) ?>">Editar</button>
+                                <?php if ($podeExcluir): ?>
                                 <form action="inventario-item.php" method="post" class="inline-form"
                                       onsubmit="return confirm('Excluir este registro?');">
                                     <?= csrf_field() ?>
@@ -336,6 +341,7 @@ $avulso = !empty($avulso);
                                     <input type="hidden" name="QUANTIDADE" value="<?= e($quantidade) ?>">
                                     <button type="submit" class="btn-link btn-link-danger">Excluir</button>
                                 </form>
+                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>

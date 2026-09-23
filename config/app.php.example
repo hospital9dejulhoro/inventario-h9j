@@ -6,4 +6,13 @@ return [
     'debug'     => false,
     'app_name'  => 'Inventário RM',
     'base_path' => '',
+
+    /*
+     * Perfis do RM (GUSRPERFIL.CODPERFIL) que podem APAGAR contagem — um
+     * lançamento ou um inventário inteiro. Contar e corrigir seguem livres.
+     *
+     * Lista vazia = trava desligada, como era antes dela existir.
+     * Ex.: ['FARM.COORD', 'COORDFARMA'] ou ['O:FARM.COORD'].
+     */
+    'perfis_supervisor' => [],
 ];

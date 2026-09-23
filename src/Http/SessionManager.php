@@ -13,6 +13,7 @@ class SessionManager
     private const KEY_LAST_INVENTARIO = 'rm_last_inventario';
     private const KEY_RECENT_INVENTARIOS = 'rm_recent_inventarios';
     private const KEY_SESSION_SCANS = 'rm_session_scans';
+    private const KEY_PERFIS = 'rm_perfis';
     private const MAX_RECENT = 5;
 
     public static function setLastInventario(string $codloc, string $codinventario, string $quantidade = '1'): void
@@ -145,6 +146,26 @@ class SessionManager
         }
 
         return $key;
+    }
+
+    /**
+     * Perfis do usuário no RM, lidos uma vez no login.
+     *
+     * @param array<int, array{codsistema: string, codperfil: string, nome: string}> $perfis
+     */
+    public static function setPerfis(array $perfis): void
+    {
+        $_SESSION[self::KEY_PERFIS] = $perfis;
+    }
+
+    /**
+     * @return array<int, array{codsistema: string, codperfil: string, nome: string}>
+     */
+    public static function getPerfis(): array
+    {
+        $perfis = $_SESSION[self::KEY_PERFIS] ?? [];
+
+        return is_array($perfis) ? $perfis : [];
     }
 
     public static function setConnected(bool $connected): void
