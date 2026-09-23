@@ -205,21 +205,10 @@
             if (form.hasAttribute('data-confirmar-codigo')) {
                 return;
             }
-            if (form.id === 'inventory-form') {
-                const barcode = document.getElementById('CODIGOBARRAS');
-                const hasBarcode = barcode && barcode.value.trim() !== '';
-                if (!hasBarcode && !event.submitter) {
-                    return;
-                }
-                if (!hasBarcode && event.submitter && event.submitter.name === 'aplicar') {
-                    showLoading();
-                    return;
-                }
-                if (hasBarcode) {
-                    showLoading();
-                    return;
-                }
-            }
+            // Aqui havia um caso especial para o #inventory-form: escolher
+            // inventario e bipar eram a mesma forma, e so dava para saber o que
+            // o envio queria dizer olhando se o campo do codigo estava cheio.
+            // Agora sao duas formas com metodos diferentes, e todo envio navega.
             showLoading();
         });
     });

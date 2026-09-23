@@ -4,19 +4,35 @@ require __DIR__ . '/bootstrap.php';
 
 SessionManager::requireConnection();
 
-$codigobarras = isset($_GET['CODIGOBARRAS']) ? (string) $_GET['CODIGOBARRAS'] : '';
-$barcodeInformado = trim($codigobarras) !== '';
+/*
+ * Gravar leitura é POST; ver a tela é GET.
+ *
+ * A bipagem inteira vinha pela URL, e uma contagem é escrita: bastava alguém
+ * mandar um link inventario.php?CODIGOBARRAS=...&CODINVENTARIO=... para que
+ * qualquer pessoa logada que clicasse gravasse contagem sem saber. Escrita não
+ * pode caber num link — e agora exige o token da sessão.
+ *
+ * O inventário e o local chegam no mesmo envio da bipagem, não na URL, então a
+ * origem dos dados muda junto com o método.
+ */
+$ehGravacao = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST';
+$entrada = $ehGravacao ? $_POST : $_GET;
+
+$codigobarras = isset($entrada['CODIGOBARRAS']) ? (string) $entrada['CODIGOBARRAS'] : '';
+
+// Código na URL não grava mais nada: em GET a tela só mostra.
+$barcodeInformado = $ehGravacao && trim($codigobarras) !== '';
 
 // Somar é o normal: cada bipe acrescenta. Corrigir substitui o total do
 // produto/lote — é para quem recontou uma posição e quer dizer quanto há, não
 // quanto acrescentar. Acompanha a tela pela URL junto com a quantidade, senão
 // voltaria a somar a cada leitura e a correção seguinte viraria soma.
-$modo = (isset($_GET['modo']) && $_GET['modo'] === 'corrigir') ? 'corrigir' : 'somar';
+$modo = (isset($entrada['modo']) && $entrada['modo'] === 'corrigir') ? 'corrigir' : 'somar';
 
 // A quantidade acompanha a tela inteira: entra na URL, volta nos redirects e é
 // o que será gravado. Recusar aqui o que não é número evita gravar um texto que
 // o TRY_CAST dos totais descartaria depois, em silêncio.
-$quantidadeBruta = isset($_GET['QUANTIDADE']) ? (string) $_GET['QUANTIDADE'] : '1';
+$quantidadeBruta = isset($entrada['QUANTIDADE']) ? (string) $entrada['QUANTIDADE'] : '1';
 $quantidadeNum = normalizar_quantidade($quantidadeBruta);
 $quantidadeInvalida = $quantidadeBruta !== '' && $quantidadeNum === null;
 
@@ -33,8 +49,18 @@ $quantidade = ($quantidadeNum !== null && $quantidadeNum >= $minimoAceito)
 $ctx = ContextoInventario::resolver(
     'inventario.php',
     ['QUANTIDADE' => $quantidade, 'modo' => $modo],
-    $barcodeInformado
+    $barcodeInformado,
+    $entrada
 );
+
+// O token confere antes de qualquer decisão sobre gravar. Volta para a mesma
+// tela: sessão que expirou no meio da contagem não pode jogar a pessoa para a
+// seleção de inventário.
+if ($ehGravacao) {
+    csrf_exigir('inventario.php?' . http_build_query(
+        ZMDCODBARRAS::inventarioQueryParams($ctx->codloc, $ctx->codinventario, $quantidade)
+    ));
+}
 
 $codloc = $ctx->codloc;
 $codinventario = $ctx->codinventario;

@@ -132,9 +132,11 @@ $avulso = !empty($avulso);
     </div>
 <?php endif; ?>
 
-    <form action="inventario.php" method="get" autocomplete="off" id="inventory-form" class="inv-form">
-
-        <?php if ($modoLeitura): ?>
+    <?php /* Duas coisas diferentes, duas formas.
+             Escolher inventario e navegacao: GET, e o endereco fica
+             compartilhavel. Gravar leitura e escrita: POST com token. */ ?>
+    <?php if ($modoLeitura): ?>
+    <form action="inventario.php" method="get" autocomplete="off" id="inventario-escolher" class="inv-form">
         <section class="inv-section inv-section--config" aria-labelledby="secao-config">
             <div class="inv-section-head">
                 <span class="inv-step">1</span>
@@ -147,6 +149,11 @@ $avulso = !empty($avulso);
                 <?php require __DIR__ . '/_seletor-inventario.php'; ?>
             </div>
             <div class="inv-config-actions">
+                <?php /* Quantidade e modo viajavam junto quando escolher e bipar
+                         eram a mesma forma. Agora sao duas: sem isto, trocar de
+                         inventario no meio da contagem zerava os dois. */ ?>
+                <input type="hidden" name="QUANTIDADE" value="<?= e($quantidade !== '' ? $quantidade : '1') ?>">
+                <input type="hidden" name="modo" value="<?= e($modoContagem) ?>">
                 <button type="submit" name="aplicar" value="1" class="btn btn-secondary" id="btn-aplicar">Aplicar inventário</button>
                 <a class="btn btn-ghost" href="<?= e(url('por-lote.php?' . http_build_query(['CODINVENTARIO' => $codinventario, 'aplicar' => '1']))) ?>">Contagem por lote</a>
                 <a class="btn btn-ghost" href="<?= e(url('sem-lote.php?' . http_build_query(['CODINVENTARIO' => $codinventario, 'aplicar' => '1']))) ?>">Itens sem lote</a>
@@ -170,6 +177,14 @@ $avulso = !empty($avulso);
                 <?php endif; ?>
             </div>
         </section>
+    </form>
+
+    <form action="inventario.php" method="post" autocomplete="off" id="inventory-form" class="inv-form">
+        <?= csrf_field() ?>
+        <?php /* O inventario e o local nao estao na URL desta gravacao: viajam
+                 no proprio envio, ja resolvidos pelo servidor. */ ?>
+        <input type="hidden" name="CODINVENTARIO" value="<?= e($codinventario) ?>">
+        <input type="hidden" name="CODLOC" value="<?= e($codloc) ?>">
 
         <section class="inv-section inv-section--scan" aria-labelledby="secao-leitura">
             <div class="inv-section-head">
@@ -214,8 +229,10 @@ $avulso = !empty($avulso);
             </div>
             <button type="submit" class="btn btn-primary" id="btn-registrar">Registrar leitura</button>
         </section>
+    </form>
 
-        <?php else: ?>
+    <?php else: ?>
+    <form action="inventario.php" method="get" autocomplete="off" id="inventario-escolher" class="inv-form">
         <section class="inv-section inv-section--setup panel" aria-labelledby="secao-iniciar">
             <div class="inv-section-head">
                 <span class="inv-step">1</span>
@@ -236,8 +253,8 @@ $avulso = !empty($avulso);
             <input type="hidden" name="QUANTIDADE" value="<?= e($quantidade !== '' ? $quantidade : '1') ?>">
             <button type="submit" name="aplicar" value="1" class="btn btn-primary">Aplicar e começar leitura</button>
         </section>
-        <?php endif; ?>
     </form>
+    <?php endif; ?>
 
     <section class="inv-section inv-section--records panel panel-flush" aria-labelledby="secao-registros">
         <div class="panel-header">

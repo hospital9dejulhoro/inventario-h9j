@@ -50,14 +50,26 @@ class ContextoInventario
      *     sem `aplicar` na URL — é o caso do bipe, que chega com o código de
      *     barras e precisa reclamar em voz alta se o inventário não servir.
      */
-    public static function resolver(string $script, array $paramsExtra = [], bool $forcarValidacao = false): self
-    {
-        $ctx = new self();
-        $ctx->codloc = isset($_GET['CODLOC']) ? (string) $_GET['CODLOC'] : '';
-        $ctx->codinventario = isset($_GET['CODINVENTARIO']) ? (string) $_GET['CODINVENTARIO'] : '';
+    /**
+     * @param array<string, mixed>|null $entrada De onde vêm CODLOC e
+     *     CODINVENTARIO. O padrão é a URL. A leitura de código de barras passa
+     *     $_POST: gravar é POST, mas o inventário e o local que a bipagem usa
+     *     chegam no mesmo envio, não na URL.
+     */
+    public static function resolver(
+        string $script,
+        array $paramsExtra = [],
+        bool $forcarValidacao = false,
+        ?array $entrada = null
+    ): self {
+        $entrada = $entrada ?? $_GET;
 
-        $deveValidar = isset($_GET['aplicar']) || $forcarValidacao;
-        $veioDaUrl = isset($_GET['CODINVENTARIO']) && trim((string) $_GET['CODINVENTARIO']) !== '';
+        $ctx = new self();
+        $ctx->codloc = isset($entrada['CODLOC']) ? (string) $entrada['CODLOC'] : '';
+        $ctx->codinventario = isset($entrada['CODINVENTARIO']) ? (string) $entrada['CODINVENTARIO'] : '';
+
+        $deveValidar = isset($entrada['aplicar']) || $forcarValidacao;
+        $veioDaUrl = isset($entrada['CODINVENTARIO']) && trim((string) $entrada['CODINVENTARIO']) !== '';
 
         if ($ctx->codinventario === '' && SessionManager::hasLastInventario()) {
             $last = SessionManager::getLastInventario();
