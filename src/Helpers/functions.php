@@ -56,7 +56,7 @@ function formatar_quantidade(float $quantidade): string
 /**
  * Converte quantidade digitada para número, ou null se não for um número.
  *
- * Aceita "1", "1,5", "1.5" e "1.250,75". Devolver null em vez de 0 é
+ * Aceita "1", "1,5", "1.5", "1.250" e "1.250,75". Devolver null em vez de 0 é
  * proposital: quantidade ilegível precisa ser recusada na entrada. Gravada
  * como texto, ela ainda apareceria na lista de bipados, mas o TRY_CAST das
  * somas devolve NULL e ela some de todos os totais — o operador vê "gravado"
@@ -76,6 +76,17 @@ function normalizar_quantidade($valor): ?float
     if (strpos($texto, ',') !== false) {
         // Vírgula presente = separador decimal pt-BR; o ponto é milhar.
         $texto = str_replace(['.', ','], ['', '.'], $texto);
+    } elseif (preg_match('/^-?[1-9]\d{0,2}(\.\d{3})+$/', $texto)) {
+        // Sem vírgula, mas em grupos de três: o ponto é milhar, como em
+        // "1.250". Lido como decimal, viraria 1,25 — a contagem dividida por
+        // mil, gravada em silêncio. É a mesma leitura que já se faz quando há
+        // vírgula ("1.250,75"); tratar o ponto como decimal só quando a
+        // vírgula falta era a incoerência.
+        //
+        // Zero à esquerda fica de fora de propósito: "0.500" é meio, não
+        // quinhentos — ninguém escreve milhar começando em zero. E o grupo
+        // inicial vai até três dígitos, senão "1234.567" entraria aqui.
+        $texto = str_replace('.', '', $texto);
     }
 
     if (!is_numeric($texto)) {

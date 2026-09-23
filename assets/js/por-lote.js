@@ -37,6 +37,15 @@
     var selecionada = null;
     var saving = false;
 
+    // O navegador NAO interpreta o valor: so recusa o que nao e numero nenhum
+    // e manda o texto como foi digitado. Quem decide quanto vale "1.250" e o
+    // servidor (normalizar_quantidade). Havia duas interpretacoes diferentes
+    // para o mesmo campo, e era dai que vinha o erro de mil vezes: o navegador
+    // lia "1.250" como 1.25 e recusava "1.250,75", que o servidor aceitava.
+    function pareceQuantidade(texto) {
+        return /\d/.test(texto) && /^[\d.,\s\u00a0]+$/.test(texto);
+    }
+
     function fmtQtd(n) {
         var s = Number(n).toFixed(3).replace('.', ',');
         return s.replace(/,?0+$/, '').replace(/,$/, '') || '0';
@@ -238,11 +247,13 @@
         }
 
         var tr = selecionada;
-        var raw = String(fQtd.value || '').trim().replace(',', '.');
+        var raw = String(fQtd.value || '').trim();
 
         var corrigindo = modoAtual() === 'corrigir';
 
-        if (raw === '' || isNaN(raw) || (corrigindo ? Number(raw) < 0 : Number(raw) <= 0)) {
+        // Faixa (maior que zero, nao negativo) fica com o servidor, que ja
+        // recusa com mensagem propria — duplicar a regra aqui foi o erro.
+        if (!pareceQuantidade(raw)) {
             setStatus(corrigindo
                 ? 'Informe o total correto (zero apaga a contagem deste lote).'
                 : 'Informe uma quantidade maior que zero.', 'is-err');
