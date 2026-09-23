@@ -980,6 +980,30 @@ class InventarioRM
      *   itens: int
      * }>
      */
+    /**
+     * Abertos de um local só.
+     *
+     * Serve à vinculação de contagem avulsa, que só aceita destino no mesmo
+     * local — mover contagem para o inventário de outro local misturaria
+     * prateleiras diferentes na mesma apuração.
+     *
+     * Filtra em PHP sobre listarAbertos() porque o CODLOC não está em
+     * TINVENTARIO: ele sai da máscara do próprio código.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function abertosDoLocal(string $codloc): array
+    {
+        $codloc = LocaisEstoque::normalizar($codloc);
+        if ($codloc === '') {
+            return [];
+        }
+
+        return array_values(array_filter(self::listarAbertos(), function ($inv) use ($codloc) {
+            return ($inv['codloc'] ?? '') === $codloc;
+        }));
+    }
+
     public static function listarAbertos(int $limit = 50): array
     {
         $limit = max(1, min(200, $limit));

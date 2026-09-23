@@ -566,6 +566,13 @@ class ZMDCODBARRAS
                     SUM(TRY_CAST(REPLACE(LTRIM(RTRIM(CAST(Z.QUANTIDADE AS VARCHAR(30)))), ',', '.') AS DECIMAL(18, 4))) AS QUANTIDADE
                 FROM ZMDCODBARRAS Z
                 WHERE TRY_CAST(RIGHT(RTRIM(Z.CODINVENTARIO), 3) AS INT) >= {$inicio}
+                  -- Mesma forma que ehCodigoAvulso() exige. Sem isto a lista
+                  -- mostrava codigos que o descarte depois recusava: o codigo de
+                  -- barras '0013710175975' termina em 975, passava no >= 900 e
+                  -- aparecia como avulsa com 482 lancamentos - mas 'Descartar
+                  -- avulsa' negava, e mandava para a tela de Leitura, que
+                  -- tambem recusa. Os lancamentos ficavam a vista e presos.
+                  AND RTRIM(Z.CODINVENTARIO) LIKE '[0-9][0-9].[0-9][0-9][0-9].[0-9][0-9][0-9]'
                   AND NOT EXISTS (
                         SELECT 1 FROM TINVENTARIO T
                         WHERE T.CODCOLIGADA = 1

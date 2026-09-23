@@ -153,5 +153,32 @@ confere("'P'", InventarioRM::rotuloStatus('P'), 'Em processamento');
 confere("''",  InventarioRM::rotuloStatus(''), 'desconhecido');
 confere("'X' desconhecido mostra a letra", InventarioRM::rotuloStatus('X'), 'X');
 
+echo "\n A lista de avulsas e o botão de descartar concordam\n";
+// A lista sai de uma consulta SQL; o descarte, de ehCodigoAvulso(). Enquanto as
+// duas definições divergiam, a tela oferecia o que o botão recusava: o código
+// de barras '0013710175975' termina em 975, passava no >= 900 da consulta e
+// aparecia como avulsa com 482 lançamentos — mas descartar negava, e mandava
+// para a tela de Leitura, que também recusa. Ficavam à vista e presos.
+$aceitaNaConsulta = function (string $cod): bool {
+    $ultimos = substr($cod, -3);
+    return ctype_digit($ultimos)
+        && (int) $ultimos >= 900
+        && (bool) preg_match('/^\d{2}\.\d{3}\.\d{3}$/', $cod);
+};
+
+$casos = [
+    '26.028.900'    => true,   // avulsa de verdade
+    '26.028.999'    => true,
+    '26.028.899'    => false,  // abaixo da faixa
+    '0013710175975' => false,  // código de barras no campo do inventário
+    '23021,001'     => false,  // vírgula no lugar do ponto
+    '21033001'      => false,  // sem os pontos
+];
+foreach ($casos as $cod => $esperado) {
+    $noBotao = ZMDCODBARRAS::ehCodigoAvulso($cod);
+    confere("'{$cod}': lista e botão concordam", $aceitaNaConsulta($cod) === $noBotao, true);
+    confere("'{$cod}': é avulsa?", $noBotao, $esperado);
+}
+
 echo "\n" . ($falhas === 0 ? "TODAS AS REGRAS CONFEREM\n" : "{$falhas} PROBLEMA(S)\n");
 exit($falhas === 0 ? 0 : 1);

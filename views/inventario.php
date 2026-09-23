@@ -143,24 +143,7 @@ $avulso = !empty($avulso);
                 </div>
             </div>
             <div class="inv-setup-row inv-setup-row--inventario">
-                <div class="form-group">
-                    <label for="CODINVENTARIO" class="form-label">Código do inventário</label>
-                    <input type="text" name="CODINVENTARIO" id="CODINVENTARIO" class="form-control mono"
-                           inputmode="numeric" maxlength="10" placeholder="26.065.002"
-                           pattern="\d{2}\.\d{3}\.\d{3}"
-                           title="Formato: AA.LLL.NNN — ano, local de estoque válido e número"
-                           data-inventario-mask
-                           value="<?= e($codinventario) ?>" required>
-                    <span class="form-hint" id="inventario-mask-hint">Formato AA.LLL.NNN — deve existir no RM (TINVENTARIO)</span>
-                </div>
-                <div class="form-group">
-                    <label for="CODLOC" class="form-label">Local de estoque</label>
-                    <input type="text" name="CODLOC" id="CODLOC" class="form-control"
-                           pattern=".{3,3}" maxlength="3" inputmode="numeric" readonly
-                           title="Preenchido automaticamente pelo código do inventário (AA.LLL.NNN)"
-                           value="<?= e($codloc) ?>" required>
-                    <span class="form-hint" id="codloc-nome" data-codloc-nome><?= e($nomeLocal !== '' ? $nomeLocal : 'Informe o local no código do inventário') ?></span>
-                </div>
+                <?php require __DIR__ . '/_seletor-inventario.php'; ?>
             </div>
             <div class="inv-config-actions">
                 <button type="submit" name="aplicar" value="1" class="btn btn-secondary" id="btn-aplicar">Aplicar inventário</button>
@@ -218,35 +201,18 @@ $avulso = !empty($avulso);
             <div class="inv-section-head">
                 <span class="inv-step">1</span>
                 <div>
-                    <h2 id="secao-iniciar" class="section-title">Iniciar inventário</h2>
+                    <h2 id="secao-iniciar" class="section-title">Escolher inventário</h2>
                     <p class="section-desc">
                         <?php if ($retomadoDaSessao): ?>
                             Dados do último inventário carregados. Confirme ou altere e clique em Aplicar.
                         <?php else: ?>
-                            Informe o código do inventário já cadastrado no RM (AA.LLL.NNN). O local é preenchido automaticamente.
+                            Escolha entre os inventários que o RM tem em aberto. O local vem junto.
                         <?php endif; ?>
                     </p>
                 </div>
             </div>
             <div class="inv-setup-row inv-setup-row--inventario">
-                <div class="form-group">
-                    <label for="CODINVENTARIO" class="form-label">Código do inventário</label>
-                    <input type="text" name="CODINVENTARIO" id="CODINVENTARIO" class="form-control mono"
-                           inputmode="numeric" maxlength="10" placeholder="26.065.002"
-                           pattern="\d{2}\.\d{3}\.\d{3}"
-                           title="Formato: AA.LLL.NNN — ano, local de estoque válido e número"
-                           data-inventario-mask
-                           value="<?= e($codinventario) ?>" required autofocus>
-                    <span class="form-hint" id="inventario-mask-hint">Formato AA.LLL.NNN — deve existir no RM (TINVENTARIO)</span>
-                </div>
-                <div class="form-group">
-                    <label for="CODLOC" class="form-label">Local de estoque</label>
-                    <input type="text" name="CODLOC" id="CODLOC" class="form-control"
-                           pattern=".{3,3}" maxlength="3" inputmode="numeric" readonly
-                           title="Preenchido automaticamente pelo código do inventário (AA.LLL.NNN)"
-                           value="<?= e($codloc) ?>" required>
-                    <span class="form-hint" id="codloc-nome" data-codloc-nome><?= e($nomeLocal !== '' ? $nomeLocal : 'Informe o local no código do inventário') ?></span>
-                </div>
+                <?php require __DIR__ . '/_seletor-inventario.php'; ?>
             </div>
             <input type="hidden" name="QUANTIDADE" value="<?= e($quantidade !== '' ? $quantidade : '1') ?>">
             <button type="submit" name="aplicar" value="1" class="btn btn-primary">Aplicar e começar leitura</button>

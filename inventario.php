@@ -48,6 +48,11 @@ $locaisEstoqueJson = json_encode(LocaisEstoque::todos(), JSON_UNESCAPED_UNICODE)
 // Só a tela de seleção usa as listas (view: if (!$modoLeitura)). Em modo leitura
 // o resultado era descartado, mas custava consultas a cada bipagem.
 $inventariosAbertos = $modoLeitura ? [] : InventarioRM::listarAbertos();
+
+// Destinos possiveis para vincular a avulsa: so os abertos do mesmo local, que
+// e o unico caso que vincular-contagem.php aceita. Consulta so quando ha uma
+// avulsa aberta na tela.
+$destinosVincular = $avulso ? InventarioRM::abertosDoLocal($codloc) : [];
 $contagensAvulsas = $modoLeitura ? [] : ZMDCODBARRAS::listarAvulsos();
 
 $redirectUrl = 'inventario.php?' . http_build_query($ctx->params(['QUANTIDADE' => $quantidade]));

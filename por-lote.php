@@ -52,6 +52,11 @@ $foraDoInventario = 0;
 $valorTotal = 0.0;
 $envAtual = EnvironmentManager::getCurrent();
 $inventariosAbertos = $modoLista ? [] : InventarioRM::listarAbertos();
+
+// Destinos possiveis para vincular a avulsa: so os abertos do mesmo local, que
+// e o unico caso que vincular-contagem.php aceita. Consulta so quando ha uma
+// avulsa aberta na tela.
+$destinosVincular = $avulso ? InventarioRM::abertosDoLocal($codloc) : [];
 $contagensAvulsas = $modoLista ? [] : ZMDCODBARRAS::listarAvulsos();
 
 if ($modoLista) {

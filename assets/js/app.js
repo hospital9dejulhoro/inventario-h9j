@@ -372,6 +372,20 @@
         }
     });
 
+    // Escolha por lista. O local sai dos digitos 3 a 5 do codigo, do mesmo jeito
+    // que saia da digitacao - o que muda e so a origem do valor. Nada de
+    // formatInventarioMask aqui: o texto ja vem formatado do servidor, e
+    // reatribuir um valor que nao seja exatamente uma das opcoes limpa o select.
+    document.querySelectorAll('[data-inventario-picker]').forEach(function (select) {
+        select.addEventListener('change', function () {
+            syncCodlocFromInventario(select);
+        });
+
+        if (select.value) {
+            syncCodlocFromInventario(select);
+        }
+    });
+
     const editLocInput = document.getElementById('edit-loc');
     const editLocNome = document.getElementById('edit-loc-nome');
     if (editLocInput) {

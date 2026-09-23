@@ -99,12 +99,12 @@ $moeda = function ($v) {
         <div class="inv-section-head">
             <span class="inv-step">1</span>
             <div>
-                <h2 id="secao-iniciar" class="section-title">Código do inventário</h2>
+                <h2 id="secao-iniciar" class="section-title">Inventário</h2>
                 <p class="section-desc">
                     <?php if ($retomadoDaSessao): ?>
                         Último inventário carregado. Confirme e aplique.
                     <?php else: ?>
-                        Informe AA.LLL.NNN. O local é preenchido automaticamente.
+                        Escolha entre os inventários que o RM tem em aberto. O local vem junto.
                     <?php endif; ?>
                 </p>
             </div>
@@ -121,19 +121,7 @@ $moeda = function ($v) {
 
         <form action="por-lote.php" method="get" autocomplete="off" class="inv-form">
             <div class="inv-setup-row inv-setup-row--inventario">
-                <div class="form-group">
-                    <label for="CODINVENTARIO" class="form-label">Código do inventário</label>
-                    <input type="text" name="CODINVENTARIO" id="CODINVENTARIO" class="form-control mono"
-                           inputmode="numeric" maxlength="10" placeholder="26.028.001"
-                           pattern="\d{2}\.\d{3}\.\d{3}" data-inventario-mask
-                           value="<?= e($codinventario) ?>" required autofocus>
-                </div>
-                <div class="form-group">
-                    <label for="CODLOC" class="form-label">Local</label>
-                    <input type="text" name="CODLOC" id="CODLOC" class="form-control" maxlength="3"
-                           value="<?= e($codloc) ?>" readonly>
-                    <span class="form-hint"><?= e($nomeLocal !== '' ? $nomeLocal : 'Preenchido pelo código') ?></span>
-                </div>
+                <?php require __DIR__ . '/_seletor-inventario.php'; ?>
             </div>
             <button type="submit" name="aplicar" value="1" class="btn btn-primary">Ver posição do local</button>
         </form>
@@ -205,11 +193,7 @@ $moeda = function ($v) {
                       onsubmit="return confirm('Mover toda a contagem de <?= e($codinventario) ?> para o código informado?');">
                     <?= csrf_field() ?>
                     <input type="hidden" name="de" value="<?= e($codinventario) ?>">
-                    <p>Informe o inventário que o RM criou para o local <?= e($codloc) ?>. A contagem inteira passa para ele.</p>
-                    <input type="text" name="para" class="form-control mono" required
-                           inputmode="numeric" maxlength="10" placeholder="<?= e(substr($codinventario, 0, 7)) ?>001"
-                           pattern="\d{2}\.\d{3}\.\d{3}" data-inventario-mask>
-                    <button type="submit" class="btn btn-primary">Mover contagem</button>
+                    <?php require __DIR__ . '/_destino-vincular.php'; ?>
                 </form>
             </details>
             <?php /* O outro destino de uma avulsa: o lixo. Aberta no local
