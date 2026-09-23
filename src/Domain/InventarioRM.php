@@ -597,9 +597,21 @@ class InventarioRM
             $digitos = preg_replace('/\D/', '', $busca);
 
             if (strlen($digitos) === 13) {
-                $whereBusca = ' AND PRD.IDPRD = ? AND LOTLOC.IDLOTE = ?';
-                $params[] = ZMDCODBARRAS::idprdDoBarcode($digitos);
-                $params[] = ZMDCODBARRAS::idloteDoBarcode($digitos);
+                $idprdBusca = ZMDCODBARRAS::idprdDoBarcode($digitos);
+                $idloteBusca = ZMDCODBARRAS::idloteDoBarcode($digitos);
+                $params[] = $idprdBusca;
+
+                if ($idloteBusca > 0) {
+                    $whereBusca = ' AND PRD.IDPRD = ? AND LOTLOC.IDLOTE = ?';
+                    $params[] = $idloteBusca;
+                } else {
+                    // Codigo de etiqueta sem lote: o produto esta la, o lote e
+                    // zero. Procurar por IDLOTE = 0 nao acha nada, porque lote
+                    // zero nao existe em TLOTEPRDLOC - e quem digitou o codigo
+                    // de uma etiqueta ilegivel ficava sem nenhum resultado.
+                    // Mostrar todos os lotes do produto deixa a pessoa escolher.
+                    $whereBusca = ' AND PRD.IDPRD = ?';
+                }
             } else {
                 // O LIKE fica no SQL (com curingas escapados) porque o padrão
                 // %texto% precisa ser montado antes de virar parâmetro.

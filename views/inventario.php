@@ -231,6 +231,8 @@ $avulso = !empty($avulso);
         </section>
     </form>
 
+    <?php require __DIR__ . '/_busca-item.php'; ?>
+
     <?php else: ?>
     <form action="inventario.php" method="get" autocomplete="off" id="inventario-escolher" class="inv-form">
         <section class="inv-section inv-section--setup panel" aria-labelledby="secao-iniciar">
