@@ -137,7 +137,7 @@ $fmtMoeda = function ($v) { return 'R$ ' . number_format((float) $v, 2, ',', '.'
                     <span class="inv-step inv-step--muted">3</span>
                     <div>
                         <h2 id="secao-itens" class="section-title">Itens contados</h2>
-                        <p class="section-desc">Agrupado por produto, lote e local. Quantidade é a soma das bipagens.</p>
+                        <p class="section-desc">Agrupado por produto, lote e local. A quantidade soma todos os lançamentos do item.</p>
                     </div>
                 </div>
             </div>
@@ -145,30 +145,28 @@ $fmtMoeda = function ($v) { return 'R$ ' . number_format((float) $v, 2, ',', '.'
                 <table class="data-table">
                     <thead>
                     <tr>
-                        <th>Código</th>
+                        <th class="rpt-col-min">Código</th>
                         <th>Produto</th>
-                        <th>ID</th>
-                        <th>Lote</th>
-                        <th>Local</th>
-                        <th>Und</th>
-                        <th>Bipagens</th>
-                        <th>Quantidade</th>
+                        <th class="rpt-col-min">ID</th>
+                        <th class="rpt-col-min">Lote</th>
+                        <th class="rpt-col-min">Local</th>
+                        <th class="rpt-col-min">Und</th>
+                        <th class="rpt-col-min num">Quantidade</th>
                     </tr>
                     </thead>
                     <tbody>
                     <?php if ($itens === []): ?>
-                        <tr><td colspan="8" class="empty">Nenhuma bipagem neste inventário.</td></tr>
+                        <tr><td colspan="7" class="empty">Nenhuma bipagem neste inventário.</td></tr>
                     <?php else: ?>
                         <?php foreach ($itens as $item): ?>
                             <tr>
-                                <td class="mono"><?= e(($item['codigo'] ?? '') !== '' ? $item['codigo'] : '—') ?></td>
-                                <td><?= e($item['nome'] !== '' ? $item['nome'] : '—') ?></td>
-                                <td class="mono"><?= (int) $item['idprd'] ?></td>
-                                <td class="mono"><?= e($item['lote'] !== '' ? $item['lote'] : '—') ?></td>
-                                <td><?= e($item['codloc']) ?></td>
-                                <td><?= e($item['und']) ?></td>
-                                <td><?= (int) $item['bipagens'] ?></td>
-                                <td><strong><?= e(rtrim(rtrim(number_format((float) $item['quantidade'], 3, ',', '.'), '0'), ',')) ?></strong></td>
+                                <td class="mono rpt-col-min"><?= e(($item['codigo'] ?? '') !== '' ? $item['codigo'] : '—') ?></td>
+                                <td class="rpt-col-desc"><?= e($item['nome'] !== '' ? $item['nome'] : '—') ?></td>
+                                <td class="mono rpt-col-min"><?= (int) $item['idprd'] ?></td>
+                                <td class="mono rpt-col-min"><?= e($item['lote'] !== '' ? $item['lote'] : '—') ?></td>
+                                <td class="rpt-col-min"><?= e($item['codloc']) ?></td>
+                                <td class="rpt-col-min"><?= e($item['und']) ?></td>
+                                <td class="rpt-col-min num"><strong><?= e(rtrim(rtrim(number_format((float) $item['quantidade'], 3, ',', '.'), '0'), ',')) ?></strong></td>
                             </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
@@ -234,16 +232,16 @@ $fmtMoeda = function ($v) { return 'R$ ' . number_format((float) $v, 2, ',', '.'
                 <table class="data-table">
                     <thead>
                     <tr>
-                        <th>Situação</th>
+                        <th class="rpt-col-min">Situação</th>
                         <th>Produto</th>
-                        <th>Lote</th>
-                        <th>Validade</th>
-                        <th>Grupo</th>
-                        <th>Und</th>
-                        <th class="num">Saldo</th>
-                        <th class="num">Contado</th>
-                        <th class="num">Diferença</th>
-                        <th class="num">Valor dif.</th>
+                        <th class="rpt-col-min">Lote</th>
+                        <th class="rpt-col-min">Validade</th>
+                        <th class="rpt-col-min">Grupo</th>
+                        <th class="rpt-col-min">Und</th>
+                        <th class="rpt-col-min num">Saldo</th>
+                        <th class="rpt-col-min num">Contado</th>
+                        <th class="rpt-col-min num">Diferença</th>
+                        <th class="rpt-col-min num">Valor dif.</th>
                     </tr>
                     </thead>
                     <tbody>

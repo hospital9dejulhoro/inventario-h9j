@@ -2073,3 +2073,20 @@ body.sl-corrigindo .sl-qtd::placeholder {
         justify-content: flex-end;
     }
 }
+
+/* ---- Largura das tabelas de relatorio ---- */
+
+/* width:1% + nowrap encolhe a coluna ate o conteudo; o que sobra da largura
+   vai todo para a descricao, que e o que realmente se le na linha. */
+.data-table th.rpt-col-min,
+.data-table td.rpt-col-min {
+    width: 1%;
+    white-space: nowrap;
+}
+
+/* Piso para o nome do produto: em tela estreita a tabela rola em vez de
+   espremer a descricao ate virar duas letras por linha. */
+.data-table td.rpt-col-desc,
+.rpt-conf .data-table td:nth-child(2) {
+    min-width: 15rem;
+}
