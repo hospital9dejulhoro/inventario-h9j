@@ -245,6 +245,21 @@
         }
     }
 
+
+    /**
+     * Falha que nao pode escapar.
+     *
+     * A linha de status fica no meio da pagina e some de vista quando a lista e
+     * longa. Recusa de gravacao - produto fora do estoque, lote faltando - tem
+     * de parar quem esta contando.
+     */
+    function falhaVisivel(mensagem, tipo) {
+        setStatus(mensagem, tipo === 'warning' ? '' : 'is-err');
+        if (typeof window.avisoModal === 'function') {
+            window.avisoModal(mensagem, tipo || 'danger');
+        }
+    }
+
     function gravar() {
         if (saving || !selecionada || !dentroDoInventario(selecionada)) {
             return;
@@ -313,7 +328,7 @@
                 // entre o numero que esta tela mostrou e o clique em Corrigir.
                 if (data.aviso) {
                     avisar('alerta');
-                    setStatus(data.aviso, 'is-err');
+                    falhaVisivel(data.aviso, 'warning');
                 } else if (data.modo === 'corrigir') {
                     avisar('sucesso');
                     setStatus(
@@ -348,7 +363,7 @@
             })
             .catch(function (err) {
                 avisar('alerta');
-                setStatus(err.message || 'Erro ao gravar.', 'is-err');
+                falhaVisivel(err.message || 'Erro ao gravar.');
                 fQtd.focus();
                 fQtd.select();
             })

@@ -124,6 +124,21 @@
     radiosModo.forEach(function (r) { r.addEventListener('change', aplicarModo); });
     aplicarModo();
 
+
+    /**
+     * Falha que nao pode escapar.
+     *
+     * A linha de status fica no meio da pagina e some de vista quando a lista e
+     * longa. Recusa de gravacao - produto fora do estoque, lote faltando - tem
+     * de parar quem esta contando.
+     */
+    function falhaVisivel(mensagem, tipo) {
+        setStatus(mensagem, tipo === 'warning' ? '' : 'is-err');
+        if (typeof window.avisoModal === 'function') {
+            window.avisoModal(mensagem, tipo || 'danger');
+        }
+    }
+
     function registrar(tr) {
         if (saving || !tr) {
             return;
@@ -132,7 +147,7 @@
         // Inventario encerrado no RM: o servidor recusa de qualquer jeito, mas
         // avisar aqui evita a ida e volta e diz o motivo na hora.
         if (cfg.somenteLeitura) {
-            setStatus(cfg.motivoBloqueio || 'Inventário encerrado no RM: não aceita contagem.', 'is-err');
+            falhaVisivel(cfg.motivoBloqueio || 'Inventário encerrado no RM: não aceita contagem.');
             return;
         }
         var input = tr.querySelector('.sl-qtd');
@@ -200,7 +215,7 @@
 
                 if (data.aviso) {
                     avisar('alerta');
-                    setStatus(data.aviso, 'is-err');
+                    falhaVisivel(data.aviso, 'warning');
                 } else if (data.modo === 'corrigir') {
                     avisar('sucesso');
                     setStatus(
@@ -221,7 +236,7 @@
             })
             .catch(function (err) {
                 avisar('alerta');
-                setStatus(err.message || 'Erro ao gravar.', 'is-err');
+                falhaVisivel(err.message || 'Erro ao gravar.');
                 if (input) {
                     input.focus();
                     input.select();

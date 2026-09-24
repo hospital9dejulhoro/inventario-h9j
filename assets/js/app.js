@@ -111,9 +111,22 @@
         }
     }
 
+    /** Ha um aviso na frente esperando ser lido? */
+    function avisoAberto() {
+        const m = document.getElementById('aviso-modal');
+        return !!m && !m.classList.contains('hidden');
+    }
+
     function focusBarcode() {
         const input = document.getElementById('CODIGOBARRAS');
         if (!input) {
+            return;
+        }
+
+        // Com o aviso aberto, o foco fica nele. Senao o campo de leitura - que
+        // esta atras do modal - continuaria recebendo o que o leitor disparar,
+        // e o bipe seguinte entraria sem ninguem ver a recusa do anterior.
+        if (avisoAberto()) {
             return;
         }
         input.value = '';
@@ -437,6 +450,92 @@
         }
     }
 
+    /* ----------------------------------------------------------------------
+     * Aviso que exige um toque para sumir
+     *
+     * A mensagem no topo da pagina parou de servir quando a tela de leitura
+     * passou a rolar sozinha ate o campo de bipagem: o aviso fica acima da
+     * dobra e quem bipa em sequencia nao volta la. Recusa de produto fora do
+     * estoque, ou de lote faltando, passava batida ate a conferencia.
+     *
+     * So erro e alerta abrem o modal. Confirmacao de gravacao continua como
+     * mensagem discreta: virar modal a cada bipe seria pior que o problema.
+     * -------------------------------------------------------------------- */
+
+    const avisoModal = document.getElementById('aviso-modal');
+    const avisoTitulo = document.getElementById('aviso-modal-titulo');
+    const avisoTexto = document.getElementById('aviso-modal-texto');
+    const avisoOk = document.getElementById('aviso-modal-ok');
+
+    const TITULOS = {
+        danger: 'Não foi gravado',
+        warning: 'Confira antes de seguir'
+    };
+
+    function abrirAviso(mensagem, tipo) {
+        if (!avisoModal || !mensagem) {
+            return;
+        }
+
+        tipo = tipo === 'warning' ? 'warning' : 'danger';
+
+        avisoTitulo.textContent = TITULOS[tipo];
+        avisoTexto.textContent = mensagem;
+        avisoModal.classList.remove('hidden');
+        avisoModal.classList.toggle('is-warning', tipo === 'warning');
+        avisoModal.setAttribute('aria-hidden', 'false');
+
+        // Som e vibracao: numa farmacia barulhenta, com o celular na mao e a
+        // caixa na outra, o aviso visual sozinho escapa.
+        try {
+            feedback.alerta();
+        } catch (e) {
+            // Aparelho sem som ou sem vibracao nao pode derrubar o aviso.
+        }
+
+        // O foco no botao faz o leitor de tela anunciar o aviso, e deixa fechar
+        // com Enter sem tirar a mao do leitor de codigo.
+        if (avisoOk) {
+            avisoOk.focus();
+        }
+    }
+
+    function fecharAviso() {
+        if (!avisoModal || avisoModal.classList.contains('hidden')) {
+            return;
+        }
+        avisoModal.classList.add('hidden');
+        avisoModal.setAttribute('aria-hidden', 'true');
+        // De volta ao campo de leitura: o proximo bipe nao pode exigir um toque
+        // a mais so porque houve um aviso.
+        focusBarcode();
+    }
+
+    // As telas de lote gravam por fetch e mostram a falha numa linha de status
+    // que some no meio da pagina; elas chamam isto para o erro nao escapar.
+    window.avisoModal = abrirAviso;
+
+    if (avisoModal) {
+        document.querySelectorAll('[data-fechar-aviso]').forEach(function (el) {
+            el.addEventListener('click', fecharAviso);
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                fecharAviso();
+            }
+        });
+
+        // Mensagem que veio do servidor nesta carga da pagina.
+        const flash = document.querySelector('[data-flash-type]');
+        if (flash) {
+            const tipo = flash.getAttribute('data-flash-type');
+            if (tipo === 'danger' || tipo === 'warning') {
+                abrirAviso(flash.textContent.trim(), tipo);
+            }
+        }
+    }
+
     const editModal = document.getElementById('edit-modal');
     const editForm = document.getElementById('edit-form');
 
@@ -475,7 +574,7 @@
     });
 
     document.addEventListener('keydown', function (event) {
-        if (event.key === 'Escape') {
+        if (event.key === 'Escape' && editModal && !editModal.classList.contains('hidden')) {
             closeEditModal();
         }
     });

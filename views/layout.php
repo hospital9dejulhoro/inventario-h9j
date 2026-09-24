@@ -73,6 +73,31 @@ $navPosicao = str_contains($bodyClassAtual, 'page-posicao');
     <?= $content ?>
 </main>
 
+<?php /*
+     Aviso que não dá para não ver.
+
+     A mensagem no topo da página deixou de servir quando a tela de leitura
+     passou a rolar sozinha até o campo de bipagem: o aviso fica acima da
+     dobra, e quem está bipando em sequência não volta lá para conferir. Uma
+     recusa — produto fora do estoque, lote faltando — passava batida, e só
+     aparecia no fim, na conferência.
+
+     O modal exige um toque para sumir. A mensagem no topo continua, como
+     registro do que aconteceu depois que o modal fecha.
+*/ ?>
+<div id="aviso-modal" class="modal hidden" aria-hidden="true" role="alertdialog"
+     aria-labelledby="aviso-modal-titulo" aria-describedby="aviso-modal-texto">
+    <div class="modal-backdrop" data-fechar-aviso></div>
+    <div class="modal-panel aviso-panel">
+        <h3 id="aviso-modal-titulo" class="modal-title aviso-titulo">Atenção</h3>
+        <p id="aviso-modal-texto" class="aviso-texto"></p>
+        <div class="btn-row">
+            <button type="button" class="btn btn-primary aviso-ok" id="aviso-modal-ok"
+                    data-fechar-aviso>Entendi</button>
+        </div>
+    </div>
+</div>
+
 <div id="loading-overlay" class="loading-overlay d-none" aria-hidden="true">
     <div class="loading-card">
         <div class="spinner"></div>
