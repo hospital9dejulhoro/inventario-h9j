@@ -54,6 +54,15 @@
         <p class="cam-girar" id="cam-girar" hidden>Gire o celular na horizontal — o código de barras é deitado e cabe melhor.</p>
         <p class="form-hint cam-status" id="cam-status" role="status" aria-live="polite"></p>
         <button type="button" class="btn btn-ghost cam-fechar" id="cam-fechar">Fechar câmera</button>
+
+        <?php /* "Não funciona" num aparelho específico não se reproduz numa
+                 máquina de desenvolvimento. Daqui sai o que está acontecendo,
+                 em texto que dá para copiar e mandar. */ ?>
+        <details class="cam-diag">
+            <summary>Detalhes técnicos</summary>
+            <pre class="cam-diag-texto" id="cam-diag-texto">Abra a câmera para ver.</pre>
+            <button type="button" class="cam-botao" id="cam-diag-copiar">Copiar</button>
+        </details>
     </div>
 </div>
 

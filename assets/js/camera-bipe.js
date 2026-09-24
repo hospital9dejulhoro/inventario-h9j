@@ -14,6 +14,8 @@
     var areaZoom = document.getElementById('cam-zoom-area');
     var controleZoom = document.getElementById('cam-zoom');
     var botaoTrocar = document.getElementById('cam-trocar');
+    var textoDiag = document.getElementById('cam-diag-texto');
+    var copiarDiag = document.getElementById('cam-diag-copiar');
 
     if (!cfg || !abrir || !painel || !video || !status) {
         return;
@@ -38,6 +40,14 @@
     var cameras = [];
     var cameraAtual = 0;
 
+    // Estado para o diagnostico. Sem camera de iPhone na mao, e o aparelho que
+    // precisa contar o que aconteceu.
+    var tentativas = 0;
+    var ultimaFalha = '';
+    var etapa = 'parado';
+    var vigia = null;
+    var abertaEm = 0;
+
     function aviso(texto, classe) {
         status.textContent = texto;
         status.className = 'form-hint cam-status' + (classe ? ' ' + classe : '');
@@ -45,6 +55,76 @@
 
     function temLeitorNativo() {
         return typeof window.BarcodeDetector === 'function';
+    }
+
+    /**
+     * O que esta acontecendo, em texto que da para ler no proprio aparelho e
+     * mandar para quem for corrigir.
+     *
+     * Existe porque "nao funciona" num iPhone especifico nao se reproduz numa
+     * maquina de desenvolvimento: sem isto, o jeito seria adivinhar.
+     */
+    function diagnostico() {
+        var conf = faixa && faixa.getSettings ? faixa.getSettings() : {};
+        var cap = capacidades();
+        var linhas = [
+            'etapa: ' + etapa,
+            'https: ' + (window.isSecureContext ? 'sim' : 'NAO'),
+            'acesso a camera: ' + (navigator.mediaDevices && navigator.mediaDevices.getUserMedia ? 'sim' : 'NAO'),
+            'leitor do navegador: ' + (temLeitorNativo() ? 'sim (nativo)' : 'nao (usa biblioteca)'),
+            'biblioteca carregada: ' + (window.ZXing ? 'sim' : 'nao'),
+            'camera ligada: ' + (stream ? 'sim' : 'nao'),
+            'resolucao: ' + (conf.width ? conf.width + 'x' + conf.height : '—')
+                + (conf.frameRate ? ' @' + Math.round(conf.frameRate) + 'fps' : ''),
+            'video: ' + video.videoWidth + 'x' + video.videoHeight
+                + ' pronto=' + video.readyState + (video.paused ? ' PARADO' : ' tocando'),
+            'tentativas de leitura: ' + tentativas,
+            'recursos: ' + ([cap.torch ? 'lanterna' : '', cap.zoom ? 'zoom' : '',
+                cap.focusMode ? 'foco' : ''].filter(Boolean).join(', ') || 'nenhum'),
+            'navegador: ' + navigator.userAgent.slice(0, 110)
+        ];
+
+        if (ultimaFalha) {
+            linhas.push('ultima falha: ' + ultimaFalha);
+        }
+
+        return linhas.join('\n');
+    }
+
+    function mostrarDiagnostico() {
+        if (!textoDiag) {
+            return;
+        }
+        textoDiag.textContent = diagnostico();
+    }
+
+    /**
+     * Camera ligada e nenhuma leitura tentada, ou tentada muitas vezes sem
+     * achar nada: em vez de deixar a pessoa apontando o celular sem saber, diz
+     * o que esta faltando.
+     */
+    function vigiar() {
+        if (!rodando) {
+            return;
+        }
+
+        var segundos = Math.round((Date.now() - abertaEm) / 1000);
+        mostrarDiagnostico();
+
+        if (segundos >= 10) {
+            if (video.videoWidth === 0) {
+                aviso('A camera ligou mas nao esta mandando imagem. Feche e abra de novo, '
+                    + 'ou use a busca por nome.', 'is-err');
+            } else if (tentativas === 0) {
+                aviso('A imagem aparece mas o leitor nao esta rodando. Abra os detalhes tecnicos '
+                    + 'e mande para a TI.', 'is-err');
+            } else if (segundos >= 20) {
+                aviso('Sem conseguir ler ha ' + segundos + 's. Aproxime, use a lanterna, '
+                    + 'ou procure o item pelo nome logo abaixo.');
+            }
+        }
+
+        vigia = window.setTimeout(vigiar, 2000);
     }
 
     /**
@@ -313,6 +393,8 @@
     function pararCamera(manterPainel) {
         rodando = false;
         lanternaAcesa = false;
+        etapa = 'parado';
+        window.clearTimeout(vigia);
 
         if (stream) {
             stream.getTracks().forEach(function (t) { t.stop(); });
@@ -375,14 +457,18 @@
             return;
         }
 
+        tentativas++;
+
         leitorNativo.detect(video)
             .then(function (codigos) {
                 if (codigos && codigos.length > 0) {
                     achou(codigos[0].rawValue);
                 }
             })
-            .catch(function () {
+            .catch(function (e) {
                 // Quadro ruim acontece o tempo todo; nao e erro que valha aviso.
+                // Mas o primeiro serve para o diagnostico.
+                if (!ultimaFalha) { ultimaFalha = 'leitor nativo: ' + (e && e.name || e); }
             })
             .then(function () {
                 if (rodando) {
@@ -421,9 +507,14 @@
             leitorZxing.timeBetweenDecodingAttempts = 120;
             aviso('Aponte para o codigo de barras.');
 
-            leitorZxing.decodeFromStream(stream, video, function (resultado) {
+            etapa = 'lendo (biblioteca)';
+
+            return leitorZxing.decodeFromStream(stream, video, function (resultado, erro) {
+                tentativas++;
                 if (resultado && rodando) {
                     achou(resultado.getText());
+                } else if (erro && !ultimaFalha && erro.name && erro.name !== 'NotFoundException') {
+                    ultimaFalha = 'biblioteca: ' + erro.name;
                 }
             });
         });
@@ -452,7 +543,13 @@
     }
 
     function ligar() {
+        etapa = 'pedindo camera';
+        tentativas = 0;
+        ultimaFalha = '';
+        abertaEm = Date.now();
+
         return navigator.mediaDevices.getUserMedia(restricoes()).then(function (s) {
+            etapa = 'camera ligada';
             stream = s;
             faixa = s.getVideoTracks()[0] || null;
             video.srcObject = s;
@@ -463,7 +560,25 @@
             prepararLanterna();
             prepararTroca();
 
-            return video.play().then(comecarLeitura);
+            window.clearTimeout(vigia);
+            vigia = window.setTimeout(vigiar, 2000);
+
+            // play() que falha nao pode derrubar tudo: a biblioteca anexa e toca
+            // o video por conta propria, entao ainda ha chance de ler. Antes,
+            // qualquer recusa aqui virava "nao foi possivel abrir a camera" e
+            // escondia a causa de verdade.
+            return video.play()
+                .catch(function (e) {
+                    ultimaFalha = 'play do video: ' + (e && e.name || e);
+                })
+                .then(comecarLeitura)
+                .catch(function (e) {
+                    etapa = 'leitor falhou';
+                    ultimaFalha = 'leitor: ' + (e && (e.message || e.name) || e);
+                    aviso('A camera abriu, mas o leitor nao iniciou. Use a busca por nome, '
+                        + 'ou abra os detalhes tecnicos e mande para a TI.', 'is-err');
+                    mostrarDiagnostico();
+                });
         });
     }
 
@@ -477,6 +592,10 @@
     function falhou(erro) {
         pararCamera();
         painel.hidden = false;
+
+        etapa = 'camera falhou';
+        ultimaFalha = 'camera: ' + (erro && (erro.name || erro.message) || erro);
+        mostrarDiagnostico();
 
         var motivo = 'Nao foi possivel abrir a camera.';
         if (erro && (erro.name === 'NotAllowedError' || erro.name === 'SecurityError')) {
@@ -532,6 +651,33 @@
     }
     if (botaoTrocar) {
         botaoTrocar.addEventListener('click', trocarCamera);
+    }
+    if (copiarDiag) {
+        copiarDiag.addEventListener('click', function () {
+            var texto = diagnostico();
+            // Sem area de transferencia (ou sem permissao), selecionar o texto
+            // deixa a pessoa copiar do jeito de sempre.
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(texto).then(function () {
+                    copiarDiag.textContent = 'Copiado';
+                    window.setTimeout(function () { copiarDiag.textContent = 'Copiar'; }, 1500);
+                }).catch(selecionarDiag);
+            } else {
+                selecionarDiag();
+            }
+        });
+    }
+
+    function selecionarDiag() {
+        if (!textoDiag || !window.getSelection) {
+            return;
+        }
+        var faixaTexto = document.createRange();
+        faixaTexto.selectNodeContents(textoDiag);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(faixaTexto);
+        copiarDiag.textContent = 'Selecionado — use Copiar';
     }
     if (caixa) {
         caixa.addEventListener('click', focarNoToque);

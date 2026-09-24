@@ -2844,3 +2844,40 @@ body.cam-travado {
         height: 36px;
     }
 }
+
+/* Detalhes tecnicos da camera: so aparece quando a pessoa abre. */
+.cam-diag {
+    margin: 0.75rem 0 0;
+    font-size: 0.8125rem;
+}
+
+.cam-diag > summary {
+    cursor: pointer;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    color: var(--text-muted);
+}
+
+.cam-diag-texto {
+    margin: 0.5rem 0;
+    padding: 0.6rem 0.75rem;
+    border-radius: var(--radius);
+    background: #0f172a;
+    color: #cbd5e1;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    /* Texto tecnico e comprido; melhor quebrar do que rolar para o lado. */
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 40vh;
+    overflow-y: auto;
+}
+
+.cam-painel.is-cheio .cam-diag {
+    margin: 0 1rem;
+}
+
+.cam-painel.is-cheio .cam-diag > summary {
+    color: #cbd5e1;
+}
