@@ -4,10 +4,16 @@
     var cfg = window.CAM_CFG;
     var abrir = document.getElementById('cam-abrir');
     var painel = document.getElementById('cam-painel');
+    var caixa = document.getElementById('cam-video-caixa');
     var video = document.getElementById('cam-video');
     var status = document.getElementById('cam-status');
     var fechar = document.getElementById('cam-fechar');
     var dicaGirar = document.getElementById('cam-girar');
+    var dicaToque = document.getElementById('cam-toque');
+    var botaoLanterna = document.getElementById('cam-lanterna');
+    var areaZoom = document.getElementById('cam-zoom-area');
+    var controleZoom = document.getElementById('cam-zoom');
+    var botaoTrocar = document.getElementById('cam-trocar');
 
     if (!cfg || !abrir || !painel || !video || !status) {
         return;
@@ -22,11 +28,15 @@
     var DIGITOS = 13;
 
     var stream = null;
+    var faixa = null;
     var leitorNativo = null;
     var leitorZxing = null;
     var rodando = false;
     var ultimoCodigo = '';
     var ultimoEm = 0;
+    var lanternaAcesa = false;
+    var cameras = [];
+    var cameraAtual = 0;
 
     function aviso(texto, classe) {
         status.textContent = texto;
@@ -73,20 +83,187 @@
     }
 
     /* ----------------------------------------------------------------------
+     * Controles do aparelho
+     *
+     * Tudo aqui e opcional e varia muito entre celulares. Cada controle so
+     * aparece depois de confirmar na propria camera que ela oferece aquilo:
+     * botao que nao faz nada e pior que botao nenhum.
+     * -------------------------------------------------------------------- */
+
+    function capacidades() {
+        if (!faixa || !faixa.getCapabilities) {
+            return {};
+        }
+        try {
+            return faixa.getCapabilities() || {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    function aplicar(avancado) {
+        if (!faixa || !faixa.applyConstraints || !avancado.length) {
+            return Promise.resolve(false);
+        }
+        return faixa.applyConstraints({ advanced: avancado })
+            .then(function () { return true; })
+            .catch(function () { return false; });
+    }
+
+    /**
+     * Lanterna.
+     *
+     * Prateleira de farmacia e mal iluminada e a etiqueta costuma estar na
+     * sombra da propria prateleira de cima. E o unico controle daqui que muda o
+     * resultado sozinho, sem a pessoa precisar mirar melhor.
+     *
+     * So o Android oferece: o Safari nao expoe a lanterna pela camera da pagina.
+     */
+    function prepararLanterna() {
+        if (!botaoLanterna) {
+            return;
+        }
+
+        var cap = capacidades();
+        var tem = !!cap.torch;
+
+        botaoLanterna.hidden = !tem;
+        lanternaAcesa = false;
+        botaoLanterna.setAttribute('aria-pressed', 'false');
+        botaoLanterna.classList.remove('is-ligado');
+    }
+
+    function alternarLanterna() {
+        aplicar([{ torch: !lanternaAcesa }]).then(function (deu) {
+            if (!deu) {
+                aviso('Este aparelho nao deixa ligar a lanterna pela pagina.', 'is-err');
+                botaoLanterna.hidden = true;
+                return;
+            }
+            lanternaAcesa = !lanternaAcesa;
+            botaoLanterna.setAttribute('aria-pressed', lanternaAcesa ? 'true' : 'false');
+            botaoLanterna.classList.toggle('is-ligado', lanternaAcesa);
+        });
+    }
+
+    /**
+     * Aproximar.
+     *
+     * Vale mais que recortar a imagem por software: o zoom da camera entrega
+     * pixels de verdade sobre as barras, em vez de esticar os que ja tem.
+     *
+     * Antes isto era um valor fixo que eu escolhi. Quem esta com a etiqueta na
+     * mao sabe melhor do que eu a que distancia esta contando.
+     */
+    function prepararZoom() {
+        if (!areaZoom || !controleZoom) {
+            return;
+        }
+
+        var cap = capacidades();
+        var tem = cap.zoom && cap.zoom.max > cap.zoom.min;
+
+        areaZoom.hidden = !tem;
+        if (!tem) {
+            return;
+        }
+
+        controleZoom.min = cap.zoom.min;
+        controleZoom.max = cap.zoom.max;
+        controleZoom.step = cap.zoom.step || 0.1;
+
+        // Comeca um pouco aproximado: e quase sempre melhor que o padrao para
+        // etiqueta, e quem quiser volta no controle.
+        var inicial = Math.min(cap.zoom.min + (cap.zoom.max - cap.zoom.min) * 0.3, cap.zoom.max);
+        controleZoom.value = inicial;
+        aplicar([{ zoom: inicial }]);
+    }
+
+    /**
+     * Trocar camera.
+     *
+     * Celular moderno tem mais de uma lente atras, e a grande-angular - que
+     * varios escolhem por padrao - nao foca de perto: e exatamente o caso de
+     * ler etiqueta a um palmo. Qual lente serve varia por aparelho, entao em
+     * vez de adivinhar pelo nome, deixa escolher.
+     */
+    function prepararTroca() {
+        if (!botaoTrocar || !navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+            return;
+        }
+
+        navigator.mediaDevices.enumerateDevices().then(function (lista) {
+            cameras = lista.filter(function (d) { return d.kind === 'videoinput'; });
+            botaoTrocar.hidden = cameras.length < 2;
+        }).catch(function () {
+            botaoTrocar.hidden = true;
+        });
+    }
+
+    function trocarCamera() {
+        if (cameras.length < 2) {
+            return;
+        }
+        cameraAtual = (cameraAtual + 1) % cameras.length;
+        aviso('Trocando de câmera…');
+        reabrir();
+    }
+
+    /**
+     * Focar onde a pessoa tocou.
+     *
+     * Em prateleira cheia o foco automatico fica caçando entre a etiqueta e a
+     * caixa atras dela. Apontar resolve.
+     */
+    function focarNoToque(evento) {
+        var cap = capacidades();
+        if (!cap.focusMode || cap.focusMode.indexOf('single-shot') === -1) {
+            return;
+        }
+
+        var r = video.getBoundingClientRect();
+        var toque = evento.touches ? evento.touches[0] : evento;
+        var x = (toque.clientX - r.left) / r.width;
+        var y = (toque.clientY - r.top) / r.height;
+
+        if (x < 0 || x > 1 || y < 0 || y > 1) {
+            return;
+        }
+
+        var pedido = [{ focusMode: 'single-shot' }];
+        if (cap.pointsOfInterest) {
+            pedido[0].pointsOfInterest = [{ x: x, y: y }];
+        }
+
+        aplicar(pedido).then(function (deu) {
+            if (deu && dicaToque) {
+                dicaToque.classList.add('is-piscando');
+                window.setTimeout(function () { dicaToque.classList.remove('is-piscando'); }, 600);
+            }
+        });
+    }
+
+    function prepararFoco() {
+        var cap = capacidades();
+        var avancado = [];
+
+        if (cap.focusMode && cap.focusMode.indexOf('continuous') !== -1) {
+            avancado.push({ focusMode: 'continuous' });
+        }
+        // Foco perto: e o que se pede a uma camera para ler etiqueta a um palmo.
+        if (cap.focusDistance && typeof cap.focusDistance.min === 'number') {
+            avancado.push({ focusDistance: cap.focusDistance.min });
+        }
+
+        aplicar(avancado);
+
+        if (dicaToque) {
+            dicaToque.hidden = !(cap.focusMode && cap.focusMode.indexOf('single-shot') !== -1);
+        }
+    }
+
+    /* ----------------------------------------------------------------------
      * Tela cheia
-     *
-     * O codigo de barras e largo e baixo. Numa janelinha no meio da pagina e
-     * preciso afastar o celular ate a etiqueta inteira caber, e ai ela fica
-     * pequena demais para o leitor resolver as barras finas. Ocupando a tela,
-     * da para chegar perto.
-     *
-     * A sobreposicao e feita com CSS, nao com a Fullscreen API: no iPhone a API
-     * so funciona no proprio <video>, e ai o Safari poe os controles nativos por
-     * cima e esconde a mira. O CSS funciona igual nos dois.
-     *
-     * Por cima disso, quando o aparelho deixa, pede tela cheia de verdade (some
-     * a barra do navegador) e trava na horizontal. O iPhone nao permite travar a
-     * orientacao - por isso existe a dica de girar.
      * -------------------------------------------------------------------- */
 
     function entrarEmTelaCheia() {
@@ -104,10 +281,7 @@
         var orient = window.screen && window.screen.orientation;
 
         if (orient && orient.lock) {
-            orient.lock('landscape').catch(function () {
-                // iPhone, e Android com rotacao bloqueada no sistema.
-                atualizarDicaDeGirar();
-            });
+            orient.lock('landscape').catch(atualizarDicaDeGirar);
         } else {
             atualizarDicaDeGirar();
         }
@@ -131,69 +305,32 @@
         if (!dicaGirar) {
             return;
         }
-        // Em pe, a etiqueta cabe em menos pixels de largura - que e a dimensao
-        // que importa para separar as barras.
         dicaGirar.hidden = !rodando || window.innerWidth >= window.innerHeight;
-    }
-
-    /* ----------------------------------------------------------------------
-     * Foco e resolucao
-     * -------------------------------------------------------------------- */
-
-    /**
-     * Sem isto a camera abre em 640x480 e focada longe: a etiqueta sai borrada e
-     * o leitor nao resolve as barras finas. Pedir resolucao alta da pixels
-     * suficientes, e o foco continuo faz a camera reajustar quando a mao mexe.
-     *
-     * Sao ajustes opcionais: aparelho que nao suporta ignora, e a camera abre
-     * assim mesmo.
-     */
-    function melhorarFoco(faixa) {
-        if (!faixa || !faixa.applyConstraints) {
-            return;
-        }
-
-        var capacidades = faixa.getCapabilities ? faixa.getCapabilities() : {};
-        var avancado = [];
-
-        if (capacidades.focusMode && capacidades.focusMode.indexOf('continuous') !== -1) {
-            avancado.push({ focusMode: 'continuous' });
-        }
-
-        // Um pouco de zoom optico aproxima sem precisar encostar na etiqueta.
-        if (capacidades.zoom && capacidades.zoom.max > capacidades.zoom.min) {
-            var alvo = Math.min(capacidades.zoom.min + (capacidades.zoom.max - capacidades.zoom.min) * 0.3,
-                capacidades.zoom.max);
-            avancado.push({ zoom: alvo });
-        }
-
-        if (avancado.length === 0) {
-            return;
-        }
-
-        faixa.applyConstraints({ advanced: avancado }).catch(function () {
-            // Restricao avancada e opcional: se o aparelho recusa, segue sem.
-        });
     }
 
     /* ---------------------------------------------------------------------- */
 
-    function pararCamera() {
+    function pararCamera(manterPainel) {
         rodando = false;
+        lanternaAcesa = false;
 
         if (stream) {
             stream.getTracks().forEach(function (t) { t.stop(); });
             stream = null;
         }
+        faixa = null;
 
         if (leitorZxing && leitorZxing.reset) {
             leitorZxing.reset();
         }
 
         video.srcObject = null;
-        painel.hidden = true;
-        abrir.setAttribute('aria-expanded', 'false');
-        sairDaTelaCheia();
+
+        if (!manterPainel) {
+            painel.hidden = true;
+            abrir.setAttribute('aria-expanded', 'false');
+            sairDaTelaCheia();
+        }
     }
 
     function achou(texto) {
@@ -249,7 +386,9 @@
             })
             .then(function () {
                 if (rodando) {
-                    window.setTimeout(lacoNativo, 200);
+                    // 120ms em vez de 200: mais tentativas por segundo, e a mao
+                    // treme menos do que parece entre um quadro e outro.
+                    window.setTimeout(lacoNativo, 120);
                 }
             });
     }
@@ -279,6 +418,7 @@
             dicas.set(window.ZXing.DecodeHintType.TRY_HARDER, true);
 
             leitorZxing = new window.ZXing.BrowserMultiFormatReader(dicas);
+            leitorZxing.timeBetweenDecodingAttempts = 120;
             aviso('Aponte para o codigo de barras.');
 
             leitorZxing.decodeFromStream(stream, video, function (resultado) {
@@ -287,6 +427,65 @@
                 }
             });
         });
+    }
+
+    function restricoes() {
+        var video = {
+            // Resolucao alta e o que separa as barras finas. Em 640x480 a
+            // etiqueta sai borrada e o leitor nao decide.
+            width: { ideal: 2560 },
+            height: { ideal: 1440 },
+            // Sem redimensionar: o navegador entregaria um recorte esticado de
+            // uma resolucao menor, que e o oposto do que se quer aqui.
+            resizeMode: 'none'
+        };
+
+        if (cameras.length > 1 && cameras[cameraAtual]) {
+            video.deviceId = { exact: cameras[cameraAtual].deviceId };
+        } else {
+            // A traseira e a que enxerga a prateleira; sem isto o celular abre a
+            // frontal e a pessoa filma o proprio rosto.
+            video.facingMode = { ideal: 'environment' };
+        }
+
+        return { video: video, audio: false };
+    }
+
+    function ligar() {
+        return navigator.mediaDevices.getUserMedia(restricoes()).then(function (s) {
+            stream = s;
+            faixa = s.getVideoTracks()[0] || null;
+            video.srcObject = s;
+            rodando = true;
+
+            prepararFoco();
+            prepararZoom();
+            prepararLanterna();
+            prepararTroca();
+
+            return video.play().then(comecarLeitura);
+        });
+    }
+
+    function reabrir() {
+        pararCamera(true);
+        ligar().catch(function () {
+            aviso('Nao foi possivel usar esta camera. Toque em Trocar camera de novo.', 'is-err');
+        });
+    }
+
+    function falhou(erro) {
+        pararCamera();
+        painel.hidden = false;
+
+        var motivo = 'Nao foi possivel abrir a camera.';
+        if (erro && (erro.name === 'NotAllowedError' || erro.name === 'SecurityError')) {
+            motivo = 'Acesso a camera negado. Libere nas permissoes do navegador, ou use a busca por nome.';
+        } else if (erro && erro.name === 'NotFoundError') {
+            motivo = 'Nenhuma camera encontrada neste aparelho.';
+        }
+
+        aviso(motivo, 'is-err');
     }
 
     function abrirCamera() {
@@ -306,40 +505,10 @@
         abrir.setAttribute('aria-expanded', 'true');
         aviso('Pedindo acesso a camera...');
 
-        navigator.mediaDevices.getUserMedia({
-            video: {
-                // A traseira e a que enxerga a prateleira; sem isto o celular
-                // abre a frontal e a pessoa filma o proprio rosto.
-                facingMode: { ideal: 'environment' },
-                // Resolucao alta e o que separa as barras finas. Em 640x480 a
-                // etiqueta sai borrada e o leitor nao decide.
-                width: { ideal: 1920 },
-                height: { ideal: 1080 }
-            },
-            audio: false
-        })
-            .then(function (s) {
-                stream = s;
-                video.srcObject = s;
-                rodando = true;
-                melhorarFoco(s.getVideoTracks()[0]);
-                entrarEmTelaCheia();
-                return video.play().then(comecarLeitura);
-            })
+        ligar()
+            .then(entrarEmTelaCheia)
             .then(atualizarDicaDeGirar)
-            .catch(function (erro) {
-                pararCamera();
-                painel.hidden = false;
-
-                var motivo = 'Nao foi possivel abrir a camera.';
-                if (erro && (erro.name === 'NotAllowedError' || erro.name === 'SecurityError')) {
-                    motivo = 'Acesso a camera negado. Libere nas permissoes do navegador, ou use a busca por nome.';
-                } else if (erro && erro.name === 'NotFoundError') {
-                    motivo = 'Nenhuma camera encontrada neste aparelho.';
-                }
-
-                aviso(motivo, 'is-err');
-            });
+            .catch(falhou);
     }
 
     abrir.addEventListener('click', function () {
@@ -351,7 +520,21 @@
     });
 
     if (fechar) {
-        fechar.addEventListener('click', pararCamera);
+        fechar.addEventListener('click', function () { pararCamera(); });
+    }
+    if (botaoLanterna) {
+        botaoLanterna.addEventListener('click', alternarLanterna);
+    }
+    if (controleZoom) {
+        controleZoom.addEventListener('input', function () {
+            aplicar([{ zoom: parseFloat(controleZoom.value) }]);
+        });
+    }
+    if (botaoTrocar) {
+        botaoTrocar.addEventListener('click', trocarCamera);
+    }
+    if (caixa) {
+        caixa.addEventListener('click', focarNoToque);
     }
 
     window.addEventListener('resize', atualizarDicaDeGirar);
@@ -369,7 +552,7 @@
 
     // Sair da tela com a camera ligada deixaria a luz acesa e a bateria indo
     // embora no bolso de quem esta contando.
-    window.addEventListener('pagehide', pararCamera);
+    window.addEventListener('pagehide', function () { pararCamera(); });
     document.addEventListener('visibilitychange', function () {
         if (document.hidden && rodando) {
             pararCamera();
