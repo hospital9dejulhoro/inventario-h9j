@@ -179,8 +179,10 @@ $colunas = $temSaldo ? 7 : 6;
             <?php endif; ?>
         </div>
         <div class="sl-toolbar-actions">
+            <label class="sr-so-leitor" for="sl-busca">Procurar produto na lista</label>
             <input type="search" id="sl-busca" class="form-control sl-busca"
-                   placeholder="Bipe a etiqueta, ou digite o produto…" autocomplete="off">
+                   placeholder="Bipe a etiqueta, ou digite o produto…" autocomplete="off"
+                   enterkeyhint="search">
             <?php /* Mesmos dois modos da tela de lotes, com a mesma redação.
                      Volta sozinho para "Somar" depois de cada gravação. */ ?>
             <div class="sl-modo" role="radiogroup" aria-label="O que fazer com a quantidade">
@@ -286,9 +288,9 @@ $colunas = $temSaldo ? 7 : 6;
                         </td>
                         <td class="sl-col-und"><?= e($item['und']) ?></td>
                         <?php if ($temSaldo): ?>
-                            <td class="sl-col-saldo"><?= $saldo != 0.0 ? e(formatar_quantidade($saldo)) : '—' ?></td>
+                            <td class="sl-col-saldo" data-rotulo="Saldo"><?= $saldo != 0.0 ? e(formatar_quantidade($saldo)) : '—' ?></td>
                         <?php endif; ?>
-                        <td class="sl-col-ja sl-ja"><?= $ja > 0 ? e(formatar_quantidade($ja)) : '—' ?></td>
+                        <td class="sl-col-ja sl-ja" data-rotulo="Já"><?= $ja > 0 ? e(formatar_quantidade($ja)) : '—' ?></td>
                         <td class="sl-col-qtd">
                             <input type="text" class="sl-qtd" inputmode="decimal" autocomplete="off"
                                    aria-label="Quantidade <?= e($item['nome']) ?>">

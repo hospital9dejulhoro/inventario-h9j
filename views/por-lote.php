@@ -47,11 +47,17 @@ $moeda = function ($v) {
 ?>
 
 <div class="page-wrap-wide inv-page sl-page pl-page">
-    <?php if (!$modoLista): ?>
-    <header class="inv-page-header sl-header">
+    <?php /* O titulo vale nos dois modos: contando, ele era o unico H1 da
+             pagina e ficava de fora, deixando a tela sem titulo de primeiro
+             nivel para quem navega por titulos. */ ?>
+    <header class="inv-page-header sl-header<?= $modoLista ? ' sl-header--compacto' : '' ?>">
         <h1 class="page-title">Contagem por lote</h1>
-        <p class="page-subtitle">Escolha o inventário para ver a posição de estoque do local.</p>
+        <?php if (!$modoLista): ?>
+            <p class="page-subtitle">Escolha o inventário para ver a posição de estoque do local.</p>
+        <?php endif; ?>
     </header>
+
+    <?php if (!$modoLista): ?>
 
     <section class="inv-section panel inv-open-list" aria-labelledby="secao-abertos">
         <div class="inv-section-head">
@@ -224,8 +230,9 @@ $moeda = function ($v) {
                 <h2 id="pl-lista-titulo" class="pl-pane-title">Posição do local <?= e($codloc) ?></h2>
 
                 <div class="pl-filtro-linha">
+                    <label class="sr-so-leitor" for="pl-busca">Procurar no local <?= e($codloc) ?></label>
                     <input type="search" id="pl-busca" name="q" class="form-control sl-busca"
-                           value="<?= e($busca) ?>" autocomplete="off"
+                           value="<?= e($busca) ?>" autocomplete="off" enterkeyhint="search"
                            placeholder="Bipe a etiqueta, ou digite lote/produto/código">
                     <button type="submit" class="btn btn-secondary pl-busca-btn" id="pl-busca-rm">Buscar no RM</button>
                 </div>

@@ -2372,3 +2372,241 @@ body.sl-corrigindo .sl-qtd::placeholder {
         max-width: 480px;
     }
 }
+
+/* -------------------------------------------------------------------------
+ * Acessibilidade e uso no celular
+ *
+ * Medido antes de escrever: nesta tela em 375x812 havia de 12 a 46 controles
+ * com menos de 44px de altura, e nenhum botao ou link mostrava foco. Contraste
+ * e rolagem horizontal estavam bem e nao foram mexidos.
+ * ---------------------------------------------------------------------- */
+
+/*
+ * Foco visivel em tudo que recebe foco.
+ *
+ * So .form-control tinha realce; botao e link nao mostravam nada. Quem navega
+ * por teclado - e quem usa leitor de codigo de barras, que manda Tab e Enter -
+ * ficava sem saber onde estava. :focus-visible mostra so quando o foco veio do
+ * teclado, entao o clique do mouse continua sem moldura.
+ */
+:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+.btn:focus-visible,
+.btn-ghost:focus-visible,
+.btn-link:focus-visible,
+summary:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/*
+ * Alvo de toque confortavel.
+ *
+ * Vale por tipo de apontador, nao por largura de tela: um tablet largo tambem e
+ * tocado com o dedo, e um monitor estreito continua sendo clicado com o mouse.
+ * 44px e o minimo que se acerta sem olhar, com a caixa na outra mao.
+ */
+@media (pointer: coarse) {
+    .btn,
+    .btn-ghost,
+    .btn-secondary,
+    .btn-primary,
+    .btn-danger,
+    .form-control,
+    input[type="text"],
+    input[type="search"],
+    input[type="number"],
+    input[type="password"],
+    select,
+    summary {
+        min-height: 44px;
+    }
+
+    .btn-ghost {
+        padding-top: 0.6rem;
+        padding-bottom: 0.6rem;
+    }
+
+    /* Acao dentro de linha de tabela: nao da para crescer a linha toda, entao
+       cresce a area clicavel em volta do texto. */
+    .btn-link {
+        display: inline-block;
+        min-height: 44px;
+        padding: 0.7rem 0.5rem;
+    }
+
+    /* 16px impede o zoom automatico do iOS ao focar um campo, que desalinha a
+       tela e obriga a pessoa a pincar de volta. */
+    .form-control,
+    input[type="text"],
+    input[type="search"],
+    input[type="number"],
+    select {
+        font-size: 1rem;
+    }
+}
+
+/* Quem pediu menos animacao no sistema nao deve receber transicao nenhuma. */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+}
+
+/*
+ * Texto so para leitor de tela.
+ *
+ * Alguns campos ja dizem o que sao pelo texto dentro deles, e um rotulo visivel
+ * ao lado repetiria o que esta a vista. Mas o texto de dentro some assim que a
+ * pessoa digita, e leitor de tela nao o anuncia como nome do campo - entao o
+ * rotulo existe, so nao ocupa espaco.
+ */
+.sr-so-leitor {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Contando, o titulo da pagina nao precisa do mesmo respiro da tela de
+   selecao: cada linha aqui empurra a lista de itens para baixo. */
+.sl-header--compacto {
+    margin-bottom: 0.5rem;
+}
+
+.sl-header--compacto .page-title {
+    font-size: 1.15rem;
+}
+
+/*
+ * O que a regra geral de alvo de toque nao alcancou.
+ *
+ * Medido depois da primeira rodada: sobraram 19 controles pequenos na tela sem
+ * lote, e 15 deles eram o botao de gravar de cada linha, com 18px. E a acao
+ * principal da tela - errar nela e gravar no produto errado.
+ */
+@media (pointer: coarse) {
+    .sl-btn {
+        min-height: 44px;
+        min-width: 56px;
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+        font-size: 0.8125rem;
+    }
+
+    /* Radio e caixa de marcar nascem com 13px. Crescer o controle e dar area ao
+       rotulo que o embrulha, que tambem aciona. */
+    input[type="radio"],
+    input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+        flex: 0 0 auto;
+    }
+
+    /* Qualquer rotulo que embrulhe um radio ou uma caixa de marcar: e ele que
+       a pessoa toca, nao o controle de 20px. :has() cobre o caso geral; as
+       classes estao listadas para os navegadores que ainda nao o tem. */
+    label:has(input[type="radio"]),
+    label:has(input[type="checkbox"]),
+    .sl-check,
+    .pl-modo label,
+    .sl-toolbar label {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        min-height: 44px;
+        padding: 0.35rem 0;
+    }
+
+    .navbar-brand {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
+    }
+}
+
+/* -------------------------------------------------------------------------
+ * Lista "sem lote" no celular: a linha vira duas
+ *
+ * A tabela precisava de 364px numa area de 327, e o que ficava de fora era
+ * justamente o botao de gravar. Para contar um item era preciso rolar a tabela
+ * para o lado - a cada item.
+ *
+ * Ja havia um ajuste antigo escondendo "#" e "Und" para ganhar essa largura;
+ * ele resolvia por pouco, e voltaria a estourar num saldo de 4 digitos ou num
+ * aparelho de 320px. Duas linhas resolvem de vez e custam pouca altura: o nome
+ * em cima, os numeros e a acao embaixo.
+ * ---------------------------------------------------------------------- */
+
+@media (max-width: 480px) {
+    /* Sem cabecalho fixo: cada celula passa a dizer o que e. */
+    .sl-table thead {
+        display: none;
+    }
+
+    .sl-table,
+    .sl-table tbody,
+    .sl-table tr {
+        display: block;
+        width: 100%;
+    }
+
+    .sl-table tr.sl-row {
+        display: grid;
+        grid-template-columns: auto auto 1fr auto;
+        grid-template-areas:
+            "nome  nome nome nome"
+            "saldo ja   qtd  ok";
+        align-items: center;
+        gap: 0.35rem 0.6rem;
+        padding: 0.6rem 0.7rem;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .sl-table tr.sl-row > td {
+        border: 0;
+        padding: 0;
+    }
+
+    .sl-table .sl-nome      { grid-area: nome; }
+    .sl-table .sl-col-saldo { grid-area: saldo; }
+    .sl-table .sl-col-ja    { grid-area: ja; }
+    .sl-table .sl-col-qtd   { grid-area: qtd; }
+    .sl-table .sl-col-ok    { grid-area: ok; }
+
+    /* O rotulo que o cabecalho dava, agora ao lado do numero. */
+    .sl-col-saldo::before,
+    .sl-col-ja::before {
+        content: attr(data-rotulo) " ";
+        color: var(--text-muted);
+        font-size: 0.7rem;
+    }
+
+    .sl-table .sl-qtd {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .sl-table .sl-btn {
+        min-width: 52px;
+    }
+
+    /* A linha vazia de "nenhum item" nao e grade: ocupa tudo. */
+    .sl-table tr:not(.sl-row) td {
+        display: block;
+        width: 100%;
+    }
+}
