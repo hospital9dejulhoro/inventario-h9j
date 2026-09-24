@@ -2630,69 +2630,7 @@ body.cam-travado {
     overflow: hidden;
 }
 
-.cam-painel.is-cheio {
-    position: fixed;
-    inset: 0;
-    z-index: 1000;
-    margin: 0;
-    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
-    background: #0f172a;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 0.75rem;
-}
-
-.cam-painel.is-cheio .cam-video-caixa {
-    flex: 1 1 auto;
-    /* Celular deitado tem 812px de largura e caia no max-width de 480px pensado
-       para desktop: em tela cheia a caixa ficava com metade do espaco. */
-    max-width: none;
-    /* min-height: 0 e o que deixa o item flex encolher; sem ele a caixa fica do
-       tamanho do conteudo e o video nao ganha altura para preencher. */
-    min-height: 0;
-    max-height: none;
-    aspect-ratio: auto;
-    border-radius: 0;
-}
-
-/* Preso as bordas da caixa em vez de height: 100% — dentro de um item flex sem
-   altura definida, a porcentagem nao resolve e o video ficava do tamanho do
-   quadro que a camera manda, com tarja preta em volta. */
-.cam-painel.is-cheio .cam-video {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-}
-
-.cam-painel.is-cheio .cam-status,
-.cam-painel.is-cheio .cam-girar {
-    color: #e2e8f0;
-    text-align: center;
-    margin: 0 1rem;
-}
-
-.cam-painel.is-cheio .cam-status.is-ok { color: #86efac; }
-.cam-painel.is-cheio .cam-status.is-err { color: #fca5a5; }
-
-.cam-painel.is-cheio .cam-fechar {
-    align-self: center;
-    width: auto;
-    min-width: 200px;
-    margin-bottom: 0.75rem;
-    background: rgba(255, 255, 255, 0.12);
-    border-color: rgba(255, 255, 255, 0.35);
-    color: #fff;
-}
-
-/* A mira acompanha a forma do codigo: bem larga e baixa. */
-.cam-painel.is-cheio .cam-mira {
-    left: 5%;
-    right: 5%;
-    height: 28%;
-}
-
+/* Aviso de girar o celular: some sozinho depois de alguns segundos. */
 .cam-girar {
     font-size: 0.875rem;
     font-weight: 600;
@@ -2705,16 +2643,6 @@ body.cam-travado {
 }
 
 /* Deitado, sobra pouca altura: a mira encolhe para o botao e o aviso caberem. */
-@media (orientation: landscape) and (max-height: 500px) {
-    .cam-painel.is-cheio .cam-mira {
-        height: 40%;
-    }
-
-    .cam-painel.is-cheio .cam-fechar {
-        min-height: 40px;
-        margin-bottom: 0.4rem;
-    }
-}
 
 /* -------------------------------------------------------------------------
  * Controles da camera
@@ -2804,46 +2732,6 @@ body.cam-travado {
     color: #fff;
 }
 
-/* Em tela cheia os controles ficam sobre o fundo escuro. */
-.cam-painel.is-cheio .cam-controles {
-    margin: 0.5rem 1rem;
-}
-
-.cam-painel.is-cheio .cam-botao {
-    background: rgba(255, 255, 255, 0.12);
-    border-color: rgba(255, 255, 255, 0.35);
-    color: #fff;
-}
-
-.cam-painel.is-cheio .cam-botao.is-ligado {
-    background: #fbbf24;
-    border-color: #fbbf24;
-    color: #1f2937;
-}
-
-.cam-painel.is-cheio .cam-zoom-rotulo {
-    color: #cbd5e1;
-}
-
-@media (orientation: landscape) and (max-height: 500px) {
-    /* Deitado sobra pouca altura: os controles encolhem para a imagem mandar. */
-    .cam-painel.is-cheio .cam-controles {
-        margin: 0.25rem 1rem;
-        gap: 0.4rem;
-    }
-
-    .cam-painel.is-cheio .cam-botao {
-        min-height: 36px;
-        padding: 0.3rem 0.7rem;
-        font-size: 0.8125rem;
-    }
-
-    .cam-painel.is-cheio .cam-zoom,
-    .cam-painel.is-cheio .cam-zoom input[type="range"] {
-        min-height: 36px;
-        height: 36px;
-    }
-}
 
 /* Detalhes tecnicos da camera: so aparece quando a pessoa abre. */
 .cam-diag {
@@ -2874,10 +2762,232 @@ body.cam-travado {
     overflow-y: auto;
 }
 
-.cam-painel.is-cheio .cam-diag {
-    margin: 0 1rem;
+
+/* -------------------------------------------------------------------------
+ * Camera em tela cheia: a imagem manda
+ *
+ * A primeira versao empilhava controles, aviso, status, botao e detalhes
+ * tecnicos EMBAIXO do video. Com tudo isso somado, a imagem virava minoria da
+ * tela - e imagem e a unica coisa que a pessoa precisa ver para mirar.
+ *
+ * Agora o video ocupa a tela inteira e o resto flutua por cima, em barras
+ * finas e translucidas. Nada empurra nada.
+ * ---------------------------------------------------------------------- */
+
+.cam-painel.is-cheio {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    margin: 0;
+    padding: 0;
+    background: #000;
+    /* Coluna com o video fora do fluxo: status e controles se empilham no
+       rodape sozinhos. Posicionar cada um por conta, com distancias fixas,
+       fazia o status cair em cima dos controles assim que eles quebravam em
+       duas linhas num aparelho estreito. */
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
 }
 
-.cam-painel.is-cheio .cam-diag > summary {
-    color: #cbd5e1;
+/* A imagem, sem nada em volta. */
+.cam-painel.is-cheio .cam-video-caixa {
+    position: absolute;
+    inset: 0;
+    width: auto;
+    max-width: none;
+    max-height: none;
+    aspect-ratio: auto;
+    border-radius: 0;
+}
+
+.cam-painel.is-cheio .cam-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Mira larga e baixa, no formato do codigo de barras. */
+.cam-painel.is-cheio .cam-mira {
+    left: 6%;
+    right: 6%;
+    height: 24%;
+}
+
+/* Fechar: um X no canto, nao uma barra ocupando a largura toda. */
+.cam-painel.is-cheio .cam-fechar {
+    position: absolute;
+    top: calc(env(safe-area-inset-top, 0px) + 0.6rem);
+    right: 0.6rem;
+    width: 48px;
+    min-width: 0;
+    height: 48px;
+    min-height: 48px;
+    padding: 0;
+    margin: 0;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #fff;
+    /* O texto do botao continua no HTML para leitor de tela; na tela vira o X. */
+    font-size: 0;
+}
+
+.cam-painel.is-cheio .cam-fechar::before {
+    content: "✕";
+    font-size: 1.25rem;
+    line-height: 1;
+}
+
+/* Barra de controles colada embaixo, translucida. */
+.cam-painel.is-cheio .cam-controles {
+    order: 2;
+    position: relative;
+    z-index: 2;
+    margin: 0;
+    padding: 0.4rem 0.75rem calc(env(safe-area-inset-bottom, 0px) + 0.6rem);
+    background: rgba(0, 0, 0, 0.75);
+    gap: 0.5rem;
+    flex-wrap: nowrap;
+}
+
+/*
+ * Na tela cheia os botoes viram so o simbolo.
+ *
+ * "Lanterna" e "Trocar camera" por extenso nao cabem ao lado do controle de
+ * aproximar num aparelho de 375px: a barra quebrava em duas linhas e o status
+ * caia em cima. O nome continua no HTML para quem usa leitor de tela.
+ */
+.cam-painel.is-cheio .cam-botao {
+    font-size: 0;
+    width: 44px;
+    min-width: 44px;
+    padding: 0;
+    justify-content: center;
+    flex: 0 0 auto;
+}
+
+.cam-painel.is-cheio .cam-botao::before {
+    font-size: 1.1rem;
+    margin: 0;
+}
+
+.cam-painel.is-cheio .cam-botao {
+    background: rgba(15, 23, 42, 0.65);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: #fff;
+    min-height: 40px;
+    padding: 0.4rem 0.8rem;
+}
+
+.cam-painel.is-cheio .cam-botao.is-ligado {
+    background: #fbbf24;
+    border-color: #fbbf24;
+    color: #1f2937;
+}
+
+.cam-painel.is-cheio .cam-zoom-rotulo {
+    color: #e2e8f0;
+}
+
+.cam-painel.is-cheio .cam-zoom,
+.cam-painel.is-cheio .cam-zoom input[type="range"] {
+    min-height: 40px;
+    height: 40px;
+}
+
+/* Status logo acima dos controles, no fluxo — a ordem visual nao segue a do
+   HTML, onde ele vem depois. */
+.cam-painel.is-cheio .cam-status {
+    order: 1;
+    position: relative;
+    z-index: 2;
+    margin: 0;
+    padding: 0.35rem 0.75rem 0;
+    text-align: center;
+    font-size: 0.8125rem;
+    color: #e2e8f0;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0));
+}
+
+.cam-painel.is-cheio .cam-status.is-ok  { color: #86efac; font-weight: 600; }
+.cam-painel.is-cheio .cam-status.is-err { color: #fca5a5; font-weight: 600; }
+
+/* Aviso de girar: uma linha discreta no topo, nao um bloco em negrito. */
+.cam-painel.is-cheio .cam-girar {
+    position: absolute;
+    top: calc(env(safe-area-inset-top, 0px) + 0.7rem);
+    left: 0.75rem;
+    right: 4rem;
+    margin: 0;
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.6);
+    color: #fde68a;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-align: center;
+}
+
+/*
+ * Detalhes tecnicos: fora do caminho enquanto funciona.
+ *
+ * Na tela cheia eles so existem quando algo falhou - a classe tem-falha vem do
+ * JavaScript. Quem esta bipando nao precisa de diagnostico na frente.
+ */
+.cam-painel.is-cheio .cam-diag {
+    display: none;
+}
+
+.cam-painel.is-cheio.tem-falha .cam-diag {
+    display: block;
+    position: absolute;
+    left: 0.75rem;
+    right: 0.75rem;
+    top: calc(env(safe-area-inset-top, 0px) + 3.5rem);
+    max-height: 55vh;
+    overflow-y: auto;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius);
+    background: rgba(15, 23, 42, 0.92);
+    margin: 0;
+}
+
+.cam-painel.is-cheio.tem-falha .cam-diag > summary {
+    color: #fca5a5;
+    min-height: 32px;
+}
+
+/* Em tela cheia a caixa do video e a tela inteira, entao "bottom" jogaria a
+   dica atras da barra de controles. Logo abaixo da mira ela fica junto do que
+   a pessoa esta olhando. */
+.cam-painel.is-cheio .cam-toque {
+    top: 64%;
+    bottom: auto;
+}
+
+/* Deitado sobra pouca altura: a mira cresce e os controles encolhem. */
+@media (orientation: landscape) and (max-height: 500px) {
+    .cam-painel.is-cheio .cam-mira {
+        height: 40%;
+    }
+
+    .cam-painel.is-cheio .cam-botao {
+        min-height: 36px;
+        padding: 0.3rem 0.7rem;
+        font-size: 0.8125rem;
+    }
+
+    .cam-painel.is-cheio .cam-zoom,
+    .cam-painel.is-cheio .cam-zoom input[type="range"] {
+        min-height: 36px;
+        height: 36px;
+    }
+
+    .cam-painel.is-cheio .cam-status {
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 3rem);
+    }
 }

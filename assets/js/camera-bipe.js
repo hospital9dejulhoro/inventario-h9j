@@ -46,6 +46,8 @@
     var ultimaFalha = '';
     var etapa = 'parado';
     var vigia = null;
+    var sumirGirar = null;
+    var sumirToque = null;
     var abertaEm = 0;
 
     function aviso(texto, classe) {
@@ -99,6 +101,18 @@
     }
 
     /**
+     * Enquanto funciona, quem esta bipando nao precisa de diagnostico na
+     * frente: a imagem e a unica coisa que importa para mirar. So quando algo
+     * falha e que os detalhes tecnicos aparecem sobre a tela cheia.
+     */
+    function marcarFalha(houve) {
+        painel.classList.toggle('tem-falha', !!houve);
+        if (houve) {
+            mostrarDiagnostico();
+        }
+    }
+
+    /**
      * Camera ligada e nenhuma leitura tentada, ou tentada muitas vezes sem
      * achar nada: em vez de deixar a pessoa apontando o celular sem saber, diz
      * o que esta faltando.
@@ -115,10 +129,14 @@
             if (video.videoWidth === 0) {
                 aviso('A camera ligou mas nao esta mandando imagem. Feche e abra de novo, '
                     + 'ou use a busca por nome.', 'is-err');
+                marcarFalha(true);
             } else if (tentativas === 0) {
-                aviso('A imagem aparece mas o leitor nao esta rodando. Abra os detalhes tecnicos '
-                    + 'e mande para a TI.', 'is-err');
+                aviso('A imagem aparece mas o leitor nao esta rodando. '
+                    + 'Mande os detalhes tecnicos para a TI.', 'is-err');
+                marcarFalha(true);
             } else if (segundos >= 20) {
+                // Leitor rodando e nada legivel nao e defeito do sistema: e
+                // etiqueta ruim ou mira. Conselho basta, sem diagnostico.
                 aviso('Sem conseguir ler ha ' + segundos + 's. Aproxime, use a lanterna, '
                     + 'ou procure o item pelo nome logo abaixo.');
             }
@@ -339,6 +357,14 @@
 
         if (dicaToque) {
             dicaToque.hidden = !(cap.focusMode && cap.focusMode.indexOf('single-shot') !== -1);
+
+            // Mesma ideia da dica de girar: informa uma vez e sai da frente.
+            window.clearTimeout(sumirToque);
+            if (!dicaToque.hidden) {
+                sumirToque = window.setTimeout(function () {
+                    dicaToque.hidden = true;
+                }, 5000);
+            }
         }
     }
 
@@ -385,7 +411,18 @@
         if (!dicaGirar) {
             return;
         }
-        dicaGirar.hidden = !rodando || window.innerWidth >= window.innerHeight;
+
+        var emPe = window.innerWidth < window.innerHeight;
+        dicaGirar.hidden = !rodando || !emPe;
+
+        // Some sozinha: e um conselho que vale na primeira vez, nao um aviso
+        // permanente ocupando o topo da imagem.
+        window.clearTimeout(sumirGirar);
+        if (!dicaGirar.hidden) {
+            sumirGirar = window.setTimeout(function () {
+                dicaGirar.hidden = true;
+            }, 6000);
+        }
     }
 
     /* ---------------------------------------------------------------------- */
@@ -395,6 +432,8 @@
         lanternaAcesa = false;
         etapa = 'parado';
         window.clearTimeout(vigia);
+        window.clearTimeout(sumirGirar);
+        window.clearTimeout(sumirToque);
 
         if (stream) {
             stream.getTracks().forEach(function (t) { t.stop(); });
@@ -547,6 +586,7 @@
         tentativas = 0;
         ultimaFalha = '';
         abertaEm = Date.now();
+        marcarFalha(false);
 
         return navigator.mediaDevices.getUserMedia(restricoes()).then(function (s) {
             etapa = 'camera ligada';
@@ -576,8 +616,8 @@
                     etapa = 'leitor falhou';
                     ultimaFalha = 'leitor: ' + (e && (e.message || e.name) || e);
                     aviso('A camera abriu, mas o leitor nao iniciou. Use a busca por nome, '
-                        + 'ou abra os detalhes tecnicos e mande para a TI.', 'is-err');
-                    mostrarDiagnostico();
+                        + 'ou mande os detalhes tecnicos para a TI.', 'is-err');
+                    marcarFalha(true);
                 });
         });
     }
@@ -595,7 +635,7 @@
 
         etapa = 'camera falhou';
         ultimaFalha = 'camera: ' + (erro && (erro.name || erro.message) || erro);
-        mostrarDiagnostico();
+        marcarFalha(true);
 
         var motivo = 'Nao foi possivel abrir a camera.';
         if (erro && (erro.name === 'NotAllowedError' || erro.name === 'SecurityError')) {
