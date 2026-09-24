@@ -74,6 +74,10 @@ if ($modoLista) {
     $grupos = InventarioRM::gruposContabeisDoLocal($codloc, $somenteComSaldo);
     // Avulsa nao tem itens gerados no RM para comparar: tudo que tem posicao no
     // local pode ser contado.
+    // A lista sai da posição do local, então tudo que ela mostra está no
+    // estoque — e pela regra nova isso basta para poder contar. O mapa continua
+    // sendo montado só para o resumo dizer quantos itens estão fora do que o RM
+    // gerou, que é informação útil para quem confere depois.
     $noInventario = $avulso ? [] : InventarioRM::idprdsDoInventario($codinventario, $codloc);
     $totaisProdutoLote = ZMDCODBARRAS::totaisPorProdutoLote($codinventario);
     $listaTruncada = count($linhas) >= InventarioRM::LIMITE_LOTES;

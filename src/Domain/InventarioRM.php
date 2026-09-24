@@ -305,34 +305,64 @@ class InventarioRM
 
         $itens = self::mapearItensSemLote($c);
 
-        // "Sem lote" resolvido aqui, e nao no SQL.
-        //
-        // TLOTEPRD nao tem indice em IDPRD - o unico e (CODCOLIGADA, IDLOTE).
-        // Qualquer juncao por produto varre a tabela inteira, e o banco refaz
-        // essa varredura em vez de materializar uma vez: a folha do 065 levava
-        // 4,3s, e 2,7s eram so essa juncao. O mesmo conjunto lido de uma vez
-        // custa 0,044s, e filtrar 1570 itens em PHP custa 0,0004s.
-        $comLote = self::idprdsComLote();
-        $itens = array_values(array_filter($itens, function ($item) use ($comLote) {
-            return empty($comLote[(int) $item['idprd']]);
+        /*
+         * "Sem lote" resolvido aqui, e nao no SQL.
+         *
+         * TLOTEPRD nao tem indice em IDPRD - o unico e (CODCOLIGADA, IDLOTE).
+         * Qualquer juncao por produto varre a tabela inteira: a folha do 065
+         * levava 4,3s, e 2,7s eram so essa juncao. Ler o conjunto de uma vez
+         * custa 0,044s e filtrar em PHP, 0,0004s.
+         *
+         * O criterio e a bandeira CONTROLADOPORLOTE, nao a ausencia de lote no
+         * cadastro: produto controlado que ainda nao tem lote nenhum precisa do
+         * lote do mesmo jeito, e nao pertence a esta folha.
+         */
+        $controlados = self::idprdsControladosPorLote();
+        $itens = array_values(array_filter($itens, function ($item) use ($controlados) {
+            return empty($controlados[(int) $item['idprd']]);
         }));
+
+        /*
+         * E soma o estoque do local.
+         *
+         * O inventario do RM e o estoque do local nao se contem: no 26.028.001
+         * o RM gerou 17 produtos enquanto o local tem 647 cadastrados, e no
+         * 26.027.001 ha 9.552 produtos gerados que nao tem linha de estoque.
+         * Contar so um dos dois deixaria de fora um monte dos dois lados.
+         */
+        $doLocal = self::listarItensSemLoteDoLocal($codloc, $somenteComSaldo);
+        $vistos = [];
+        foreach ($itens as $item) {
+            $vistos[(int) $item['idprd']] = true;
+        }
+        foreach ($doLocal as $item) {
+            if (empty($vistos[(int) $item['idprd']])) {
+                $itens[] = $item;
+                $vistos[(int) $item['idprd']] = true;
+            }
+        }
+
+        usort($itens, function ($a, $b) {
+            return strcasecmp((string) $a['nome'], (string) $b['nome']);
+        });
 
         // O teto da folha vale sobre o que sobrou, nao sobre o que foi buscado.
         return array_slice($itens, 0, $limite);
     }
 
     /**
-     * Produtos que tem ao menos um lote cadastrado.
+     * Produtos controlados por lote, segundo o cadastro.
      *
-     * Consulta inteira de uma vez porque e barata assim (35 mil linhas, 1,7 mil
-     * produtos, 0,044s) e cara como juncao, pela falta de indice em IDPRD.
+     * Conjunto inteiro de uma vez: sao 2.325 produtos num universo de 12 mil
+     * ativos, e a consulta sai em milesimos. Como filtro por juncao seria caro
+     * do mesmo jeito que a busca de lote era.
      *
      * @return array<int, bool> idprd => true
      */
-    private static function idprdsComLote(): array
+    private static function idprdsControladosPorLote(): array
     {
         $c = new Connection('RM');
-        $c->Consulta('SELECT DISTINCT IDPRD FROM TLOTEPRD');
+        $c->Consulta('SELECT IDPRD FROM TPRODUTO WHERE CONTROLADOPORLOTE = 1');
 
         $ids = [];
         while ($c->Resultado()) {
@@ -433,20 +463,16 @@ class InventarioRM
                     ON PRDLOC.IDPRD = CUST.IDPRD
                    AND PRDLOC.CODFILIAL = CUST.CODFILIAL
                    AND CUST.CODCOLIGADA = PRDLOC.CODCOLIGADA
-                -- Produto sem nenhum lote cadastrado, como juncao em vez de
-                -- NOT EXISTS correlacionado: medido no banco do hospital, o
-                -- NOT EXISTS reexecutava a busca em TLOTEPRD uma vez por
-                -- produto do local e levava a consulta a mais de um segundo.
-                LEFT JOIN (
-                    SELECT DISTINCT IDPRD FROM TLOTEPRD
-                ) COMLOTE
-                    ON COMLOTE.IDPRD = PRD.IDPRD
                 WHERE PRD.INATIVO = 0
+                  -- Quem manda e a bandeira do cadastro, nao a existencia de
+                  -- lote. Ha 142 produtos ativos marcados como controlados que
+                  -- ainda nao tem nenhum lote cadastrado: pela regra antiga
+                  -- eles caiam nesta folha e eram contados sem lote.
+                  AND PRD.CONTROLADOPORLOTE = 0
                   AND " . self::condicaoCodloc('PRDLOC') . "
                   {$whereSaldo}
                   {$whereGrupo}
                   {$whereBusca}
-                  AND COMLOTE.IDPRD IS NULL
                 GROUP BY PRD.IDPRD
                 ORDER BY MAX(PRD.NOMEFANTASIA), PRD.IDPRD";
 
@@ -1222,26 +1248,132 @@ class InventarioRM
         return '';
     }
 
-    public static function itemPertenceAoInventario(string $codinventario, string $codloc, int $idprd): bool
-    {
-        $codinventario = trim($codinventario);
-        $codloc = LocaisEstoque::normalizar($codloc);
+    /**
+     * Este item pode ser contado neste inventário e neste local?
+     *
+     * Responde à regra inteira numa consulta só, porque ela roda a cada bipe.
+     *
+     * O que vale ser contado
+     * ----------------------
+     * Antes, só o que o RM tivesse gerado em TITMINVENTARIO. Agora vale também
+     * o que estiver cadastrado no estoque do local (TPRDLOC) — que é o ponto da
+     * mudança: no inventário 26.028.001 o RM gerou 17 produtos enquanto o local
+     * tem 647 no estoque, e os outros 630 não podiam ser contados.
+     *
+     * É união, não troca. Os dois conjuntos não se contêm: no inventário
+     * 26.027.001 há 9.552 produtos gerados pelo RM que não têm linha de estoque
+     * no local. Trocar um pelo outro tiraria todos eles da contagem.
+     *
+     * O lote
+     * ------
+     * Quem manda é TPRODUTO.CONTROLADOPORLOTE, não a existência de lote no
+     * cadastro. Produto controlado exige lote, e um lote que exista de verdade
+     * para aquele produto. Produto não controlado não pede lote nenhum.
+     *
+     * A diferença entre as duas regras é real: há 142 produtos ativos marcados
+     * como controlados que ainda não têm nenhum lote cadastrado. Pela regra
+     * antiga eles cairiam na folha "sem lote" e seriam contados sem lote.
+     *
+     * @return array{ok: bool, error: string, controlado: bool}
+     */
+    public static function itemContavel(
+        string $codinventario,
+        string $codloc,
+        int $idprd,
+        int $idlote,
+        bool $avulso = false
+    ): array {
+        $r = ['ok' => false, 'error' => '', 'controlado' => false];
 
-        if ($codinventario === '' || $codloc === '' || $idprd <= 0) {
-            return false;
+        $codloc = LocaisEstoque::normalizar($codloc);
+        if ($idprd <= 0) {
+            $r['error'] = 'Produto inválido.';
+            return $r;
         }
+        if ($codloc === '') {
+            $r['error'] = 'Local de estoque não informado.';
+            return $r;
+        }
+
+        $condInv = self::condicaoCodloc('I');
+        $condLoc = self::condicaoCodloc('PL');
+
+        // Ordem dos marcadores, de cima para baixo na consulta: os dois do
+        // EXISTS no inventario, os dois pares de CODLOC, os dois do EXISTS do
+        // lote e, por ultimo, o produto do WHERE.
+        $params = array_merge(
+            [self::CODCOLIGADA, trim($codinventario)],
+            self::paramsCodloc($codloc),
+            self::paramsCodloc($codloc),
+            [self::CODCOLIGADA, $idlote, $idprd]
+        );
 
         $c = new Connection('RM');
         $c->Consulta(
-            'SELECT TOP 1 1 AS OK
-             FROM TITMINVENTARIO
-             WHERE CODCOLIGADA = ?
-               AND CODINVENTARIO = ?
-               AND IDPRD = ?
-               AND ' . self::condicaoCodloc(''),
-            array_merge([self::CODCOLIGADA, $codinventario, $idprd], self::paramsCodloc($codloc))
+            "SELECT TOP 1
+                P.INATIVO,
+                P.CONTROLADOPORLOTE AS CONTROLADO,
+                RTRIM(P.NOMEFANTASIA) AS NOME,
+                CASE WHEN EXISTS (
+                    SELECT 1 FROM TITMINVENTARIO I
+                    WHERE I.CODCOLIGADA = ? AND I.CODINVENTARIO = ?
+                      AND I.IDPRD = P.IDPRD AND {$condInv}
+                ) THEN 1 ELSE 0 END AS NO_INVENTARIO,
+                CASE WHEN EXISTS (
+                    SELECT 1 FROM TPRDLOC PL
+                    WHERE PL.IDPRD = P.IDPRD AND {$condLoc}
+                ) THEN 1 ELSE 0 END AS NO_ESTOQUE,
+                CASE WHEN EXISTS (
+                    SELECT 1 FROM TLOTEPRD L
+                    WHERE L.CODCOLIGADA = ? AND L.IDLOTE = ? AND L.IDPRD = P.IDPRD
+                ) THEN 1 ELSE 0 END AS LOTE_EXISTE
+             FROM TPRODUTO P
+             WHERE P.IDPRD = ?",
+            $params
         );
 
-        return (bool) $c->Resultado();
+        if (!$c->Resultado()) {
+            $r['error'] = 'Produto ' . $idprd . ' não existe no cadastro do RM.';
+            return $r;
+        }
+
+        $controlado = ((int) ($c->linha['CONTROLADO'] ?? 0)) === 1;
+        $r['controlado'] = $controlado;
+
+        $nome = encode_db_value((string) ($c->linha['NOME'] ?? ''));
+        $rotulo = $nome !== '' ? $nome : ('produto ' . $idprd);
+
+        if ((int) ($c->linha['INATIVO'] ?? 0) === 1) {
+            $r['error'] = "O produto {$rotulo} está inativo no RM e não pode ser contado.";
+            return $r;
+        }
+
+        // Avulsa não tem inventário no RM contra o qual conferir; o que vale é
+        // estar no estoque do local.
+        $pertence = $avulso
+            ? ((int) ($c->linha['NO_ESTOQUE'] ?? 0)) === 1
+            : (((int) ($c->linha['NO_INVENTARIO'] ?? 0)) === 1
+                || ((int) ($c->linha['NO_ESTOQUE'] ?? 0)) === 1);
+
+        if (!$pertence) {
+            $r['error'] = "O produto {$rotulo} não está no inventário nem no estoque do local {$codloc}.";
+            return $r;
+        }
+
+        if ($controlado) {
+            if ($idlote <= 0) {
+                $r['error'] = "O produto {$rotulo} é controlado por lote. Informe o lote para contar.";
+                return $r;
+            }
+            if (((int) ($c->linha['LOTE_EXISTE'] ?? 0)) !== 1) {
+                $r['error'] = "O lote informado não está cadastrado no RM para {$rotulo}. "
+                    . 'Cadastre o lote no RM antes de contar.';
+                return $r;
+            }
+        }
+
+        $r['ok'] = true;
+        return $r;
     }
+
 }

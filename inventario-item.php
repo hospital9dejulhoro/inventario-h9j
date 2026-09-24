@@ -192,14 +192,17 @@ if ($acao === 'editar') {
         ? (int) $validacao['idprd']
         : ZMDCODBARRAS::idprdDoBarcode($codigobarras);
 
-    if ($codinventario !== '' && !ZMDCODBARRAS::ehCodigoAvulso($codinventario)) {
-        if (!InventarioRM::itemPertenceAoInventario($codinventario, $localCheck['codloc'], $idprd)) {
-            $produtoLabel = $validacao['nome'] !== '' ? $validacao['nome'] : ('ID ' . $idprd);
-            flash_set(
-                'danger',
-                "Produto {$produtoLabel} não faz parte do inventário {$codinventario} no local "
-                . $localCheck['codloc'] . '. Alteração não gravada.'
-            );
+    if ($codinventario !== '') {
+        $podeContar = InventarioRM::itemContavel(
+            $codinventario,
+            $localCheck['codloc'],
+            $idprd,
+            ZMDCODBARRAS::idloteDoBarcode($codigobarras),
+            ZMDCODBARRAS::ehCodigoAvulso($codinventario)
+        );
+
+        if (!$podeContar['ok']) {
+            flash_set('danger', $podeContar['error'] . ' Alteração não gravada.');
             redirect_to($redirectUrl);
         }
     }

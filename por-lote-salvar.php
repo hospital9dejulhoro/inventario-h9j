@@ -77,9 +77,11 @@ if (!ZMDCODBARRAS::ehCodigoAvulso($codinventario)) {
         pl_falha($rmCheck['motivo_bloqueio']);
     }
 
-    // Pertencimento no RM é por produto: o lote vem do cadastro do próprio produto.
-    if (!InventarioRM::itemPertenceAoInventario($codinventario, $codloc, $idprd)) {
-        pl_falha('Este produto não faz parte do inventário neste local.');
+    // Vale o inventário do RM e o estoque do local; o lote é conferido de
+    // acordo com o produto ser controlado por lote ou não.
+    $podeContar = InventarioRM::itemContavel($codinventario, $codloc, $idprd, $idlote);
+    if (!$podeContar['ok']) {
+        pl_falha($podeContar['error']);
     }
 }
 

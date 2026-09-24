@@ -306,7 +306,11 @@ $moeda = function ($v) {
                             $saldo = (float) $linha['saldo'];
                             // Avulsa nao tem itens gerados no RM: lista vazia significa
                             // "tudo contavel", nao "nada contavel".
-                            $dentro = $avulso || !empty($noInventario[$idprd]);
+                            // Tudo que aparece aqui esta no estoque do local, e o
+                            // estoque do local agora basta para contar. O aviso
+                            // "fora do inventario" continua, so nao trava mais.
+                            $dentro = true;
+                            $foraDoInventarioRm = !$avulso && empty($noInventario[$idprd]);
                             $nomeProduto = $linha['nome'] !== '' ? $linha['nome'] : 'ID ' . $idprd;
                             $numlote = $linha['numlote'] !== '' ? $linha['numlote'] : '—';
                             $validade = $linha['validade'] !== '' ? $linha['validade'] : '—';
@@ -339,8 +343,8 @@ $moeda = function ($v) {
                                     <?php if (($linha['codigo'] ?? '') !== ''): ?>
                                         <span class="sl-cod mono"><?= e($linha['codigo']) ?></span>
                                     <?php endif; ?>
-                                    <?php if (!$dentro): ?>
-                                        <span class="pl-badge-fora">fora do inventário</span>
+                                    <?php if ($foraDoInventarioRm): ?>
+                                        <span class="pl-badge-fora" title="Está no estoque do local mas o RM não gerou este item no inventário. Pode contar.">fora do inventário</span>
                                     <?php endif; ?>
                                 </td>
                                 <td class="pl-col-grupo"><?= e($grupoLabel !== '' ? $grupoLabel : '—') ?></td>

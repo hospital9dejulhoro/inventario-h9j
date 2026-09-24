@@ -145,13 +145,18 @@ if ($modoLeitura) {
             ? (int) $validacao['idprd']
             : ZMDCODBARRAS::idprdDoBarcode($codigobarras);
 
-        // Avulsa nao tem itens gerados no RM contra os quais conferir.
-        if (!$avulso && !InventarioRM::itemPertenceAoInventario($codinventario, $codloc, $idprd)) {
-            $produtoLabel = $validacao['nome'] !== '' ? $validacao['nome'] : ('ID ' . $idprd);
-            flash_set(
-                'danger',
-                "Produto {$produtoLabel} não faz parte do inventário {$codinventario} no local {$codloc}. Item não gravado."
-            );
+        // Vale o que o RM gerou no inventário E o que está no estoque do
+        // local; o lote é exigido conforme o produto seja controlado por lote.
+        $podeContar = InventarioRM::itemContavel(
+            $codinventario,
+            $codloc,
+            $idprd,
+            ZMDCODBARRAS::idloteDoBarcode($codigobarras),
+            $avulso
+        );
+
+        if (!$podeContar['ok']) {
+            flash_set('danger', $podeContar['error'] . ' Item não gravado.');
             redirect_to($redirectUrl);
         }
 

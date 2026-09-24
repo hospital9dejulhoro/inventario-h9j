@@ -68,8 +68,12 @@ if (!ZMDCODBARRAS::ehCodigoAvulso($codinventario)) {
         sl_falha($rmCheck['motivo_bloqueio']);
     }
 
-    if (!InventarioRM::itemPertenceAoInventario($codinventario, $codloc, $idprd)) {
-        sl_falha('Este produto não faz parte do inventário neste local.');
+    // Sem lote informado: se o produto for controlado por lote, itemContavel
+    // recusa e diz que o lote é obrigatório — que é o caminho certo, porque
+    // esta folha só deve listar produto não controlado.
+    $podeContar = InventarioRM::itemContavel($codinventario, $codloc, $idprd, 0);
+    if (!$podeContar['ok']) {
+        sl_falha($podeContar['error']);
     }
 }
 

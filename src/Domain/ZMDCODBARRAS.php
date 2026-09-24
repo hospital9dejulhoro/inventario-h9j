@@ -1336,6 +1336,7 @@ class ZMDCODBARRAS
             'und'      => '',
             'lote'     => '',
             'idprd'    => 0,
+            'controlado' => false,
         ];
 
         $codigobarras = preg_replace('/\D/', '', $codigobarras);
@@ -1346,7 +1347,8 @@ class ZMDCODBARRAS
         }
 
         $c = new Connection('RM');
-        $SQL = "SELECT T.NOMEFANTASIA AS NOME, T.IDPRD, TPRODUTODEF.CODUNDCONTROLE AS UND, TLOTEPRD.NUMLOTE
+        $SQL = "SELECT T.NOMEFANTASIA AS NOME, T.IDPRD, T.CONTROLADOPORLOTE AS CONTROLADO,
+                       TPRODUTODEF.CODUNDCONTROLE AS UND, TLOTEPRD.NUMLOTE
                 FROM TPRODUTO T
                 LEFT JOIN TPRODUTODEF ON TPRODUTODEF.IDPRD = T.IDPRD
                 LEFT JOIN TLOTEPRD ON TLOTEPRD.IDPRD = T.IDPRD
@@ -1364,13 +1366,16 @@ class ZMDCODBARRAS
         $result['und'] = encode_db_value($c->linha['UND'] ?? '');
         $result['lote'] = encode_db_value($c->linha['NUMLOTE'] ?? '');
         $result['idprd'] = (int) ($c->linha['IDPRD'] ?? 0);
+        $result['controlado'] = ((int) ($c->linha['CONTROLADO'] ?? 0)) === 1;
 
         if (trim($result['nome']) === '') {
             $result['errors'][] = 'Produto não encontrado no RM para este código de barras.';
             return $result;
         }
 
-        if (trim($result['lote']) === '') {
+        // Produto que nao e controlado por lote nao tem lote para achar: avisar
+        // que "o lote nao foi encontrado" so confundia quem bipava gaze e luva.
+        if ($result['controlado'] && trim($result['lote']) === '') {
             $result['warnings'][] = 'Lote não encontrado no RM — verifique o código.';
         }
 
