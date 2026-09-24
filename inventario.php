@@ -241,11 +241,13 @@ if ($modoLeitura) {
                 // Pode ser repetição sua ou a contagem de um colega no mesmo
                 // inventário. Com várias pessoas contando, as duas coisas
                 // acontecem, e a mensagem não pode acusar só a primeira.
+                // Gravou: o aviso e para ser notado, nao para parar a fila.
                 flash_set(
                     'warning',
                     $resumo['leituras'] . 'ª leitura de ' . $item . ' — acumulado ' . $acumulado
                     . '. Se você não bipou antes, foi outro operador; se foi repetição sua,'
-                    . ' use Excluir na lista abaixo.'
+                    . ' use Excluir na lista abaixo.',
+                    false
                 );
             } else {
                 flash_set('success', $msg);

@@ -126,9 +126,18 @@ function quantidade_para_banco(float $quantidade, int $casas = ZMDCODBARRAS::QUA
 }
 
 
-function flash_set(string $type, string $message): void
+/**
+ * Mensagem para a próxima tela.
+ *
+ * $exigeToque separa duas coisas que o tipo sozinho não separa: a leitura foi
+ * gravada ou não? Recusa, sessão vencida e tela desatualizada não gravaram
+ * nada, e precisam de um toque para sumir — senão passam despercebidas no
+ * meio da bipagem. Aviso sobre algo que FOI gravado não pode parar a
+ * contagem: quem bipa trinta caixas do mesmo lote daria trinta toques.
+ */
+function flash_set(string $type, string $message, bool $exigeToque = true): void
 {
-    $_SESSION['flash'] = ['type' => $type, 'message' => $message];
+    $_SESSION['flash'] = ['type' => $type, 'message' => $message, 'exige_toque' => $exigeToque];
 }
 
 function flash_get(): ?array

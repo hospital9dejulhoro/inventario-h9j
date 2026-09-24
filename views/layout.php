@@ -66,7 +66,8 @@ $navPosicao = str_contains($bodyClassAtual, 'page-posicao');
     <?php if ($flash = flash_get()): ?>
         <div class="flash-wrap">
             <div class="flash flash-<?= e($flash['type']) ?>"
-                 data-flash-type="<?= e($flash['type']) ?>"><?= e($flash['message']) ?></div>
+                 data-flash-type="<?= e($flash['type']) ?>"
+                 data-flash-toque="<?= ($flash['exige_toque'] ?? true) ? '1' : '0' ?>"><?= e($flash['message']) ?></div>
         </div>
     <?php endif; ?>
 
