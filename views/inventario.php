@@ -51,7 +51,6 @@ $avulso = !empty($avulso);
     <?php if (!$modoLeitura): ?>
     <section class="inv-section panel inv-open-list" aria-labelledby="secao-abertos">
         <div class="inv-section-head">
-            <span class="inv-step">0</span>
             <div>
                 <h2 id="secao-abertos" class="section-title">Inventários em aberto</h2>
                 <p class="section-desc">Status <strong>A</strong> no RM — toque para iniciar a leitura.</p>
@@ -256,7 +255,6 @@ $avulso = !empty($avulso);
     <form action="inventario.php" method="get" autocomplete="off" id="inventario-escolher" class="inv-form">
         <section class="inv-section inv-section--setup panel" aria-labelledby="secao-iniciar">
             <div class="inv-section-head">
-                <span class="inv-step">1</span>
                 <div>
                     <h2 id="secao-iniciar" class="section-title">Escolher inventário</h2>
                     <p class="section-desc">
