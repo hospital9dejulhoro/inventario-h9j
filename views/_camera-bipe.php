@@ -28,6 +28,8 @@
             <video id="cam-video" class="cam-video" playsinline muted autoplay></video>
             <div class="cam-mira" aria-hidden="true"></div>
         </div>
+        <?php /* O iPhone nao deixa travar a orientacao; ali so resta pedir. */ ?>
+        <p class="cam-girar" id="cam-girar" hidden>Gire o celular na horizontal — o código de barras é deitado e cabe melhor.</p>
         <p class="form-hint cam-status" id="cam-status" role="status" aria-live="polite"></p>
         <button type="button" class="btn btn-ghost cam-fechar" id="cam-fechar">Fechar câmera</button>
     </div>

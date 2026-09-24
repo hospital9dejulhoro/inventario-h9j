@@ -2610,3 +2610,108 @@ summary:focus-visible {
         width: 100%;
     }
 }
+
+/* -------------------------------------------------------------------------
+ * Camera em tela cheia
+ *
+ * O codigo de barras e largo e baixo. Numa janelinha no meio da pagina era
+ * preciso afastar o celular ate a etiqueta inteira caber - e ai ela ficava
+ * pequena demais para o leitor separar as barras finas. Ocupando a tela, da
+ * para chegar perto.
+ *
+ * A sobreposicao e de CSS, nao da Fullscreen API: no iPhone a API so funciona
+ * no proprio <video>, e ai o Safari poe os controles nativos por cima e esconde
+ * a mira. Assim funciona igual nos dois sistemas, e a tela cheia de verdade
+ * entra por cima como bonus onde o aparelho deixa.
+ * ---------------------------------------------------------------------- */
+
+/* Enquanto a camera esta aberta, a pagina atras nao rola. */
+body.cam-travado {
+    overflow: hidden;
+}
+
+.cam-painel.is-cheio {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    margin: 0;
+    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
+    background: #0f172a;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.75rem;
+}
+
+.cam-painel.is-cheio .cam-video-caixa {
+    flex: 1 1 auto;
+    /* Celular deitado tem 812px de largura e caia no max-width de 480px pensado
+       para desktop: em tela cheia a caixa ficava com metade do espaco. */
+    max-width: none;
+    /* min-height: 0 e o que deixa o item flex encolher; sem ele a caixa fica do
+       tamanho do conteudo e o video nao ganha altura para preencher. */
+    min-height: 0;
+    max-height: none;
+    aspect-ratio: auto;
+    border-radius: 0;
+}
+
+/* Preso as bordas da caixa em vez de height: 100% — dentro de um item flex sem
+   altura definida, a porcentagem nao resolve e o video ficava do tamanho do
+   quadro que a camera manda, com tarja preta em volta. */
+.cam-painel.is-cheio .cam-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.cam-painel.is-cheio .cam-status,
+.cam-painel.is-cheio .cam-girar {
+    color: #e2e8f0;
+    text-align: center;
+    margin: 0 1rem;
+}
+
+.cam-painel.is-cheio .cam-status.is-ok { color: #86efac; }
+.cam-painel.is-cheio .cam-status.is-err { color: #fca5a5; }
+
+.cam-painel.is-cheio .cam-fechar {
+    align-self: center;
+    width: auto;
+    min-width: 200px;
+    margin-bottom: 0.75rem;
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.35);
+    color: #fff;
+}
+
+/* A mira acompanha a forma do codigo: bem larga e baixa. */
+.cam-painel.is-cheio .cam-mira {
+    left: 5%;
+    right: 5%;
+    height: 28%;
+}
+
+.cam-girar {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #92400e;
+    margin: 0.5rem 0 0;
+}
+
+.cam-girar::before {
+    content: "↻ ";
+}
+
+/* Deitado, sobra pouca altura: a mira encolhe para o botao e o aviso caberem. */
+@media (orientation: landscape) and (max-height: 500px) {
+    .cam-painel.is-cheio .cam-mira {
+        height: 40%;
+    }
+
+    .cam-painel.is-cheio .cam-fechar {
+        min-height: 40px;
+        margin-bottom: 0.4rem;
+    }
+}
