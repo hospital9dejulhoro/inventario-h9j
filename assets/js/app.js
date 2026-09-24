@@ -221,8 +221,21 @@
             // Aqui havia um caso especial para o #inventory-form: escolher
             // inventario e bipar eram a mesma forma, e so dava para saber o que
             // o envio queria dizer olhando se o campo do codigo estava cheio.
-            // Agora sao duas formas com metodos diferentes, e todo envio navega.
-            showLoading();
+            // Agora sao duas formas com metodos diferentes.
+            //
+            // Nem todo envio navega, porem: o campo de leitura tambem procura,
+            // e com um nome escrito nele a busca cancela o POST. O overlay
+            // acendia nesse envio que nunca saia do lugar e ficava aceso ate a
+            // pessoa recarregar a pagina - parecia uma gravacao travada, e
+            // escondia o "nada encontrado" que estava logo atras.
+            //
+            // O setTimeout espera o evento terminar de percorrer os ouvintes,
+            // para valer tambem quando quem cancela roda depois deste.
+            window.setTimeout(function () {
+                if (!event.defaultPrevented) {
+                    showLoading();
+                }
+            }, 0);
         });
     });
 
@@ -527,10 +540,17 @@
         });
 
         // Mensagem que veio do servidor nesta carga da pagina.
+        //
+        // Nem todo alerta merece parar a contagem. O que nao gravou nada -
+        // recusa, sessao vencida, tela desatualizada - precisa do toque, senao
+        // passa batido. O que gravou e so quer ser notado, como a releitura do
+        // mesmo lote, fica na mensagem do topo com o som de alerta: bipar
+        // trinta caixas iguais custaria trinta toques.
         const flash = document.querySelector('[data-flash-type]');
         if (flash) {
             const tipo = flash.getAttribute('data-flash-type');
-            if (tipo === 'danger' || tipo === 'warning') {
+            const exigeToque = flash.getAttribute('data-flash-toque') !== '0';
+            if (exigeToque && (tipo === 'danger' || tipo === 'warning')) {
                 abrirAviso(flash.textContent.trim(), tipo);
             }
         }

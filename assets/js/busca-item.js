@@ -37,6 +37,13 @@
      */
     var ESPERA_NUMERO = 700;
 
+    /*
+     * Rede caida ou consulta presa do outro lado nao podem virar um
+     * "Procurando..." eterno: quem esta contando fica esperando uma resposta
+     * que nao vem, sem saber se deve esperar mais ou tentar de novo.
+     */
+    var LIMITE_DA_BUSCA = 12000;
+
     var timer = null;
     var emVoo = null;
     var ultimoTermo = '';
@@ -219,6 +226,13 @@
         }
         emVoo = new AbortController();
 
+        var esteControle = emVoo;
+        var estourouOTempo = false;
+        var relogio = window.setTimeout(function () {
+            estourouOTempo = true;
+            esteControle.abort();
+        }, LIMITE_DA_BUSCA);
+
         aviso('Procurando…');
 
         var url = cfg.buscaUrl
@@ -233,6 +247,7 @@
             signal: emVoo.signal
         })
             .then(function (r) {
+                window.clearTimeout(relogio);
                 if (r.status === 401) {
                     throw new Error('Sessão expirada. Recarregue a página e entre de novo.');
                 }
@@ -245,9 +260,19 @@
                 mostrar(dados);
             })
             .catch(function (erro) {
+                window.clearTimeout(relogio);
+
                 if (erro.name === 'AbortError') {
+                    // Busca trocada por outra mais nova: nao e falha, e o
+                    // caminho normal de quem continua digitando.
+                    if (!estourouOTempo) {
+                        return;
+                    }
+                    limparLista();
+                    aviso('A busca demorou demais e foi cancelada. Tente de novo, ou bipe a etiqueta.', 'is-err');
                     return;
                 }
+
                 limparLista();
                 aviso(erro.message || 'Não foi possível buscar.', 'is-err');
             });
