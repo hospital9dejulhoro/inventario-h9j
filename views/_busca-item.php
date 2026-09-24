@@ -1,44 +1,25 @@
 <?php
 /**
- * Achar o item quando a etiqueta não lê.
+ * Resultados da busca, logo abaixo do campo de leitura.
  *
- * Etiqueta rasgada, impressão apagada, embalagem amassada: a contagem não pode
- * parar por causa disso, e sem esta saída a pessoa larga o item de lado ou
- * digita 13 dígitos que não consegue enxergar.
+ * O campo é um só. Treze dígitos gravam a leitura; qualquer outra coisa —
+ * nome, código do produto, lote — procura o item. Antes eram dois campos em
+ * dois cartões: o de bipar em cima e, recolhido embaixo, o de procurar. Quem
+ * chegava com a etiqueta rasgada na mão precisava descobrir que existia o
+ * segundo, abrir o painel e digitar de novo.
  *
- * Fica fora da forma de gravação de propósito — um campo de texto dentro dela
- * faria Enter gravar a leitura em vez de buscar.
- *
- * Vem fechado: quem está bipando não precisa dele na frente o tempo todo, e
- * aberto empurraria o campo de leitura para fora da tela no celular.
+ * Aqui ficam só a lista e o aviso. O campo que alimenta os dois caminhos é o
+ * CODIGOBARRAS da própria forma de gravação — por isso escolher um item da
+ * lista já deixa a leitura pronta para gravar.
  *
  * @var string $codinventario
  * @var string $codloc
  */
 ?>
-<section class="inv-section inv-section--busca panel" aria-labelledby="secao-busca">
-    <details class="bi-caixa" id="bi-caixa">
-        <summary class="bi-abrir">
-            <span class="bi-abrir-titulo" id="secao-busca">Etiqueta não lê? Procurar o item</span>
-            <span class="bi-abrir-dica">Por nome, código do produto, lote ou código de barras</span>
-        </summary>
-
-        <div class="bi-corpo">
-            <label for="bi-termo" class="form-label">O que você está procurando</label>
-            <div class="bi-linha">
-                <input type="search" id="bi-termo" class="form-control bi-termo"
-                       autocomplete="off" enterkeyhint="search"
-                       placeholder="Ex.: dipirona, 007439, lote 2401">
-                <button type="button" class="btn btn-secondary bi-limpar" id="bi-limpar">Limpar</button>
-            </div>
-            <p class="form-hint bi-status" id="bi-status" role="status" aria-live="polite">
-                Digite pelo menos 2 caracteres.
-            </p>
-
-            <ul class="bi-itens" id="bi-itens"></ul>
-        </div>
-    </details>
-</section>
+<div class="bi-resultados" id="bi-caixa">
+    <p class="form-hint bi-status" id="bi-status" role="status" aria-live="polite" hidden></p>
+    <ul class="bi-itens" id="bi-itens"></ul>
+</div>
 
 <script>
 window.BI_CFG = {

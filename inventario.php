@@ -132,12 +132,29 @@ if ($modoLeitura) {
             redirect_to($redirectUrl);
         }
 
+        $codigobarrasBruto = $codigobarras;
         $codigobarras = preg_replace('/\D/', '', $codigobarras);
 
         $validacao = ZMDCODBARRAS::validarCodigoBarras($codigobarras);
 
         if (!$validacao['valid']) {
-            flash_set('danger', implode(' ', $validacao['errors']));
+            /*
+             * O campo de leitura também aceita nome, código do produto e lote.
+             * Com JavaScript a busca acontece na própria tela e um termo desses
+             * nunca chega aqui; sem ele o envio chega mesmo assim, e "dipirona"
+             * não é um código de barras inválido — é outra pergunta.
+             *
+             * O teste olha o texto como veio, ANTES de tirar o que não é
+             * dígito, mas só quando o que sobrou não forma um código: leitor que
+             * manda um caractere de prefixo continua gravando como sempre.
+             */
+            $ehBusca = strlen($codigobarras) !== 13
+                && preg_match('/[^\d\s.\-]/', $codigobarrasBruto) === 1;
+
+            flash_set('danger', $ehBusca
+                ? 'Isto não é um código de barras: "' . mb_substr(trim($codigobarrasBruto), 0, 40) . '". '
+                  . 'Bipe a etiqueta, ou escolha o item na lista que aparece enquanto você digita.'
+                : implode(' ', $validacao['errors']));
             redirect_to($redirectUrl);
         }
 

@@ -477,6 +477,9 @@
 
         if (campoCodigo) {
             campoCodigo.value = digitos;
+            // O campo e o mesmo da busca: sem avisar que mudou, um resultado
+            // antigo ficaria embaixo dele e a aparencia de texto ficaria presa.
+            campoCodigo.dispatchEvent(new Event('input', { bubbles: true }));
         }
 
         aviso('Lido: ' + digitos + '. Informe a quantidade e grave.', 'is-ok');

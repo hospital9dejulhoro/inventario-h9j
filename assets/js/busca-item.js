@@ -1,27 +1,106 @@
 (function () {
     'use strict';
 
+    /*
+     * Um campo só para bipar e para procurar.
+     *
+     * Treze dígitos são uma leitura e seguem o caminho de sempre: quem cuida do
+     * Enter com código completo é o app.js, que já fazia isso. Qualquer outra
+     * coisa — nome, código do produto, lote — vira busca, e o resultado aparece
+     * logo abaixo do campo.
+     *
+     * Escolher um item da lista preenche o mesmo campo com o código de barras
+     * dele. Por isso a busca não é um desvio: ela termina exatamente onde a
+     * bipagem terminaria.
+     */
+
     var cfg = window.BI_CFG;
     var caixa = document.getElementById('bi-caixa');
-    var termo = document.getElementById('bi-termo');
+    var campo = document.getElementById('CODIGOBARRAS');
     var status = document.getElementById('bi-status');
     var lista = document.getElementById('bi-itens');
-    var limpar = document.getElementById('bi-limpar');
+    var forma = document.getElementById('inventory-form');
 
-    if (!cfg || !caixa || !termo || !status || !lista) {
+    if (!cfg || !campo || !status || !lista) {
         return;
     }
 
     var MINIMO = 2;
-    var ESPERA = 300;
+    var ESPERA_TEXTO = 300;
+
+    /*
+     * Leitor de mão manda os 13 dígitos um a um, como se fossem teclas, e os
+     * mais lentos gastam ~50ms por caractere. Com a mesma espera do texto, um
+     * número curto no meio do bipe já viraria busca — uma consulta cara jogada
+     * fora a cada leitura. Esperar mais só atrasa quem procura por código
+     * digitado, que é o caso raro.
+     */
+    var ESPERA_NUMERO = 700;
 
     var timer = null;
     var emVoo = null;
     var ultimoTermo = '';
 
+    function soDigitos(v) {
+        return /^\d+$/.test(v);
+    }
+
+    /**
+     * Parece leitura, não busca?
+     *
+     * Treze é o tamanho do código daqui. Doze entra junto porque é o que os
+     * leitores de iPhone devolvem quando o código começa com zero, e nenhum
+     * código de produto ou lote deste banco chega perto desse tamanho.
+     */
+    function pareceCodigo(v) {
+        return /^\d{12,13}$/.test(v);
+    }
+
+    /*
+     * A forma de gravacao e uma coluna flex com 16px de espaco entre os itens.
+     * Vazia, a caixa de resultados continuava sendo um item da coluna e comia
+     * dois desses espacos: 32px de vao entre o campo e a camera, o tempo todo,
+     * so para o caso de um dia haver lista.
+     */
+    function atualizarCaixa() {
+        if (caixa) {
+            caixa.hidden = status.hidden && lista.children.length === 0;
+        }
+    }
+
     function aviso(texto, classe) {
         status.textContent = texto;
         status.className = 'form-hint bi-status' + (classe ? ' ' + classe : '');
+        status.hidden = false;
+        atualizarCaixa();
+    }
+
+    function calar() {
+        status.textContent = '';
+        status.hidden = true;
+        atualizarCaixa();
+    }
+
+    function limparLista() {
+        lista.textContent = '';
+        atualizarCaixa();
+    }
+
+    function cancelarBusca() {
+        window.clearTimeout(timer);
+        if (emVoo) {
+            emVoo.abort();
+            emVoo = null;
+        }
+    }
+
+    /**
+     * Centralizado e monoespaçado serve para 13 dígitos; para "dipirona" fica
+     * um nome espaçado no meio da caixa, difícil de ler e de corrigir.
+     */
+    function ajustarAparencia() {
+        var v = campo.value;
+        campo.classList.toggle('is-texto', v !== '' && !soDigitos(v));
     }
 
     function fmt(n) {
@@ -30,20 +109,17 @@
     }
 
     /**
-     * Preenche o campo de leitura com o item escolhido e devolve o foco para a
-     * quantidade — que e o proximo passo real, nao o codigo de barras: quem
-     * chegou ate aqui nao vai bipar, vai digitar quanto tem.
+     * Preenche o campo com o item escolhido e devolve o foco para a quantidade
+     * — que e o proximo passo real: quem chegou ate aqui nao vai bipar, vai
+     * digitar quanto tem.
      */
     function usarItem(item) {
-        var campoCodigo = document.getElementById('CODIGOBARRAS');
         var campoQtd = document.getElementById('QUANTIDADE');
 
-        if (!campoCodigo) {
-            return;
-        }
-
-        campoCodigo.value = item.codigobarras;
-        caixa.open = false;
+        cancelarBusca();
+        campo.value = item.codigobarras;
+        ajustarAparencia();
+        limparLista();
 
         var rotulo = item.nome + (item.lote ? ' · lote ' + item.lote : '');
         aviso('Selecionado: ' + rotulo + '. Informe a quantidade e grave.', 'is-ok');
@@ -51,7 +127,7 @@
         if (campoQtd) {
             campoQtd.focus();
             campoQtd.select();
-            // O painel fechou e a pagina encolheu: sem isto o campo pode ficar
+            // A lista sumiu e a pagina encolheu: sem isto o campo pode ficar
             // fora da tela no celular, com o foco nele.
             if (campoQtd.scrollIntoView) {
                 var r = campoQtd.getBoundingClientRect();
@@ -108,7 +184,7 @@
     }
 
     function mostrar(dados) {
-        lista.textContent = '';
+        limparLista();
 
         if (!dados.itens || dados.itens.length === 0) {
             aviso('Nada encontrado para "' + ultimoTermo + '". Tente parte do nome, o código do produto ou o lote.');
@@ -118,6 +194,7 @@
         var frag = document.createDocumentFragment();
         dados.itens.forEach(function (item) { frag.appendChild(linhaDoItem(item)); });
         lista.appendChild(frag);
+        atualizarCaixa();
 
         var quantos = dados.itens.length;
         aviso(quantos === 1
@@ -126,12 +203,12 @@
     }
 
     function buscar() {
-        var valor = termo.value.trim();
+        var valor = campo.value.trim();
         ultimoTermo = valor;
 
-        if (valor.length < MINIMO) {
-            lista.textContent = '';
-            aviso('Digite pelo menos ' + MINIMO + ' caracteres.');
+        if (valor.length < MINIMO || pareceCodigo(valor)) {
+            limparLista();
+            calar();
             return;
         }
 
@@ -171,39 +248,64 @@
                 if (erro.name === 'AbortError') {
                     return;
                 }
-                lista.textContent = '';
+                limparLista();
                 aviso(erro.message || 'Não foi possível buscar.', 'is-err');
             });
     }
 
-    termo.addEventListener('input', function () {
-        window.clearTimeout(timer);
-        timer = window.setTimeout(buscar, ESPERA);
-    });
+    campo.addEventListener('input', function () {
+        ajustarAparencia();
+        cancelarBusca();
 
-    // Enter busca na hora, sem esperar a pausa - e nao envia nada, porque este
-    // campo esta fora da forma de gravacao.
-    termo.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            window.clearTimeout(timer);
-            buscar();
+        var valor = campo.value.trim();
+
+        // Nada a procurar: enquanto o código completo não chega, a tela fica
+        // quieta. Avisar "digite mais" a cada dígito do bipe seria pior que
+        // não avisar nada.
+        if (valor === '' || pareceCodigo(valor) || valor.length < MINIMO) {
+            limparLista();
+            calar();
+            return;
         }
+
+        timer = window.setTimeout(buscar, soDigitos(valor) ? ESPERA_NUMERO : ESPERA_TEXTO);
     });
 
-    if (limpar) {
-        limpar.addEventListener('click', function () {
-            termo.value = '';
-            lista.textContent = '';
-            aviso('Digite pelo menos ' + MINIMO + ' caracteres.');
-            termo.focus();
+    // Enter com código completo é bipagem, e quem trata disso é o app.js.
+    // Enter com qualquer outra coisa procura na hora, sem esperar a pausa.
+    campo.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter') {
+            return;
+        }
+
+        var valor = campo.value.trim();
+        if (valor === '' || pareceCodigo(valor)) {
+            return;
+        }
+
+        e.preventDefault();
+        cancelarBusca();
+        buscar();
+    });
+
+    /*
+     * O botão "Registrar leitura" continua sendo o jeito de gravar, mas com um
+     * nome no campo ele mandaria "dipirona" para o servidor e receberia de
+     * volta um erro. Aqui ele procura, que é o que a pessoa quis dizer.
+     */
+    if (forma) {
+        forma.addEventListener('submit', function (e) {
+            var valor = campo.value.trim();
+            if (valor === '' || pareceCodigo(valor)) {
+                return;
+            }
+
+            e.preventDefault();
+            cancelarBusca();
+            buscar();
         });
     }
 
-    // Abrir o painel ja deixa o cursor no campo: quem abriu quer digitar.
-    caixa.addEventListener('toggle', function () {
-        if (caixa.open) {
-            termo.focus();
-        }
-    });
+    ajustarAparencia();
+    atualizarCaixa();
 }());

@@ -2110,77 +2110,39 @@ body.sl-corrigindo .sl-qtd::placeholder {
  * dois jeitos de ler uma lista.
  * ---------------------------------------------------------------------- */
 
-.inv-section--busca {
-    padding: 0;
-}
-
-.bi-abrir {
-    display: block;
-    padding: 0.9rem 1.1rem;
-    cursor: pointer;
-    border-radius: var(--radius);
-    /* Alvo de toque confortavel no celular, com o dedo e a caixa na mao. */
-    min-height: 48px;
-    list-style: none;
-}
-
-.bi-abrir::-webkit-details-marker {
-    display: none;
-}
-
-.bi-abrir:hover,
-.bi-abrir:focus-visible {
-    background: #f4f8fd;
-}
-
-.bi-abrir-titulo {
-    display: block;
-    font-weight: 600;
-    color: #0a3d6e;
-}
-
-.bi-abrir-titulo::before {
-    content: "🔍";
-    margin-right: 0.45rem;
-}
-
-.bi-abrir-dica {
-    display: block;
-    font-size: 0.8125rem;
-    color: var(--text-muted);
-}
-
-.bi-caixa[open] .bi-abrir {
-    border-bottom: 1px solid var(--border);
-    border-radius: var(--radius) var(--radius) 0 0;
-}
-
-.bi-corpo {
-    padding: 1rem 1.1rem 1.1rem;
-}
-
-.bi-linha {
-    display: flex;
-    gap: 0.5rem;
-    align-items: stretch;
-}
-
-.bi-termo {
-    flex: 1 1 auto;
-    min-width: 0;
-    /* 16px impede o zoom automatico do iOS ao focar o campo, que desalinha a
-       tela inteira e obriga a pessoa a pinçar de volta a cada busca. */
+/* Campo unico: digitos ficam centralizados e monoespacados, com cara de
+   codigo de barras; texto passa a alinhar a esquerda, com cara de nome. O
+   mesmo campo, lido de dois jeitos conforme o que tem dentro. */
+.inv-barcode-input.is-texto {
+    font-family: inherit;
     font-size: 1rem;
-    min-height: 48px;
+    letter-spacing: normal;
+    text-align: left;
 }
 
-.bi-limpar {
-    flex: 0 0 auto;
-    min-height: 48px;
+.inv-barcode-dica {
+    margin: 0.35rem 0 0;
+}
+
+/* Sem resultado nenhum, o bloco nao pode ocupar espaco: um vao em branco
+   entre o campo e a camera aparecia o tempo todo, so para o caso de um dia
+   haver lista. O espaco nasce com os itens. */
+.bi-resultados {
+    margin: 0;
+}
+
+.bi-itens:empty {
+    display: none;
 }
 
 .bi-status {
     margin: 0.6rem 0 0;
+}
+
+/* .form-hint declara display:block, e regra de autor ganha do [hidden] do
+   navegador: calado, o aviso continuava reservando a propria margem. */
+.bi-status[hidden] {
+    display: none;
 }
 
 .bi-status.is-ok {
@@ -2194,7 +2156,7 @@ body.sl-corrigindo .sl-qtd::placeholder {
 
 .bi-itens {
     list-style: none;
-    margin: 0.75rem 0 0;
+    margin: 0.75rem 0 0.875rem;
     padding: 0;
     display: flex;
     flex-direction: column;
@@ -2276,14 +2238,6 @@ body.sl-corrigindo .sl-qtd::placeholder {
         grid-column: 1;
         grid-row: 3;
         margin-top: 0.25rem;
-    }
-
-    .bi-linha {
-        flex-wrap: wrap;
-    }
-
-    .bi-limpar {
-        flex: 1 1 100%;
     }
 }
 
@@ -3172,15 +3126,6 @@ body.cam-travado {
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.04em;
-}
-
-/* A busca divide o cartao com a leitura: sao o mesmo assunto, "qual item". */
-.inv-section--scan .inv-section--busca {
-    margin: 0.9rem -1rem -1rem;
-    border: 0;
-    border-top: 1px solid var(--border);
-    border-radius: 0 0 var(--radius) var(--radius);
-    background: #fbfcfe;
 }
 
 /* -------------------------------------------------------------------------

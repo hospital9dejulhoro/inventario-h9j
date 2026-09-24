@@ -190,8 +190,8 @@ $avulso = !empty($avulso);
     <section class="inv-section inv-section--scan" aria-labelledby="secao-leitura">
         <div class="inv-section-head">
             <div>
-                <h2 id="secao-leitura" class="section-title">Ler código de barras</h2>
-                <p class="section-desc">Escaneie os 13 dígitos, ou use a câmera. Enter grava.</p>
+                <h2 id="secao-leitura" class="section-title">Contar um item</h2>
+                <p class="section-desc">Bipe a etiqueta, use a câmera ou procure pelo nome — Enter grava a leitura.</p>
             </div>
         </div>
 
@@ -228,13 +228,26 @@ $avulso = !empty($avulso);
                            autocomplete="off" tabindex="2">
                 </div>
                 <div class="form-group inv-barcode-group">
-                    <label for="CODIGOBARRAS" class="form-label">Código de barras</label>
+                    <?php /* Um campo só. Treze dígitos gravam a leitura; qualquer
+                             outra coisa procura o item. Eram dois campos, em dois
+                             cartões, e quem chegava com a etiqueta rasgada na mão
+                             precisava descobrir que existia o segundo.
+
+                             Sem maxlength e sem o filtro que apagava letra
+                             digitada: os dois existiam para proteger um campo que
+                             só aceitava dígitos. O servidor continua tirando o que
+                             não é dígito antes de validar a leitura. */ ?>
+                    <label for="CODIGOBARRAS" class="form-label">Bipe ou procure o item</label>
                     <input type="text" name="CODIGOBARRAS" id="CODIGOBARRAS" class="form-control inv-barcode-input"
-                           maxlength="13" inputmode="numeric" autocomplete="off" tabindex="1"
-                           oninput="this.value = this.value.replace(/[^0-9]/g, '');"
+                           autocomplete="off" tabindex="1" enterkeyhint="enter"
                            value="" placeholder="0000000000000" autofocus>
+                    <p class="form-hint inv-barcode-dica">Os 13 dígitos gravam direto. Nome, código do produto ou lote procuram o item.</p>
                 </div>
             </div>
+
+            <?php /* Os resultados nascem colados no campo que os gerou, acima da
+                     camera: e para onde a pessoa ja esta olhando. */ ?>
+            <?php require __DIR__ . '/_busca-item.php'; ?>
 
             <?php /* Depois do campo e antes de gravar: a camera e mais um jeito
                      de preencher o codigo, nao um fluxo separado. */ ?>
@@ -243,12 +256,6 @@ $avulso = !empty($avulso);
             <button type="submit" class="btn btn-primary" id="btn-registrar">Registrar leitura</button>
     </form>
 
-        <?php /* Bipar, fotografar e procurar pelo nome sao tres jeitos de dizer
-                 QUAL item. Ficavam em cartoes separados, como se fossem coisas
-                 diferentes; agora dividem o mesmo. A busca fica fora da forma
-                 de proposito: um campo de texto dentro dela faria Enter gravar
-                 a leitura em vez de procurar. */ ?>
-        <?php require __DIR__ . '/_busca-item.php'; ?>
     </section>
 
     <?php else: ?>
