@@ -280,15 +280,27 @@ class InventarioRM
                 FROM TITMINVENTARIO I
                 LEFT JOIN TPRODUTO T ON T.IDPRD = I.IDPRD
                 LEFT JOIN TPRODUTODEF ON TPRODUTODEF.IDPRD = I.IDPRD
+                -- Sem LTRIM/RTRIM nos dois lados: funcao sobre a coluna impede
+                -- o banco de usar indice, e esta juncao passava de 11s para a
+                -- folha do 065. Conferido no banco do hospital: CODLOC tem
+                -- sempre 3 caracteres preenchidos com zero nas duas tabelas, e
+                -- nao ha um unico par que o trim case e a igualdade simples
+                -- nao. O = de char ja ignora espaco a direita.
                 LEFT JOIN TPRDLOC PRDLOC
                     ON PRDLOC.IDPRD = I.IDPRD
-                   AND LTRIM(RTRIM(PRDLOC.CODLOC)) = LTRIM(RTRIM(I.CODLOC))
+                   AND PRDLOC.CODLOC = I.CODLOC
+                -- Produto sem nenhum lote cadastrado, como juncao em vez de
+                -- NOT EXISTS correlacionado: medido no banco do hospital, o
+                -- NOT EXISTS reexecutava a busca em TLOTEPRD uma vez por
+                -- produto do local e levava a consulta a mais de um segundo.
+                LEFT JOIN (
+                    SELECT DISTINCT IDPRD FROM TLOTEPRD
+                ) COMLOTE
+                    ON COMLOTE.IDPRD = I.IDPRD
                 WHERE I.CODCOLIGADA = ?
                   AND I.CODINVENTARIO = ?
                   {$whereLoc}
-                  AND NOT EXISTS (
-                        SELECT 1 FROM TLOTEPRD L WHERE L.IDPRD = I.IDPRD
-                  )
+                  AND COMLOTE.IDPRD IS NULL
                 GROUP BY I.IDPRD
                 ORDER BY MAX(T.NOMEFANTASIA), I.IDPRD";
 
@@ -386,14 +398,20 @@ class InventarioRM
                     ON PRDLOC.IDPRD = CUST.IDPRD
                    AND PRDLOC.CODFILIAL = CUST.CODFILIAL
                    AND CUST.CODCOLIGADA = PRDLOC.CODCOLIGADA
+                -- Produto sem nenhum lote cadastrado, como juncao em vez de
+                -- NOT EXISTS correlacionado: medido no banco do hospital, o
+                -- NOT EXISTS reexecutava a busca em TLOTEPRD uma vez por
+                -- produto do local e levava a consulta a mais de um segundo.
+                LEFT JOIN (
+                    SELECT DISTINCT IDPRD FROM TLOTEPRD
+                ) COMLOTE
+                    ON COMLOTE.IDPRD = PRD.IDPRD
                 WHERE PRD.INATIVO = 0
                   AND " . self::condicaoCodloc('PRDLOC') . "
                   {$whereSaldo}
                   {$whereGrupo}
                   {$whereBusca}
-                  AND NOT EXISTS (
-                        SELECT 1 FROM TLOTEPRD L WHERE L.IDPRD = PRD.IDPRD
-                  )
+                  AND COMLOTE.IDPRD IS NULL
                 GROUP BY PRD.IDPRD
                 ORDER BY MAX(PRD.NOMEFANTASIA), PRD.IDPRD";
 
@@ -949,13 +967,22 @@ class InventarioRM
                     LEFT JOIN TTB2 GRUP
                         ON PRDDEF.CODTB2FAT = GRUP.CODTB2FAT
                        AND GRUP.CODCOLIGADA = PRDDEF.CODCOLIGADA
+                    -- Produto que nao tem lote nenhum cadastrado, escrito como
+                    -- juncao em vez de NOT EXISTS correlacionado.
+                    --
+                    -- Medido no banco do hospital, local 065: com o NOT EXISTS
+                    -- esta metade levava 1,694s; assim, 0,076s, com o mesmo
+                    -- resultado. O plano deixa de reexecutar a busca em TLOTEPRD
+                    -- uma vez por produto do local.
+                    LEFT JOIN (
+                        SELECT DISTINCT IDPRD FROM TLOTEPRD
+                    ) SEMLOTE
+                        ON SEMLOTE.IDPRD = PRD.IDPRD
                     WHERE PRD.INATIVO = 0
                       AND {$condLoc}
                       {$whereProduto}
                       {$temGrupo}
-                      AND NOT EXISTS (
-                            SELECT 1 FROM TLOTEPRD L WHERE L.IDPRD = PRD.IDPRD
-                      )
+                      AND SEMLOTE.IDPRD IS NULL
                 ) X
                 ORDER BY GRUPONOME, GRUPOCOD";
 
