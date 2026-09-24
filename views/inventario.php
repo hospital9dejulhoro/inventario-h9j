@@ -227,6 +227,11 @@ $avulso = !empty($avulso);
                            value="" placeholder="0000000000000" autofocus>
                 </div>
             </div>
+
+            <?php /* Depois do campo e antes de gravar: a camera e mais um jeito
+                     de preencher o codigo, nao um fluxo separado. */ ?>
+            <?php require __DIR__ . '/_camera-bipe.php'; ?>
+
             <button type="submit" class="btn btn-primary" id="btn-registrar">Registrar leitura</button>
         </section>
     </form>
