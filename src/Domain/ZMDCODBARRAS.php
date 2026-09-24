@@ -65,11 +65,13 @@ class ZMDCODBARRAS
 
     private static function baseSelectSql(): string
     {
-        return "SELECT TOP " . self::LIMITE_LISTAGEM . " zmd.ID, ZMD.CODIGOBARRAS, ZMD.CODINVENTARIO, ZMD.QUANTIDADE, ZMD.CODLOC, ZMD.RECCREATEDBY, ZMD.RECCREATEDON, T.NOMEFANTASIA AS NOME, TPRODUTODEF.CODUNDCONTROLE AS UND, TLOTEPRD.NUMLOTE
+        // Sem TLOTEPRD aqui: o numero do lote vem depois, em mapearResultado().
+        // A juncao por IDPRD - coluna sem indice - fazia esta listagem levar 25s
+        // num inventario de 6.700 lancamentos, que e a tela de Leitura abrindo.
+        return "SELECT TOP " . self::LIMITE_LISTAGEM . " zmd.ID, ZMD.CODIGOBARRAS, ZMD.CODINVENTARIO, ZMD.QUANTIDADE, ZMD.CODLOC, ZMD.RECCREATEDBY, ZMD.RECCREATEDON, T.NOMEFANTASIA AS NOME, TPRODUTODEF.CODUNDCONTROLE AS UND
                 FROM ZMDCODBARRAS ZMD
                 LEFT JOIN TPRODUTO T ON T.IDPRD = CONVERT(INT,SUBSTRING(ZMD.CODIGOBARRAS,0,7))
-                LEFT JOIN TPRODUTODEF ON TPRODUTODEF.IDPRD = T.IDPRD
-                LEFT JOIN TLOTEPRD ON TLOTEPRD.IDPRD = T.IDPRD AND TLOTEPRD.IDLOTE = CONVERT(INT,SUBSTRING(CODIGOBARRAS,8,5))";
+                LEFT JOIN TPRODUTODEF ON TPRODUTODEF.IDPRD = T.IDPRD";
     }
 
     /**
@@ -99,6 +101,7 @@ class ZMDCODBARRAS
     private static function mapearResultado(Connection $c): array
     {
         $arrayZMD = [];
+        $idlotes = [];
 
         while ($c->Resultado()) {
             $zmd = new ZMDCODBARRAS();
@@ -109,12 +112,26 @@ class ZMDCODBARRAS
             $zmd->setCodloc(encode_db_value($c->linha['CODLOC']));
             $zmd->setNome(encode_db_value($c->linha['NOME']));
             $zmd->setUnd(encode_db_value($c->linha['UND']));
-            $zmd->setNumlote(encode_db_value($c->linha['NUMLOTE']));
             // RECCREATEDON vem como DateTime; encode_db_value espera texto.
             $zmd->setCriadoPor(encode_db_value($c->linha['RECCREATEDBY'] ?? ''));
             $zmd->setCriadoEm(formatar_data_hora($c->linha['RECCREATEDON'] ?? null));
 
+            $idlote = self::idloteDoBarcode($zmd->getCodigobarras());
+            if ($idlote > 0) {
+                $idlotes[$idlote] = true;
+            }
+
             array_push($arrayZMD, $zmd);
+        }
+
+        // O numero do lote vem numa consulta propria, pela chave primaria de
+        // TLOTEPRD. Como juncao ele custava 25s nesta listagem.
+        $numeros = self::numerosDeLote(array_keys($idlotes));
+
+        foreach ($arrayZMD as $zmd) {
+            $codigo = $zmd->getCodigobarras();
+            $chave = self::idprdDoBarcode($codigo) . ':' . self::idloteDoBarcode($codigo);
+            $zmd->setNumlote($numeros[$chave] ?? '');
         }
 
         return $arrayZMD;
@@ -450,22 +467,22 @@ class ZMDCODBARRAS
      * @param array<string, array<string, mixed>> $mapa
      * @return array<string, array<string, mixed>>
      */
-    private static function comNumeroDoLote(array $mapa): array
+    /**
+     * NUMLOTE de cada lote, pela chave primária (CODCOLIGADA, IDLOTE).
+     *
+     * @param array<int, int> $idlotes
+     * @return array<string, string> "idprd:idlote" => número do lote
+     */
+    private static function numerosDeLote(array $idlotes): array
     {
-        $idlotes = [];
-        foreach ($mapa as $linha) {
-            if ((int) $linha['idlote'] > 0) {
-                $idlotes[(int) $linha['idlote']] = true;
-            }
-        }
-
+        $idlotes = array_values(array_filter(array_map('intval', $idlotes)));
         if ($idlotes === []) {
-            return $mapa;
+            return [];
         }
 
-        // Inteiros já saneados por (int): um marcador por item estouraria o
+        // Inteiros já saneados por intval: um marcador por item estouraria o
         // limite de parâmetros com mil lotes.
-        $lista = implode(',', array_keys($idlotes));
+        $lista = implode(',', $idlotes);
 
         $c = new Connection('RM');
         $c->Consulta(
@@ -479,6 +496,20 @@ class ZMDCODBARRAS
             $numeros[(int) $c->linha['IDPRD'] . ':' . (int) $c->linha['IDLOTE']]
                 = encode_db_value((string) ($c->linha['NUMLOTE'] ?? ''));
         }
+
+        return $numeros;
+    }
+
+    private static function comNumeroDoLote(array $mapa): array
+    {
+        $idlotes = [];
+        foreach ($mapa as $linha) {
+            if ((int) $linha['idlote'] > 0) {
+                $idlotes[(int) $linha['idlote']] = true;
+            }
+        }
+
+        $numeros = self::numerosDeLote(array_keys($idlotes));
 
         foreach ($mapa as $chave => $linha) {
             if (isset($numeros[$chave])) {
@@ -940,37 +971,70 @@ class ZMDCODBARRAS
                     T.CODIGOPRD AS CODIGO,
                     T.NOMEFANTASIA AS NOME,
                     TPRODUTODEF.CODUNDCONTROLE AS UND,
-                    TLOTEPRD.NUMLOTE AS NUMLOTE,
+                    CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 8, 5)) AS IDLOTE,
                     RTRIM(ZMD.CODLOC) AS CODLOC,
                     COUNT(*) AS BIPAGENS,
                     SUM(TRY_CAST(REPLACE(LTRIM(RTRIM(CAST(ZMD.QUANTIDADE AS VARCHAR(30)))), ',', '.') AS DECIMAL(18, 4))) AS QUANTIDADE
                 FROM ZMDCODBARRAS ZMD
                 LEFT JOIN TPRODUTO T ON T.IDPRD = CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 0, 7))
                 LEFT JOIN TPRODUTODEF ON TPRODUTODEF.IDPRD = T.IDPRD
-                LEFT JOIN TLOTEPRD ON TLOTEPRD.IDPRD = T.IDPRD
-                    AND TLOTEPRD.IDLOTE = CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 8, 5))
                 WHERE ZMD.CODINVENTARIO = ?
                 GROUP BY
                     CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 0, 7)),
                     T.CODIGOPRD,
                     T.NOMEFANTASIA,
                     TPRODUTODEF.CODUNDCONTROLE,
-                    TLOTEPRD.NUMLOTE,
-                    RTRIM(ZMD.CODLOC)
-                ORDER BY T.NOMEFANTASIA, TLOTEPRD.NUMLOTE, RTRIM(ZMD.CODLOC)";
+                    CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 8, 5)),
+                    RTRIM(ZMD.CODLOC)";
         $c->Consulta($SQL, [$codinventario]);
+
+        /*
+         * O número do lote entra depois, e o agrupamento é refeito aqui.
+         *
+         * Antes a consulta agrupava pelo TEXTO do lote, o que exigia juntar
+         * TLOTEPRD por IDPRD — coluna sem índice. Essa junção fazia o plano do
+         * SQL Server variar de 0,1s para 23s com o mesmo dado, e era ela que
+         * travava o relatório de um inventário com 30 mil lançamentos.
+         *
+         * Agora a consulta agrupa por IDLOTE (barato) e a junção some. O texto
+         * do lote vem da busca por chave primária, e as linhas voltam a ser
+         * fundidas por produto + texto do lote + local — exatamente o
+         * agrupamento de antes, inclusive quando dois IDLOTE diferentes do
+         * mesmo produto carregam o mesmo número.
+         */
+        $brutos = [];
+        $idlotes = [];
+        while ($c->Resultado()) {
+            $linha = [
+                'idprd'      => (int) ($c->linha['IDPRD'] ?? 0),
+                'idlote'     => (int) ($c->linha['IDLOTE'] ?? 0),
+                'codigo'     => encode_db_value(trim((string) ($c->linha['CODIGO'] ?? ''))),
+                'nome'       => encode_db_value((string) ($c->linha['NOME'] ?? '')),
+                'und'        => encode_db_value((string) ($c->linha['UND'] ?? '')),
+                'codloc'     => encode_db_value((string) ($c->linha['CODLOC'] ?? '')),
+                'bipagens'   => (int) ($c->linha['BIPAGENS'] ?? 0),
+                'quantidade' => (float) ($c->linha['QUANTIDADE'] ?? 0),
+            ];
+            $brutos[] = $linha;
+            if ($linha['idlote'] > 0) {
+                $idlotes[$linha['idlote']] = true;
+            }
+        }
+
+        $numeros = self::numerosDeLote(array_keys($idlotes));
 
         $itens = [];
         $qtd = 0.0;
         $bipagens = 0;
         $produtos = [];
         $lotes = [];
+        $porChave = [];
 
-        while ($c->Resultado()) {
-            $idprd = (int) ($c->linha['IDPRD'] ?? 0);
-            $lote = encode_db_value((string) ($c->linha['NUMLOTE'] ?? ''));
-            $q = (float) ($c->linha['QUANTIDADE'] ?? 0);
-            $b = (int) ($c->linha['BIPAGENS'] ?? 0);
+        foreach ($brutos as $linha) {
+            $idprd = $linha['idprd'];
+            $lote = $numeros[$idprd . ':' . $linha['idlote']] ?? '';
+            $q = $linha['quantidade'];
+            $b = $linha['bipagens'];
             $qtd += $q;
             $bipagens += $b;
             if ($idprd > 0) {
@@ -981,17 +1045,32 @@ class ZMDCODBARRAS
             if (trim($lote) !== '') {
                 $lotes[$idprd . ':' . $lote] = true;
             }
+
+            $chave = $idprd . '|' . $lote . '|' . $linha['codloc'];
+            if (isset($porChave[$chave])) {
+                $itens[$porChave[$chave]]['bipagens'] += $b;
+                $itens[$porChave[$chave]]['quantidade'] += $q;
+                continue;
+            }
+
+            $porChave[$chave] = count($itens);
             $itens[] = [
                 'idprd'      => $idprd,
-                'codigo'     => encode_db_value(trim((string) ($c->linha['CODIGO'] ?? ''))),
-                'nome'       => encode_db_value((string) ($c->linha['NOME'] ?? '')),
-                'und'        => encode_db_value((string) ($c->linha['UND'] ?? '')),
+                'codigo'     => $linha['codigo'],
+                'nome'       => $linha['nome'],
+                'und'        => $linha['und'],
                 'lote'       => $lote,
-                'codloc'     => encode_db_value((string) ($c->linha['CODLOC'] ?? '')),
+                'codloc'     => $linha['codloc'],
                 'bipagens'   => $b,
                 'quantidade' => $q,
             ];
         }
+
+        // A ordenação era do ORDER BY da consulta; com o lote resolvido depois,
+        // ela vem para cá.
+        usort($itens, function ($a, $b) {
+            return [$a['nome'], $a['lote'], $a['codloc']] <=> [$b['nome'], $b['lote'], $b['codloc']];
+        });
 
         return [
             'totais' => [
