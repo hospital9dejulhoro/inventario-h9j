@@ -64,12 +64,11 @@
 
     function linhaDoItem(item) {
         var li = document.createElement('li');
-        li.className = 'bi-item' + (item.contavel ? '' : ' is-fora');
+        li.className = 'bi-item';
 
         var botao = document.createElement('button');
         botao.type = 'button';
         botao.className = 'bi-item-botao';
-        botao.disabled = !item.contavel;
 
         var nome = document.createElement('span');
         nome.className = 'bi-item-nome';
@@ -89,12 +88,17 @@
 
         var acao = document.createElement('span');
         acao.className = 'bi-item-acao';
-        acao.textContent = item.contavel ? 'Contar este' : 'Fora do inventário';
+        acao.textContent = 'Contar este';
         botao.appendChild(acao);
 
-        if (!item.contavel) {
-            botao.title = 'Este produto não faz parte do inventário neste local. '
-                + 'Gere o item no inventário pelo RM para poder contá-lo.';
+        // Esta no estoque mas o RM nao gerou no inventario: da para contar, e a
+        // marca serve para quem for conferir a divergencia depois.
+        if (item.fora_do_rm) {
+            var marca = document.createElement('span');
+            marca.className = 'bi-item-marca';
+            marca.textContent = 'fora do inventário';
+            marca.title = 'Está no estoque do local, mas o RM não gerou este item no inventário. Pode contar.';
+            meta.appendChild(marca);
         }
 
         botao.addEventListener('click', function () { usarItem(item); });

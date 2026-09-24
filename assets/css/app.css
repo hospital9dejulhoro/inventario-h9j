@@ -3048,3 +3048,16 @@ body.cam-travado {
         min-width: 160px;
     }
 }
+
+/* Marca de "fora do inventario" na busca: informacao, nao impedimento. */
+.bi-item-marca {
+    display: inline-block;
+    margin-left: 0.4rem;
+    padding: 0.05rem 0.4rem;
+    border-radius: 999px;
+    background: #fef3c7;
+    color: #92400e;
+    font-size: 0.7rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
