@@ -132,6 +132,13 @@
      * longa. Recusa de gravacao - produto fora do estoque, lote faltando - tem
      * de parar quem esta contando.
      */
+    /*
+     * Gravacao sem limite de espera deixava a tela presa em "Gravando...", com
+     * o botao desligado, ate a pessoa recarregar. Rede de hospital cai, e quem
+     * esta contando nao tem como saber se deve esperar mais.
+     */
+    var LIMITE_GRAVACAO = 15000;
+
     function falhaVisivel(mensagem, tipo) {
         setStatus(mensagem, tipo === 'warning' ? '' : 'is-err');
         if (typeof window.avisoModal === 'function') {
@@ -189,8 +196,22 @@
         body.append('modo', modoAtual());
         body.append('_token', cfg.token || '');
 
-        fetch(cfg.saveUrl, { method: 'POST', body: body, credentials: 'same-origin' })
-            .then(function (r) { return r.json(); })
+        var controle = (typeof AbortController === 'function') ? new AbortController() : null;
+        var estourouOTempo = false;
+        var relogio = window.setTimeout(function () {
+            estourouOTempo = true;
+            if (controle) {
+                controle.abort();
+            }
+        }, LIMITE_GRAVACAO);
+
+        fetch(cfg.saveUrl, {
+            method: 'POST',
+            body: body,
+            credentials: 'same-origin',
+            signal: controle ? controle.signal : undefined
+        })
+            .then(function (r) { window.clearTimeout(relogio); return r.json(); })
             .then(function (data) {
                 if (!data || !data.ok) {
                     throw new Error((data && data.message) || 'Falha ao gravar');
@@ -235,8 +256,22 @@
                 focusProximo(tr);
             })
             .catch(function (err) {
+                window.clearTimeout(relogio);
                 avisar('alerta');
-                falhaVisivel(err.message || 'Erro ao gravar.');
+
+                // Tempo esgotado do lado de ca nao quer dizer que o servidor
+                // nao gravou: mandar contar de novo seria mandar contar dobrado.
+                if (estourouOTempo) {
+                    falhaVisivel('A gravação demorou demais e foi interrompida. NÃO conte de novo sem conferir: '
+                        + 'pode ter gravado do lado do servidor. Recarregue a tela (F5) e veja o '
+                        + 'total antes de repetir.',
+                        // "Confira antes de seguir", e nao "Nao foi gravado":
+                        // do lado de ca nao da para saber qual dos dois foi.
+                        'warning');
+                } else {
+                    falhaVisivel(err.message || 'Erro ao gravar.');
+                }
+
                 if (input) {
                     input.focus();
                     input.select();
