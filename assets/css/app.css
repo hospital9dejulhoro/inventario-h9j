@@ -524,14 +524,15 @@ body {
     flex-shrink: 0;
 }
 
-@media (max-width: 640px) {
-    .inv-delete-inventario-form {
-        width: 100%;
-    }
-
-    .inv-delete-inventario-form .btn-danger {
-        width: 100%;
-    }
+/*
+ * Apagar a contagem toda e a acao mais destrutiva da tela, e estava como botao
+ * vermelho de largura inteira logo abaixo do titulo - com mais peso visual que
+ * qualquer coisa que a pessoa realmente veio fazer. Vira link, ao lado do
+ * titulo. A confirmacao por digitacao do codigo continua onde estava.
+ */
+.inv-delete-inventario-form .btn-link-danger {
+    font-size: 0.8125rem;
+    white-space: nowrap;
 }
 
 .inv-step {
@@ -3060,4 +3061,246 @@ body.cam-travado {
     font-size: 0.7rem;
     font-weight: 600;
     white-space: nowrap;
+}
+
+/* -------------------------------------------------------------------------
+ * Barra de contexto da contagem
+ *
+ * Substitui o titulo da pagina, a barra de estatisticas e a secao "Inventario
+ * e local" inteira. A soma dos tres ocupava 1.890px num celular - 2,3 telas
+ * antes do primeiro item contado - e a maior parte era coisa que se ve uma vez
+ * no comeco: o seletor de inventario, e links que a barra de navegacao ja tem.
+ * ---------------------------------------------------------------------- */
+
+.inv-barra {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.8rem 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.inv-barra-topo {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.6rem;
+}
+
+.inv-barra-codigo {
+    font-size: 1.15rem;
+    color: #0a3d6e;
+    letter-spacing: 0.02em;
+}
+
+.inv-barra-local {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+.inv-barra-status {
+    margin-left: auto;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    background: #ecfdf5;
+    color: #166534;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* Os numeros em uma linha: sao o placar da contagem, nao um formulario. */
+.inv-barra-numeros {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    margin: 0.5rem 0 0;
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+}
+
+.inv-barra-numeros strong {
+    color: var(--text);
+    font-size: 0.95rem;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Trocar de inventario: recolhido, porque acontece uma vez. */
+.inv-trocar {
+    margin-top: 0.6rem;
+    border-top: 1px solid var(--border);
+}
+
+.inv-trocar-abrir {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    cursor: pointer;
+    color: var(--accent);
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.inv-trocar-corpo {
+    padding-bottom: 0.5rem;
+}
+
+.inv-trocar-corpo .inv-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.inv-trocar-corpo .form-group {
+    margin-bottom: 0.5rem;
+}
+
+/* Recentes: chips em linha, sem disputar espaco com botao nenhum. */
+.inv-trocar .inv-status-recent {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed var(--border);
+}
+
+.inv-trocar .inv-status-recent-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* A busca divide o cartao com a leitura: sao o mesmo assunto, "qual item". */
+.inv-section--scan .inv-section--busca {
+    margin: 0.9rem -1rem -1rem;
+    border: 0;
+    border-top: 1px solid var(--border);
+    border-radius: 0 0 var(--radius) var(--radius);
+    background: #fbfcfe;
+}
+
+/* -------------------------------------------------------------------------
+ * Itens bipados no celular: o nome do produto na frente
+ *
+ * A tabela tem sete colunas e comeca pelo codigo de barras. Num aparelho de
+ * 375px a coluna "Produto" - a unica que uma pessoa realmente le - ficava fora
+ * da tela, e era preciso rolar a tabela para o lado para saber o que era cada
+ * linha. O mesmo problema da folha sem lote, e a mesma solucao.
+ *
+ * Flex, nao grid: as celulas da segunda linha precisam FLUIR uma ao lado da
+ * outra. Em grid, varias celulas na mesma area se sobrepoem.
+ * ---------------------------------------------------------------------- */
+
+@media (max-width: 640px) {
+    #registros-table thead {
+        display: none;
+    }
+
+    #registros-table,
+    #registros-table tbody,
+    #registros-table tr {
+        display: block;
+        width: 100%;
+    }
+
+    #registros-table tr.reg-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 0.1rem 0.55rem;
+        padding: 0.55rem 0.8rem;
+        border-bottom: 1px solid var(--border);
+    }
+
+    #registros-table tr.reg-row > td {
+        border: 0;
+        padding: 0;
+    }
+
+    /* Nome do produto sozinho na primeira linha. */
+    .reg-col-produto {
+        order: 1;
+        flex: 1 0 100%;
+        font-weight: 600;
+        color: #0a3d6e;
+        line-height: 1.3;
+    }
+
+    /* Unidade, quantidade, local, lote e codigo fluem na segunda. */
+    .reg-col-und    { order: 2; }
+    .reg-col-qtd    { order: 3; }
+    .reg-col-local  { order: 4; }
+    .reg-col-lote   { order: 5; }
+    .reg-col-barras { order: 6; }
+
+    .reg-col-und,
+    .reg-col-qtd,
+    .reg-col-local,
+    .reg-col-lote {
+        font-size: 0.8125rem;
+        color: var(--text-muted);
+    }
+
+    /* O rotulo que o cabecalho dava, agora colado no numero. */
+    .reg-col-qtd::before,
+    .reg-col-local::before,
+    .reg-col-lote::before {
+        content: attr(data-rotulo) " ";
+        font-size: 0.7rem;
+    }
+
+    /* O codigo de barras deixa de liderar a linha: vai para o fim, menor, e
+       divide a ultima linha com os botoes em vez de gastar uma so para ele. */
+    .reg-col-barras {
+        flex: 1 1 55%;
+        min-width: 0;
+        font-size: 0.7rem;
+        line-height: 1.35;
+        color: var(--text-muted);
+        overflow-wrap: anywhere;
+    }
+
+    /* Sem nowrap aqui: a regra geral impede a quebra, e num celular o nome
+       do usuario mais a data passavam por baixo dos botoes de acao. */
+    .reg-col-barras .inv-autoria {
+        display: block;
+        margin: 0;
+        font-size: 0.68rem;
+        white-space: normal;
+    }
+
+    .reg-col-acoes {
+        order: 7;
+        margin-left: auto;
+        align-self: center;
+        white-space: nowrap;
+    }
+
+    /* A zebra de .data-table pinta a CELULA. Com a linha virada em flex as
+       celulas tem larguras diferentes, e o fundo saia recortado no meio da
+       linha; aqui ela passa para a linha inteira. */
+    #registros-table tbody tr:nth-child(even) td {
+        background: transparent;
+    }
+
+    #registros-table tbody tr:nth-child(even) {
+        background: #fcfcfd;
+    }
+
+    /* Sem o empurrao que separa o link do texto ao lado: quando o cabecalho
+       quebra, ele e o primeiro da linha. */
+    .inv-delete-inventario-form .btn-link-danger {
+        margin-left: 0;
+    }
+
+    /* Botao de linha nao precisa dos 44px aqui: o alvo e a area toda da celula,
+       e a linha inteira ja tem mais de 100px de altura. */
+    #registros-table .reg-col-acoes .btn-link {
+        min-height: 36px;
+        padding: 0.4rem 0.4rem;
+    }
 }
