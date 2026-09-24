@@ -23,6 +23,16 @@ $codigobarras = isset($entrada['CODIGOBARRAS']) ? (string) $entrada['CODIGOBARRA
 // Código na URL não grava mais nada: em GET a tela só mostra.
 $barcodeInformado = $ehGravacao && trim($codigobarras) !== '';
 
+/*
+ * Página aberta antes desta versão, ainda enviando por GET.
+ *
+ * Quem estava contando quando a atualização subiu continua com o formulário
+ * antigo na tela. O bipe chegaria por GET, seria ignorado, e a pessoa seguiria
+ * bipando a prateleira inteira sem gravar nada — sem erro, sem aviso, sem
+ * nenhum item novo na lista. Melhor dizer o que houve.
+ */
+$telaDesatualizada = !$ehGravacao && trim($codigobarras) !== '';
+
 // Somar é o normal: cada bipe acrescenta. Corrigir substitui o total do
 // produto/lote — é para quem recontou uma posição e quer dizer quanto há, não
 // quanto acrescentar. Acompanha a tela pela URL junto com a quantidade, senão
@@ -94,6 +104,15 @@ $destinosVincular = $avulso ? InventarioRM::abertosDoLocal($codloc) : [];
 $contagensAvulsas = $modoLeitura ? [] : ZMDCODBARRAS::listarAvulsos();
 
 $redirectUrl = 'inventario.php?' . http_build_query($ctx->params(['QUANTIDADE' => $quantidade]));
+
+if ($telaDesatualizada) {
+    flash_set(
+        'warning',
+        'Esta tela foi atualizada enquanto você contava e a leitura NÃO foi gravada. '
+        . 'Recarregue a página (F5) e bipe este item de novo. As leituras anteriores estão salvas.'
+    );
+    redirect_to($redirectUrl);
+}
 
 if ($quantidadeInvalida) {
     flash_set('danger', 'Quantidade inválida: use um número, como 1, 2 ou 1,5.');
