@@ -569,6 +569,16 @@
         editLoc.dispatchEvent(new Event('input'));
         editModal.classList.remove('hidden');
         editModal.setAttribute('aria-hidden', 'false');
+
+        // O foco ficava no campo de leitura, atras do modal. Quem abre "Editar"
+        // vem mudar a quantidade, entao o cursor comeca nela - e, de quebra, um
+        // bipe disparado com o modal aberto para de cair num campo invisivel e
+        // enviar a forma de gravacao por baixo da edicao.
+        var qtdEdicao = document.getElementById('edit-qtd');
+        if (qtdEdicao) {
+            qtdEdicao.focus();
+            qtdEdicao.select();
+        }
     }
 
     function closeEditModal() {
