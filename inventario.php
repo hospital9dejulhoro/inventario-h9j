@@ -91,7 +91,9 @@ $mostrarTabela = false;
 $envAtual = EnvironmentManager::getCurrent();
 $leiturasSessao = SessionManager::getSessionScans();
 $recentInventarios = SessionManager::getRecentInventarios();
-$locaisEstoqueJson = json_encode(LocaisEstoque::todos(), JSON_UNESCAPED_UNICODE);
+// JSON_HEX_TAG como em todo o resto do sistema: a lista e fixa no codigo e
+// nao vem de fora, mas o bloco sai dentro de <script> e a regra vale igual.
+$locaisEstoqueJson = json_encode(LocaisEstoque::todos(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG);
 
 // Só a tela de seleção usa as listas (view: if (!$modoLeitura)). Em modo leitura
 // o resultado era descartado, mas custava consultas a cada bipagem.

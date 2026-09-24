@@ -125,36 +125,6 @@ function quantidade_para_banco(float $quantidade, int $casas = ZMDCODBARRAS::QUA
     return ($texto === '' || $texto === '-') ? '0' : $texto;
 }
 
-/**
- * Obtém o nome do usuário do sistema operacional / servidor web.
- */
-function detect_os_username(): string
-{
-    $candidates = [
-        $_SERVER['AUTH_USER'] ?? null,
-        $_SERVER['REMOTE_USER'] ?? null,
-        $_SERVER['LOGON_USER'] ?? null,
-        getenv('USERNAME'),
-        getenv('USER'),
-    ];
-
-    $ignored = ['www-data', 'apache', 'nginx', 'nobody', 'daemon'];
-
-    foreach ($candidates as $candidate) {
-        if (!empty($candidate)) {
-            $name = (string) $candidate;
-            if (strpos($name, '\\') !== false) {
-                $parts = explode('\\', $name);
-                $name = end($parts);
-            }
-            if (!in_array(strtolower($name), $ignored, true)) {
-                return $name;
-            }
-        }
-    }
-
-    return '';
-}
 
 function flash_set(string $type, string $message): void
 {
