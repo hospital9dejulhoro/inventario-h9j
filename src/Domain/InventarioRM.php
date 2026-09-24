@@ -268,9 +268,14 @@ class InventarioRM
             $params = array_merge($params, self::paramsCodloc($codloc));
         }
 
+        // Teto de busca maior que o da folha porque o filtro de lote acontece
+        // depois, em PHP: cortar antes deixaria de fora item sem lote que
+        // caberia na folha.
+        $tetoBusca = $limite * 5;
+
         // PRDLOC entra como LEFT JOIN só para mostrar o saldo ao lado da
         // contagem; produto sem linha de posição no local continua na folha.
-        $SQL = "SELECT TOP {$limite}
+        $SQL = "SELECT TOP {$tetoBusca}
                     I.IDPRD,
                     MAX(RTRIM(I.CODLOC)) AS CODLOC,
                     MAX(T.CODIGOPRD) AS CODIGO,
@@ -289,25 +294,55 @@ class InventarioRM
                 LEFT JOIN TPRDLOC PRDLOC
                     ON PRDLOC.IDPRD = I.IDPRD
                    AND PRDLOC.CODLOC = I.CODLOC
-                -- Produto sem nenhum lote cadastrado, como juncao em vez de
-                -- NOT EXISTS correlacionado: medido no banco do hospital, o
-                -- NOT EXISTS reexecutava a busca em TLOTEPRD uma vez por
-                -- produto do local e levava a consulta a mais de um segundo.
-                LEFT JOIN (
-                    SELECT DISTINCT IDPRD FROM TLOTEPRD
-                ) COMLOTE
-                    ON COMLOTE.IDPRD = I.IDPRD
                 WHERE I.CODCOLIGADA = ?
                   AND I.CODINVENTARIO = ?
                   {$whereLoc}
-                  AND COMLOTE.IDPRD IS NULL
                 GROUP BY I.IDPRD
                 ORDER BY MAX(T.NOMEFANTASIA), I.IDPRD";
 
         $c = new Connection('RM');
         $c->Consulta($SQL, $params);
 
-        return self::mapearItensSemLote($c);
+        $itens = self::mapearItensSemLote($c);
+
+        // "Sem lote" resolvido aqui, e nao no SQL.
+        //
+        // TLOTEPRD nao tem indice em IDPRD - o unico e (CODCOLIGADA, IDLOTE).
+        // Qualquer juncao por produto varre a tabela inteira, e o banco refaz
+        // essa varredura em vez de materializar uma vez: a folha do 065 levava
+        // 4,3s, e 2,7s eram so essa juncao. O mesmo conjunto lido de uma vez
+        // custa 0,044s, e filtrar 1570 itens em PHP custa 0,0004s.
+        $comLote = self::idprdsComLote();
+        $itens = array_values(array_filter($itens, function ($item) use ($comLote) {
+            return empty($comLote[(int) $item['idprd']]);
+        }));
+
+        // O teto da folha vale sobre o que sobrou, nao sobre o que foi buscado.
+        return array_slice($itens, 0, $limite);
+    }
+
+    /**
+     * Produtos que tem ao menos um lote cadastrado.
+     *
+     * Consulta inteira de uma vez porque e barata assim (35 mil linhas, 1,7 mil
+     * produtos, 0,044s) e cara como juncao, pela falta de indice em IDPRD.
+     *
+     * @return array<int, bool> idprd => true
+     */
+    private static function idprdsComLote(): array
+    {
+        $c = new Connection('RM');
+        $c->Consulta('SELECT DISTINCT IDPRD FROM TLOTEPRD');
+
+        $ids = [];
+        while ($c->Resultado()) {
+            $id = (int) ($c->linha['IDPRD'] ?? 0);
+            if ($id > 0) {
+                $ids[$id] = true;
+            }
+        }
+
+        return $ids;
     }
 
     /**
@@ -781,6 +816,51 @@ class InventarioRM
      *
      * @return array{itens: array<int, array<string, mixed>>, totais: array<string, float|int>, truncado: bool}
      */
+    /**
+     * Custo médio por produto, no local pedido.
+     *
+     * A posição já traz o custo de cada linha, mas item em SOBRA não tem linha
+     * na posição — é justamente isso que o torna sobra. Sem esta busca, tudo
+     * que foi contado e não estava previsto entrava no relatório valendo zero.
+     *
+     * @param array<int, int> $idprds
+     * @return array<int, float> idprd => custo médio
+     */
+    public static function custosPorProduto(array $idprds, string $codloc): array
+    {
+        $idprds = array_values(array_unique(array_filter(array_map('intval', $idprds))));
+        $codloc = LocaisEstoque::normalizar($codloc);
+
+        if ($idprds === [] || $codloc === '') {
+            return [];
+        }
+
+        // Lista de inteiros já saneada por intval, direto no SQL: com mais de
+        // mil produtos, um marcador por item estoura o limite de parâmetros.
+        $lista = implode(',', $idprds);
+
+        $c = new Connection('RM');
+        $c->Consulta(
+            "SELECT PRDLOC.IDPRD, MAX(CUST.CUSTOMEDIO) AS CUSTOMEDIO
+             FROM TPRDLOC PRDLOC
+             LEFT JOIN TPRDCUSTOFILIAL CUST
+                 ON CUST.IDPRD = PRDLOC.IDPRD
+                AND CUST.CODFILIAL = PRDLOC.CODFILIAL
+                AND CUST.CODCOLIGADA = PRDLOC.CODCOLIGADA
+             WHERE PRDLOC.IDPRD IN ({$lista})
+               AND " . self::condicaoCodloc('PRDLOC') . "
+             GROUP BY PRDLOC.IDPRD",
+            self::paramsCodloc($codloc)
+        );
+
+        $custos = [];
+        while ($c->Resultado()) {
+            $custos[(int) $c->linha['IDPRD']] = (float) ($c->linha['CUSTOMEDIO'] ?? 0);
+        }
+
+        return $custos;
+    }
+
     public static function conferenciaDoLocal(string $codinventario, string $codloc): array
     {
         $totaisZerados = [
@@ -802,7 +882,13 @@ class InventarioRM
         $truncado = self::posicaoTruncada($posicao);
         $contagem = ZMDCODBARRAS::contagemPorProdutoLote($codinventario);
 
-        return self::reconciliar($posicao, $contagem, $truncado);
+        // Custo do que foi contado, para a sobra não entrar valendo zero.
+        $custos = self::custosPorProduto(
+            array_map(function ($linha) { return (int) $linha['idprd']; }, $contagem),
+            $codloc
+        );
+
+        return self::reconciliar($posicao, $contagem, $truncado, $custos);
     }
 
     /**
@@ -814,8 +900,12 @@ class InventarioRM
      * @param array<string, array<string, mixed>> $contagem chave "idprd:idlote"
      * @return array{itens: array<int, array<string, mixed>>, totais: array<string, float|int>, truncado: bool}
      */
-    public static function reconciliar(array $posicao, array $contagem, bool $truncado = false): array
-    {
+    public static function reconciliar(
+        array $posicao,
+        array $contagem,
+        bool $truncado = false,
+        array $custos = []
+    ): array {
         $t = [
             'esperados' => 0, 'contados' => 0, 'nao_contados' => 0, 'sobras' => 0,
             'saldo' => 0.0, 'contado' => 0.0, 'diferenca' => 0.0, 'valor_diferenca' => 0.0,
@@ -864,6 +954,8 @@ class InventarioRM
         // Sobrou contagem sem linha na posição: tudo isso é excedente.
         foreach ($contagem as $linha) {
             $contado = (float) $linha['quantidade'];
+            // Sem linha na posição não há custo junto; ele vem da busca à parte.
+            $custoSobra = (float) ($custos[(int) $linha['idprd']] ?? 0);
             $itens[] = [
                 'situacao'        => 'sobra',
                 'idprd'           => $linha['idprd'],
@@ -877,13 +969,14 @@ class InventarioRM
                 'saldo'           => 0.0,
                 'contado'         => $contado,
                 'diferenca'       => $contado,
-                'valor_diferenca' => 0.0,
+                'valor_diferenca' => $contado * $custoSobra,
                 'bipagens'        => (int) $linha['bipagens'],
             ];
 
             $t['sobras']++;
             $t['contado'] += $contado;
             $t['diferenca'] += $contado;
+            $t['valor_diferenca'] += $contado * $custoSobra;
         }
 
         // Não contados primeiro: é a lista de pendências de quem está contando.

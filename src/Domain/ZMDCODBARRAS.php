@@ -401,16 +401,12 @@ class ZMDCODBARRAS
                     CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 8, 5)) AS IDLOTE,
                     MAX(T.NOMEFANTASIA) AS NOME,
                     MAX(TPRODUTODEF.CODUNDCONTROLE) AS UND,
-                    MAX(RTRIM(L.NUMLOTE)) AS NUMLOTE,
                     COUNT(*) AS BIPAGENS,
                     SUM(TRY_CAST(REPLACE(LTRIM(RTRIM(CAST(ZMD.QUANTIDADE AS VARCHAR(30)))), ',', '.') AS DECIMAL(18, 4))) AS QUANTIDADE
                 FROM ZMDCODBARRAS ZMD
                 LEFT JOIN TPRODUTO T
                     ON T.IDPRD = CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 0, 7))
                 LEFT JOIN TPRODUTODEF ON TPRODUTODEF.IDPRD = T.IDPRD
-                LEFT JOIN TLOTEPRD L
-                    ON L.IDPRD = T.IDPRD
-                   AND L.IDLOTE = CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 8, 5))
                 WHERE ZMD.CODINVENTARIO = ?
                 GROUP BY CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 0, 7)),
                          CONVERT(INT, SUBSTRING(ZMD.CODIGOBARRAS, 8, 5))";
@@ -428,10 +424,66 @@ class ZMDCODBARRAS
                 'idlote'     => $idlote,
                 'nome'       => encode_db_value((string) ($c->linha['NOME'] ?? '')),
                 'und'        => encode_db_value((string) ($c->linha['UND'] ?? '')),
-                'numlote'    => encode_db_value((string) ($c->linha['NUMLOTE'] ?? '')),
+                'numlote'    => '',
                 'bipagens'   => (int) ($c->linha['BIPAGENS'] ?? 0),
                 'quantidade' => (float) ($c->linha['QUANTIDADE'] ?? 0),
             ];
+        }
+
+        return self::comNumeroDoLote($mapa);
+    }
+
+    /**
+     * Preenche o número do lote, numa consulta à parte.
+     *
+     * TLOTEPRD só tem índice em (CODCOLIGADA, IDLOTE). Enquanto o número vinha
+     * por junção, ela casava também por IDPRD — coluna sem índice — e o plano
+     * que o SQL Server escolhia era instável: a MESMA consulta levava 0,1s ou
+     * 23s conforme o plano em cache. Numa contagem de 30 mil lançamentos, a
+     * conferência do relatório simplesmente parava.
+     *
+     * Buscando por IDLOTE, a chave primária resolve. O par produto/lote é
+     * conferido aqui: lote cujo IDPRD não bate com o do código de barras fica
+     * sem número, exatamente como a junção fazia — e isso acontece de verdade,
+     * em código de barras com produto e lote que não combinam.
+     *
+     * @param array<string, array<string, mixed>> $mapa
+     * @return array<string, array<string, mixed>>
+     */
+    private static function comNumeroDoLote(array $mapa): array
+    {
+        $idlotes = [];
+        foreach ($mapa as $linha) {
+            if ((int) $linha['idlote'] > 0) {
+                $idlotes[(int) $linha['idlote']] = true;
+            }
+        }
+
+        if ($idlotes === []) {
+            return $mapa;
+        }
+
+        // Inteiros já saneados por (int): um marcador por item estouraria o
+        // limite de parâmetros com mil lotes.
+        $lista = implode(',', array_keys($idlotes));
+
+        $c = new Connection('RM');
+        $c->Consulta(
+            "SELECT IDLOTE, IDPRD, RTRIM(NUMLOTE) AS NUMLOTE
+             FROM TLOTEPRD
+             WHERE CODCOLIGADA = 1 AND IDLOTE IN ({$lista})"
+        );
+
+        $numeros = [];
+        while ($c->Resultado()) {
+            $numeros[(int) $c->linha['IDPRD'] . ':' . (int) $c->linha['IDLOTE']]
+                = encode_db_value((string) ($c->linha['NUMLOTE'] ?? ''));
+        }
+
+        foreach ($mapa as $chave => $linha) {
+            if (isset($numeros[$chave])) {
+                $mapa[$chave]['numlote'] = $numeros[$chave];
+            }
         }
 
         return $mapa;
