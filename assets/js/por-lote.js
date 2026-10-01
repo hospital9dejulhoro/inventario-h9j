@@ -46,9 +46,19 @@
         return /\d/.test(texto) && /^[\d.,\s\u00a0]+$/.test(texto);
     }
 
+    // Mesmo formato do PHP (formatar_quantidade): milhar com ponto, decimal
+    // com vírgula. Sem o separador, a célula gravada por AJAX mostrava
+    // 1234567 e a mesma célula, depois de recarregar a página, mostrava
+    // 1.234.567 — o mesmo número com duas caras.
     function fmtQtd(n) {
-        var s = Number(n).toFixed(3).replace('.', ',');
-        return s.replace(/,?0+$/, '').replace(/,$/, '') || '0';
+        var num = Number(n);
+        if (!isFinite(num)) {
+            return '0';
+        }
+        var partes = Math.abs(num).toFixed(3).split('.');
+        var inteiro = partes[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        var decimal = partes[1].replace(/0+$/, '');
+        return (num < 0 ? '-' : '') + inteiro + (decimal ? ',' + decimal : '');
     }
 
     function rows() {
